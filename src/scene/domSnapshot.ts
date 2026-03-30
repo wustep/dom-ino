@@ -277,7 +277,7 @@ function walkElement(
 			y = rect.top - rootRect.top,
 			w = rect.width,
 			h = rect.height
-		if (w < 4 || h < 4) {
+		if (w < 1 || h < 1) {
 			walkElement(child, out, rootRect, depth + 1, win)
 			continue
 		}

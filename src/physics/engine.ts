@@ -39,7 +39,9 @@ export function createPhysicsEngine(
 ): PhysicsEngine {
   const engine = Engine.create({
     gravity: { x: 0, y: 0 },
-    enableSleeping: true,
+    // Sleeping disabled — with zero gravity, bodies only move when
+    // thrown, and sleeping can make them unresponsive to MouseConstraint
+    enableSleeping: false,
   });
 
   const runner = Runner.create({ delta: 1000 / 60 });
@@ -72,17 +74,15 @@ export function createPhysicsEngine(
       const body = Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
         isStatic: false,
         friction: 0.5,
-        frictionAir: 0.025,
+        frictionAir: 0.03,
         restitution: 0.3,
         density: 0.002 * mass,
         chamfer: { radius: Math.min(el.borderRadius ?? 0, 6) },
         label: el.id,
-        sleepThreshold: 50,
       });
       bodies.set(el.id, { elementId: el.id, body, originalX: el.rect.x, originalY: el.rect.y, originalW: el.rect.width, originalH: el.rect.height });
       World.add(engine.world, body);
     } else {
-      // Static body so thrown items collide with non-throwable elements
       const body = Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
         isStatic: true,
         friction: 0.6,
@@ -94,10 +94,6 @@ export function createPhysicsEngine(
     }
   }
 
-  // Mouse constraint for drag interactions
-  // IMPORTANT: pixelRatio must be 1 for DOM-based (non-canvas) rendering.
-  // Setting it to devicePixelRatio would divide coords by 2 on retina displays,
-  // making it impossible to grab bodies.
   const mouse = Mouse.create(container);
   mouse.pixelRatio = 1;
 
@@ -112,6 +108,7 @@ export function createPhysicsEngine(
 
   World.add(engine.world, mouseConstraint);
 
+  // Sync mouse offset with container position — fires often to avoid drift
   const syncMouseOffset = () => {
     const rect = container.getBoundingClientRect();
     Mouse.setOffset(mouse, { x: -rect.left, y: -rect.top });
@@ -119,6 +116,8 @@ export function createPhysicsEngine(
 
   window.addEventListener("scroll", syncMouseOffset, { passive: true });
   window.addEventListener("resize", syncMouseOffset, { passive: true });
+  // Also sync before each mouse interaction
+  container.addEventListener("pointerdown", syncMouseOffset, { passive: true });
   syncMouseOffset();
 
   Events.on(engine, "afterUpdate", () => {
@@ -154,6 +153,7 @@ export function createPhysicsEngine(
       Engine.clear(engine);
       window.removeEventListener("scroll", syncMouseOffset);
       window.removeEventListener("resize", syncMouseOffset);
+      container.removeEventListener("pointerdown", syncMouseOffset);
     },
 
     reset() {
@@ -163,7 +163,6 @@ export function createPhysicsEngine(
         Body.setAngle(pb.body, 0);
         Body.setVelocity(pb.body, { x: 0, y: 0 });
         Body.setAngularVelocity(pb.body, 0);
-        (pb.body as Matter.Body & { isSleeping: boolean }).isSleeping = false;
       }
     },
 
@@ -175,23 +174,18 @@ export function createPhysicsEngine(
         if (pb.body.isStatic) continue;
         Body.setVelocity(pb.body, { x: (Math.random() - 0.5) * 35, y: -(Math.random() * 25 + 8) });
         Body.setAngularVelocity(pb.body, (Math.random() - 0.5) * 0.4);
-        (pb.body as Matter.Body & { isSleeping: boolean }).isSleeping = false;
       }
     },
 
     setGravity(x: number, y: number) {
       engine.gravity.x = x;
       engine.gravity.y = y;
-      for (const [, pb] of bodies) {
-        if (!pb.body.isStatic) (pb.body as Matter.Body & { isSleeping: boolean }).isSleeping = false;
-      }
     },
 
     togglePin(id: string) {
       const pb = bodies.get(id);
       if (!pb) return;
       Body.setStatic(pb.body, !pb.body.isStatic);
-      if (!pb.body.isStatic) (pb.body as Matter.Body & { isSleeping: boolean }).isSleeping = false;
     },
 
     isPinned(id: string) { return bodies.get(id)?.body.isStatic ?? false; },
