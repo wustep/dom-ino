@@ -35,6 +35,7 @@ interface ToolbarProps {
   customPages: CustomPage[];
   activeCustomId: string | null;
   onSelectCustomPage: (id: string) => void;
+  onResetAll: () => void;
 }
 
 type FlyoutPanel = "pages" | "settings" | "stash" | null;
@@ -45,7 +46,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     onTogglePicker, pickerMode, fps, bodyCount, lineCount,
     currentPreset, onSelectPreset, onImportHtml, onFetchUrl,
     savedElements, onDropSaved, onClearSaved, onRemoveSaved,
-    customPages, activeCustomId, onSelectCustomPage,
+    customPages, activeCustomId, onSelectCustomPage, onResetAll,
   } = props;
 
   const [openPanel, setOpenPanel] = useState<FlyoutPanel>(null);
@@ -227,6 +228,14 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             <Lbl text="Debug" />
             <Toggle label="Obstacles" checked={settings.showObstacleBounds} onChange={(v) => update({ showObstacleBounds: v })} />
             <Toggle label="Lines" checked={settings.showLineBounds} onChange={(v) => update({ showLineBounds: v })} />
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <button onClick={() => { onResetAll(); setOpenPanel(null); }} style={{
+                width: "100%", padding: "5px 0", borderRadius: 5,
+                border: "1px solid rgba(248,113,113,0.2)", backgroundColor: "transparent",
+                color: "#f87171", fontSize: 9, fontWeight: 600,
+                fontFamily: '"DM Sans", sans-serif', cursor: "pointer",
+              }}>Reset all state</button>
+            </div>
           </div>
           <div style={{ height: 3 }} />
         </div>

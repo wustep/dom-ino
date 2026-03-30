@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DominoScene } from "./components/DominoScene";
 import type { SceneDescription, SceneElement, SavedElement } from "./scene/types";
 import type { PresetKey } from "./scene/presetScenes";
@@ -11,14 +11,44 @@ export interface CustomPage {
   scene: SceneDescription;
 }
 
+const LS_KEY = "domino-state";
+
+interface PersistedState {
+  currentPreset: PresetKey | "custom";
+  activeCustomId: string | null;
+  savedElements: SavedElement[];
+  customPages: CustomPage[];
+}
+
+function loadState(): Partial<PersistedState> {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveState(s: PersistedState) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(s));
+  } catch { /* quota exceeded etc */ }
+}
+
 export default function App() {
+  const persisted = useRef(loadState());
+
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const [currentPreset, setCurrentPreset] = useState<PresetKey | "custom">("article");
-  const [customPages, setCustomPages] = useState<CustomPage[]>([]);
-  const [activeCustomId, setActiveCustomId] = useState<string | null>(null);
+  const [currentPreset, setCurrentPreset] = useState<PresetKey | "custom">(persisted.current.currentPreset ?? "article");
+  const [customPages, setCustomPages] = useState<CustomPage[]>(persisted.current.customPages ?? []);
+  const [activeCustomId, setActiveCustomId] = useState<string | null>(persisted.current.activeCustomId ?? null);
   const [showHint, setShowHint] = useState(true);
   const [sceneKey, setSceneKey] = useState(0);
-  const [savedElements, setSavedElements] = useState<SavedElement[]>([]);
+  const [savedElements, setSavedElements] = useState<SavedElement[]>(persisted.current.savedElements ?? []);
+
+  // Persist state on changes
+  useEffect(() => {
+    saveState({ currentPreset, activeCustomId, savedElements, customPages });
+  }, [currentPreset, activeCustomId, savedElements, customPages]);
 
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -77,17 +107,24 @@ export default function App() {
     await handleImportHtml(html, name);
   }, [handleImportHtml]);
 
-  const handleSceneChange = useCallback((newScene: SceneDescription, remount = true) => {
+  // Ensures modifying a preset creates exactly one custom page fork
+  const ensureCustomPage = useCallback((newScene: SceneDescription): string => {
     if (activeCustomId) {
       setCustomPages((prev) => prev.map((p) => p.id === activeCustomId ? { ...p, scene: newScene } : p));
-    } else {
-      const page: CustomPage = { id: `custom-${Date.now()}`, name: newScene.name || "Modified", scene: newScene };
-      setCustomPages((prev) => [...prev, page]);
-      setActiveCustomId(page.id);
-      setCurrentPreset("custom");
+      return activeCustomId;
     }
-    if (remount) setSceneKey((k) => k + 1);
+    const id = `custom-${Date.now()}`;
+    const page: CustomPage = { id, name: newScene.name || "Modified", scene: newScene };
+    setCustomPages((prev) => [...prev, page]);
+    setActiveCustomId(id);
+    setCurrentPreset("custom");
+    return id;
   }, [activeCustomId]);
+
+  const handleSceneChange = useCallback((newScene: SceneDescription, remount = true) => {
+    ensureCustomPage(newScene);
+    if (remount) setSceneKey((k) => k + 1);
+  }, [ensureCustomPage]);
 
   const handleSaveElement = useCallback((el: SceneElement) => {
     setSavedElements((prev) => {
@@ -110,20 +147,22 @@ export default function App() {
       y: dropY != null ? dropY - el.rect.height / 2 : window.scrollY + windowSize.height / 2 - el.rect.height / 2 + (Math.random() - 0.5) * 60,
     };
     const newScene = { ...scene, elements: [...scene.elements, el] };
-    if (activeCustomId) {
-      setCustomPages((prev) => prev.map((p) => p.id === activeCustomId ? { ...p, scene: newScene } : p));
-    } else {
-      const page: CustomPage = { id: `custom-${Date.now()}`, name: scene.name || "Modified", scene: newScene };
-      setCustomPages((prev) => [...prev, page]);
-      setActiveCustomId(page.id);
-      setCurrentPreset("custom");
-    }
+    ensureCustomPage(newScene);
     setSceneKey((k) => k + 1);
-  }, [scene, activeCustomId, windowSize]);
+  }, [scene, ensureCustomPage, windowSize]);
 
   const handleClearSaved = useCallback(() => setSavedElements([]), []);
   const handleRemoveSaved = useCallback((index: number) => {
     setSavedElements((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleResetAll = useCallback(() => {
+    localStorage.removeItem(LS_KEY);
+    setCurrentPreset("article");
+    setCustomPages([]);
+    setActiveCustomId(null);
+    setSavedElements([]);
+    setSceneKey((k) => k + 1);
   }, []);
 
   return (
@@ -138,6 +177,7 @@ export default function App() {
         onRemoveSaved={handleRemoveSaved}
         customPages={customPages} activeCustomId={activeCustomId}
         onSelectCustomPage={handleSelectCustomPage}
+        onResetAll={handleResetAll}
       />
       {showHint && <Hint />}
     </>

@@ -27,6 +27,7 @@ interface DominoSceneProps {
   customPages?: CustomPage[];
   activeCustomId?: string | null;
   onSelectCustomPage?: (id: string) => void;
+  onResetAll?: () => void;
 }
 
 type BodyPos = { x: number; y: number; angle: number; w: number; h: number };
@@ -52,7 +53,7 @@ export function DominoScene({
   scene, onSceneChange,
   currentPreset, onSelectPreset, onImportHtml, onFetchUrl,
   savedElements, onSaveElement, onUnsaveElement, onDropSaved, onClearSaved, onRemoveSaved,
-  customPages, activeCustomId, onSelectCustomPage,
+  customPages, activeCustomId, onSelectCustomPage, onResetAll,
 }: DominoSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const physicsRef = useRef<PhysicsEngine | null>(null);
@@ -226,6 +227,7 @@ export function DominoScene({
         onClearSaved={onClearSaved} onRemoveSaved={onRemoveSaved}
         customPages={customPages ?? []} activeCustomId={activeCustomId ?? null}
         onSelectCustomPage={onSelectCustomPage ?? (() => {})}
+        onResetAll={onResetAll ?? (() => {})}
       />
     </div>
   );
