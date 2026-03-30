@@ -185,13 +185,87 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
   };
 }
 
-export type PresetKey = "article" | "dashboard" | "landing" | "editorial";
+export function createBubblesScene(vw: number, vh: number): SceneDescription {
+  const w = Math.min(vw - 40, 800);
+  const mx = Math.max(20, (vw - w) / 2);
+  const H = Math.max(vh, 1200);
+  const chatW = Math.min(w * 0.45, 340);
+  const chatX = mx + (w - chatW) / 2;
+
+  // Bubble messages as throwable cards
+  const msgs: { text: string; sent: boolean; w: number; h: number }[] = [
+    { text: "Yo did you see the new Pretext library?", sent: false, w: chatW * 0.75, h: 44 },
+    { text: "yeah! It measures text without the DOM. Pure JavaScript arithmetic", sent: true, w: chatW * 0.8, h: 52 },
+    { text: "That shrinkwrap demo is wild", sent: false, w: chatW * 0.6, h: 44 },
+    { text: "\uC131\uB2A5 \uCD5C\uC801\uD654\uAC00 \uC815\uB9D0 \uB9CE\uC774 \uB418\uC5C8\uB354\uB77C\uACE0\uC694 \uD83C\uDF89", sent: true, w: chatW * 0.7, h: 44 },
+    { text: "Oh wow it handles CJK and emoji too??", sent: false, w: chatW * 0.65, h: 44 },
+    { text: "the best part: zero layout reflow", sent: true, w: chatW * 0.6, h: 44 },
+  ];
+
+  let bubbleY = 280;
+  const bubbleEls = msgs.map((m, i) => {
+    const bx = m.sent ? chatX + chatW - m.w - 12 : chatX + 12;
+    const el = {
+      id: `bubble-${i}`, type: "card" as const,
+      rect: { x: bx, y: bubbleY, width: m.w, height: m.h },
+      throwable: true, pinned: false,
+      text: m.text,
+      fontSize: 14, fontWeight: 400 as number, fontFamily: SANS,
+      color: "#fff",
+      backgroundColor: m.sent ? "#0b84fe" : "#2c2c2e",
+      borderRadius: 16, padding: 10,
+      border: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+      mass: 0.3,
+    };
+    bubbleY += m.h + 8;
+    return el;
+  });
+
+  return {
+    id: "bubbles", name: "Bubbles", width: vw, height: H, backgroundColor: "#f4f1ea",
+    elements: [
+      // Header
+      { id: "b-eyebrow", type: "heading", rect: { x: mx, y: 24, width: w, height: 16 }, throwable: false, pinned: true, text: "DEMO", fontSize: 11, fontWeight: 600, fontFamily: MONO, lineHeight: 14, color: "#955f3b" },
+      { id: "b-title", type: "heading", rect: { x: mx, y: 44, width: w, height: 40 }, throwable: false, pinned: true, text: "Shrinkwrap Showdown", fontSize: 30, fontWeight: 700, fontFamily: SERIF, lineHeight: 36, color: "#201b18" },
+      { id: "b-intro", type: "paragraph", rect: { x: mx, y: 92, width: Math.min(w, 560), height: 80 }, throwable: false, pinned: true,
+        text: `CSS width: fit-content sizes a bubble to its widest wrapped line, leaving dead space when the last line is short. Pretext finds the tightest width that still wraps to the exact same number of lines \u2014 zero wasted pixels.`,
+        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#6d645d" },
+
+      // Chat container background
+      { id: "b-chat-bg", type: "card", rect: { x: chatX - 16, y: 200, width: chatW + 32, height: bubbleY - 200 + 20 }, throwable: false, pinned: true,
+        backgroundColor: "#1c1c1e", borderRadius: 18, padding: 16, border: "none", boxShadow: "0 18px 40px rgba(54,40,23,0.08)" },
+
+      // Chat label
+      { id: "b-chat-label", type: "heading", rect: { x: chatX - 16, y: 204, width: chatW + 32, height: 18 }, throwable: false, pinned: true, text: "Messages", fontSize: 11, fontWeight: 600, fontFamily: SANS, lineHeight: 16, color: "#666", textAlign: "center" },
+
+      // Bubbles
+      ...bubbleEls,
+
+      // Explanation below
+      { id: "b-why-h", type: "heading", rect: { x: mx, y: bubbleY + 60, width: w, height: 28 }, throwable: false, pinned: true, text: "Why can\u2019t CSS do this?", fontSize: 20, fontWeight: 700, fontFamily: SERIF, lineHeight: 28, color: "#201b18" },
+      { id: "b-why", type: "paragraph", rect: { x: mx, y: bubbleY + 96, width: w, height: 200 }, throwable: false, pinned: true,
+        text: `CSS only knows fit-content, which is the width of the widest line after wrapping. If a paragraph wraps to three lines and the last line is short, CSS still sizes the container to the longest line. There is no CSS property to say "find the narrowest width that still produces exactly three lines." That requires measuring the text at multiple widths and comparing line counts, which is exactly what Pretext's walkLineRanges() does \u2014 without DOM text measurement in the resize path. Pure arithmetic, no reflows, instant results.`,
+        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#6d645d" },
+
+      // Throwable metric badges
+      { id: "b-metric-1", type: "badge", rect: { x: mx, y: bubbleY + 20, width: 130, height: 28 }, throwable: true, pinned: false, text: "0 wasted px", fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#201b18", backgroundColor: "#f0e4da", borderRadius: 14, padding: 6, mass: 0.15 },
+      { id: "b-metric-2", type: "badge", rect: { x: mx + 140, y: bubbleY + 20, width: 100, height: 28 }, throwable: true, pinned: false, text: "0ms reflow", fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#201b18", backgroundColor: "#f0e4da", borderRadius: 14, padding: 6, mass: 0.15 },
+      { id: "b-metric-3", type: "badge", rect: { x: mx + 250, y: bubbleY + 20, width: 110, height: 28 }, throwable: true, pinned: false, text: "0 DOM reads", fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#201b18", backgroundColor: "#f0e4da", borderRadius: 14, padding: 6, mass: 0.15 },
+
+      // Credit
+      { id: "b-credit", type: "heading", rect: { x: mx, y: bubbleY + 320, width: w, height: 14 }, throwable: false, pinned: true, text: "Adapted from chenglou/pretext bubbles demo", fontSize: 9, fontWeight: 400, fontFamily: MONO, lineHeight: 14, color: "#bbb" },
+    ],
+  };
+}
+
+export type PresetKey = "article" | "dashboard" | "landing" | "editorial" | "bubbles";
 
 export const PRESET_LIST: { key: PresetKey; label: string }[] = [
   { key: "article", label: "Article" },
   { key: "dashboard", label: "Dashboard" },
   { key: "landing", label: "Landing" },
   { key: "editorial", label: "Editorial" },
+  { key: "bubbles", label: "Bubbles" },
 ];
 
 export function getPresetScene(key: PresetKey, vw: number, vh: number): SceneDescription {
@@ -200,5 +274,6 @@ export function getPresetScene(key: PresetKey, vw: number, vh: number): SceneDes
     case "dashboard": return createDashboardScene(vw, vh);
     case "landing": return createLandingScene(vw, vh);
     case "editorial": return createEditorialScene(vw, vh);
+    case "bubbles": return createBubblesScene(vw, vh);
   }
 }

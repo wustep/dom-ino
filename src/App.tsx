@@ -89,8 +89,8 @@ export default function App() {
     setShowHint(false);
   }, []);
 
-  const handleImportHtml = useCallback(async (html: string, name: string) => {
-    const raw = await snapshotHtmlToScene(html, Math.min(windowSize.width - 40, 1100), name);
+  const handleImportHtml = useCallback(async (html: string, name: string, sourceUrl?: string) => {
+    const raw = await snapshotHtmlToScene(html, Math.min(windowSize.width - 40, 1100), name, sourceUrl);
     const withThrowables = autoSelectThrowables(raw);
     const page: CustomPage = { id: `custom-${Date.now()}`, name, scene: withThrowables };
     setCustomPages((prev) => [...prev, page]);
@@ -101,10 +101,10 @@ export default function App() {
   }, [windowSize.width]);
 
   const handleFetchUrl = useCallback(async (url: string) => {
-    const html = await fetchPageHtml(url);
+    const result = await fetchPageHtml(url);
     let name = url.replace(/^https?:\/\//, "").split("/")[0];
     if (name.length > 25) name = name.slice(0, 25) + "...";
-    await handleImportHtml(html, name);
+    await handleImportHtml(result.html, name, result.url);
   }, [handleImportHtml]);
 
   // Ensures modifying a preset creates exactly one custom page fork
