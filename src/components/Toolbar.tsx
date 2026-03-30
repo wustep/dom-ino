@@ -100,7 +100,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         }}
       >
         <style>{`
-          .domino-collapsed-trigger .domino-collapsed-btn { opacity: 0; transform: translateY(4px); transition: opacity 0.2s, transform 0.2s; }
+          .domino-collapsed-trigger .domino-collapsed-btn { opacity: 0; transform: translateY(4px); transition: opacity 0.5s ease, transform 0.3s ease; }
           .domino-collapsed-trigger:hover .domino-collapsed-btn { opacity: 1; transform: translateY(0); }
         `}</style>
         <div className="domino-collapsed-trigger" style={{ width: "100%", height: "100%" }}>

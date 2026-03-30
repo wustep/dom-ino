@@ -65,12 +65,15 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
             {element.text}
           </div>
         );
-      case "badge":
+      case "badge": {
+        const bg = element.backgroundColor ?? "#333";
+        const isGradient = bg.includes("gradient");
         return (
-          <div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#333", borderRadius: element.borderRadius ?? 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 11, fontWeight: element.fontWeight ?? 700, fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: "0.05em" }}>
+          <div style={{ width: "100%", height: "100%", ...(isGradient ? { background: bg } : { backgroundColor: bg }), borderRadius: element.borderRadius ?? 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 11, fontWeight: element.fontWeight ?? 700, fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: "0.05em", boxShadow: element.boxShadow }}>
             {element.text}
           </div>
         );
+      }
       case "image":
         return (
           <div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#e5e5e5", borderRadius: element.borderRadius ?? 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: element.boxShadow }}>
