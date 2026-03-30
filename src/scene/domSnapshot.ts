@@ -43,16 +43,75 @@ function getDirectTextContent(el: HTMLElement): string {
   return text.trim();
 }
 
-function injectBaseTag(html: string, sourceUrl?: string): string {
+/**
+ * Resolve a potentially relative URL against a base origin.
+ */
+function resolveUrl(href: string, baseOrigin: string): string {
+  if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("//")) {
+    return href.startsWith("//") ? "https:" + href : href;
+  }
+  return baseOrigin + (href.startsWith("/") ? "" : "/") + href;
+}
+
+/**
+ * Fetch all external <link rel="stylesheet"> URLs through our proxy
+ * and inline them as <style> tags so the iframe doesn't need cross-origin CSS loads.
+ */
+async function inlineExternalStyles(html: string, sourceUrl?: string): Promise<string> {
   if (!sourceUrl) return html;
-  try {
-    const url = new URL(sourceUrl);
-    const base = `<base href="${url.origin}/">`;
-    if (/<head[^>]*>/i.test(html)) {
-      return html.replace(/<head[^>]*>/i, (m) => m + base);
+
+  let origin: string;
+  try { origin = new URL(sourceUrl).origin; } catch { return html; }
+
+  // Find all stylesheet link tags
+  const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi;
+  const hrefRegex = /href=["']([^"']+)["']/i;
+  const links = html.match(linkRegex) || [];
+
+  const inlinedStyles: string[] = [];
+
+  // Fetch each stylesheet through our proxy (parallel, with timeout)
+  const fetches = links.map(async (linkTag) => {
+    const hrefMatch = linkTag.match(hrefRegex);
+    if (!hrefMatch) return null;
+    const cssUrl = resolveUrl(hrefMatch[1], origin);
+    try {
+      const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, { signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        const css = await res.text();
+        if (css.length > 10 && css.length < 500000) return { linkTag, css };
+      }
+    } catch { /* skip this stylesheet */ }
+    return null;
+  });
+
+  const results = await Promise.all(fetches);
+
+  let modified = html;
+  for (const r of results) {
+    if (!r) continue;
+    inlinedStyles.push(r.css);
+    // Remove the original <link> tag since we're inlining the CSS
+    modified = modified.replace(r.linkTag, "");
+  }
+
+  if (inlinedStyles.length > 0) {
+    const styleBlock = `<style>${inlinedStyles.join("\n")}</style>`;
+    // Inject before </head> or at the start
+    if (/<\/head>/i.test(modified)) {
+      modified = modified.replace(/<\/head>/i, styleBlock + "</head>");
+    } else {
+      modified = styleBlock + modified;
     }
-    return base + html;
-  } catch { return html; }
+  }
+
+  // Also inject a <base> tag for remaining relative URLs (images, etc.)
+  const base = `<base href="${origin}/">`;
+  if (/<head[^>]*>/i.test(modified)) {
+    modified = modified.replace(/<head[^>]*>/i, (m) => m + base);
+  }
+
+  return modified;
 }
 
 // ─── Main snapshot function ───
@@ -60,32 +119,34 @@ function injectBaseTag(html: string, sourceUrl?: string): string {
 export async function snapshotHtmlToScene(
   html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
 ): Promise<SceneDescription> {
-  // Try iframe approach first
-  const iframeResult = await tryIframeSnapshot(html, containerWidth, sceneName, sourceUrl);
+  // Inline external CSS so iframe can render with styles
+  const prepared = await inlineExternalStyles(html, sourceUrl);
+
+  // Try iframe approach with inlined CSS
+  const iframeResult = await tryIframeSnapshot(prepared, containerWidth, sceneName);
   if (iframeResult && iframeResult.elements.length >= 5) {
     return iframeResult;
   }
 
-  // Fall back to structural HTML parser (doesn't depend on CSS rendering)
+  // Fall back to structural HTML parser
   return parseHtmlStructure(html, containerWidth, sceneName);
 }
 
 // ─── Iframe-based snapshot ───
 
 function tryIframeSnapshot(
-  html: string, containerWidth: number, sceneName: string, sourceUrl?: string
+  html: string, containerWidth: number, sceneName: string
 ): Promise<SceneDescription | null> {
   return new Promise((resolve) => {
     const iframe = document.createElement("iframe");
-    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:3000px;border:none;visibility:hidden;pointer-events:none;`;
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:4000px;border:none;visibility:hidden;pointer-events:none;`;
     iframe.sandbox.add("allow-same-origin");
-    iframe.sandbox.add("allow-scripts");
-    iframe.srcdoc = injectBaseTag(html, sourceUrl);
+    iframe.srcdoc = html;
 
     const timeout = setTimeout(() => {
       try { document.body.removeChild(iframe); } catch {}
       resolve(null);
-    }, 5000);
+    }, 8000);
 
     iframe.onload = () => {
       const attempt = (retries: number) => {
@@ -98,7 +159,7 @@ function tryIframeSnapshot(
           walkElement(doc.body, elements, doc.body.getBoundingClientRect(), 0, win);
 
           if (elements.length < 5 && retries > 0) {
-            setTimeout(() => attempt(retries - 1), 600);
+            setTimeout(() => attempt(retries - 1), 800);
             return;
           }
 
@@ -114,7 +175,8 @@ function tryIframeSnapshot(
           } : null);
         } catch { clearTimeout(timeout); try { document.body.removeChild(iframe); } catch {} resolve(null); }
       };
-      setTimeout(() => attempt(2), 800);
+      // Wait for inlined CSS to apply
+      setTimeout(() => attempt(3), 300);
     };
 
     iframe.onerror = () => { clearTimeout(timeout); try { document.body.removeChild(iframe); } catch {} resolve(null); };
@@ -122,7 +184,7 @@ function tryIframeSnapshot(
   });
 }
 
-// ─── Structure-based HTML parser (no CSS needed) ───
+// ─── Structure-based HTML parser fallback ───
 
 function parseHtmlStructure(html: string, containerWidth: number, sceneName: string): SceneDescription {
   const SANS = '"DM Sans", "Helvetica Neue", sans-serif';
@@ -132,11 +194,9 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
   const elements: SceneElement[] = [];
   let y = 32;
 
-  // Parse into a temp DOM (no rendering, just structure)
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
 
-  // Extract title
   const title = doc.title?.trim() || sceneName;
   elements.push({
     id: `sp-${snapshotCounter++}`, type: "heading",
@@ -146,7 +206,6 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
   });
   y += 52;
 
-  // Extract meta description
   const descMeta = doc.querySelector('meta[name="description"]') as HTMLMetaElement | null;
   if (descMeta?.content) {
     elements.push({
@@ -158,43 +217,42 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
     y += 70;
   }
 
-  // Walk the body and extract content elements
   const body = doc.body;
   if (body) {
     const skipTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "LINK", "META", "HEAD", "NAV", "FOOTER", "ASIDE", "TEMPLATE", "IFRAME"]);
 
+    function extractInlineColor(el: Element): string | undefined {
+      const style = el.getAttribute("style") || "";
+      const m = style.match(/color\s*:\s*([^;]+)/i);
+      return m ? m[1].trim() : undefined;
+    }
+    function extractInlineBg(el: Element): string | undefined {
+      const style = el.getAttribute("style") || "";
+      const m = style.match(/background(?:-color)?\s*:\s*([^;]+)/i);
+      return m ? m[1].trim() : undefined;
+    }
+
     function walk(el: Element) {
-      if (y > 3000) return;
+      if (y > 5000) return;
       for (const child of Array.from(el.children)) {
-        if (y > 3000) return;
+        if (y > 5000) return;
         const tag = child.tagName;
         if (skipTags.has(tag)) continue;
 
-        // Skip hidden elements by class/id heuristics
         const cls = (child.className || "").toString().toLowerCase();
         const id = (child.id || "").toLowerCase();
         if (cls.includes("hidden") || cls.includes("modal") || cls.includes("popup") || cls.includes("cookie") ||
             id.includes("hidden") || id.includes("modal") || id.includes("popup")) continue;
 
         if (tag === "HR") {
-          elements.push({
-            id: `sp-${snapshotCounter++}`, type: "divider",
-            rect: { x: mx, y, width: contentW, height: 1 },
-            throwable: false, pinned: true, backgroundColor: "#ddd",
-          });
+          elements.push({ id: `sp-${snapshotCounter++}`, type: "divider", rect: { x: mx, y, width: contentW, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" });
           y += 16;
           continue;
         }
 
         if (tag === "IMG") {
           const alt = (child as HTMLImageElement).alt || "";
-          elements.push({
-            id: `sp-${snapshotCounter++}`, type: "image",
-            rect: { x: mx, y, width: Math.min(contentW, 400), height: 200 },
-            throwable: true, pinned: false,
-            backgroundColor: "#e8e5e0", borderRadius: 8,
-            imageAlt: alt, mass: 2,
-          });
+          elements.push({ id: `sp-${snapshotCounter++}`, type: "image", rect: { x: mx, y, width: Math.min(contentW, 400), height: 200 }, throwable: true, pinned: false, backgroundColor: "#e8e5e0", borderRadius: 8, imageAlt: alt, imageSrc: (child as HTMLImageElement).src, mass: 2 });
           y += 216;
           continue;
         }
@@ -205,13 +263,14 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
           const level = parseInt(tag[1]);
           const fontSize = [0, 28, 24, 20, 17, 15, 14][level];
           const lineH = [0, 34, 30, 26, 24, 22, 20][level];
-          const height = Math.min(Math.ceil(text.length / (contentW / (fontSize * 0.55))) * lineH + 8, 120);
+          const charsPerLine = Math.floor(contentW / (fontSize * 0.55));
+          const height = Math.min(Math.ceil(text.length / charsPerLine) * lineH + 8, 120);
           elements.push({
             id: `sp-${snapshotCounter++}`, type: "heading",
             rect: { x: mx, y, width: contentW, height },
             throwable: false, pinned: true, text,
             fontSize, fontWeight: 700, fontFamily: level <= 2 ? SERIF : SANS,
-            lineHeight: lineH, color: "#1a1a1a",
+            lineHeight: lineH, color: extractInlineColor(child) || "#1a1a1a",
           });
           y += height + 12;
           continue;
@@ -219,19 +278,37 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
 
         if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION") {
           const text = (child.textContent || "").trim();
-          if (!text || text.length < 3 || text.length > 3000) { walk(child); continue; }
+          if (!text || text.length < 3 || text.length > 5000) { walk(child); continue; }
           const lineH = 24;
           const charsPerLine = Math.floor(contentW / 9);
           const lineCount = Math.ceil(text.length / charsPerLine);
-          const height = Math.min(lineCount * lineH + 8, 400);
+          const height = Math.min(lineCount * lineH + 8, 600);
           elements.push({
             id: `sp-${snapshotCounter++}`, type: "paragraph",
             rect: { x: mx, y, width: contentW, height },
             throwable: false, pinned: true, text,
             fontSize: 15, fontWeight: 400, fontFamily: SERIF,
-            lineHeight: lineH, color: "#333",
+            lineHeight: lineH, color: extractInlineColor(child) || "#333",
+            backgroundColor: extractInlineBg(child),
           });
           y += height + 14;
+          continue;
+        }
+
+        if (tag === "TABLE") {
+          // Render table as a card with text summary
+          const text = (child.textContent || "").trim().slice(0, 500);
+          if (text.length > 10) {
+            elements.push({
+              id: `sp-${snapshotCounter++}`, type: "card",
+              rect: { x: mx, y, width: contentW, height: 120 },
+              throwable: true, pinned: false, text: text.slice(0, 120) + (text.length > 120 ? "..." : ""),
+              fontSize: 12, fontWeight: 400, fontFamily: SANS, lineHeight: 18,
+              color: "#444", backgroundColor: "#f9f9f9", borderRadius: 8, padding: 12,
+              border: "1px solid #e0e0e0", mass: 1,
+            });
+            y += 136;
+          }
           continue;
         }
 
@@ -243,7 +320,7 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
             rect: { x: mx, y, width: Math.min(text.length * 9 + 32, 200), height: 36 },
             throwable: true, pinned: false, text,
             fontSize: 13, fontWeight: 600, fontFamily: SANS,
-            color: "#fff", backgroundColor: "#1a1a1a",
+            color: "#fff", backgroundColor: extractInlineBg(child) || "#1a1a1a",
             borderRadius: 8, mass: 0.3,
           });
           y += 48;
@@ -254,21 +331,37 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
           const text = (child.textContent || "").trim();
           if (!text || text.length < 3 || text.length > 1000) continue;
           const lineH = 22;
-          const charsPerLine = Math.floor(contentW / 9);
+          const charsPerLine = Math.floor((contentW - 16) / 9);
           const lineCount = Math.ceil(text.length / charsPerLine);
           const height = Math.min(lineCount * lineH + 4, 200);
           elements.push({
             id: `sp-${snapshotCounter++}`, type: "paragraph",
             rect: { x: mx + 16, y, width: contentW - 16, height },
             throwable: false, pinned: true, text: "\u2022 " + text,
-            fontSize: 14, fontWeight: 400, fontFamily: SANS,
-            lineHeight: lineH, color: "#444",
+            fontSize: 14, fontWeight: 400, fontFamily: SANS, lineHeight: lineH, color: "#444",
           });
           y += height + 6;
           continue;
         }
 
-        // For containers, recurse
+        // For divs with inline styles that give them visual identity, capture as cards
+        const inlineBg = extractInlineBg(child);
+        if (inlineBg && child.children.length <= 4) {
+          const text = (child.textContent || "").trim().slice(0, 200);
+          if (text) {
+            elements.push({
+              id: `sp-${snapshotCounter++}`, type: "card",
+              rect: { x: mx, y, width: contentW, height: 80 },
+              throwable: true, pinned: false, text,
+              fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 20,
+              color: extractInlineColor(child) || "#333",
+              backgroundColor: inlineBg, borderRadius: 8, padding: 12, mass: 0.8,
+            });
+            y += 96;
+            continue;
+          }
+        }
+
         walk(child);
       }
     }
@@ -290,30 +383,24 @@ export async function fetchPageHtml(url: string): Promise<{ html: string; url: s
   if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
     normalizedUrl = "https://" + normalizedUrl;
   }
-
   try {
-    const res = await fetch(
-      `/api/fetch-page?url=${encodeURIComponent(normalizedUrl)}`,
-      { signal: AbortSignal.timeout(18000) }
-    );
+    const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(normalizedUrl)}`, { signal: AbortSignal.timeout(18000) });
     if (res.ok) {
       const text = await res.text();
       if (text.length > 100 && !text.startsWith('{"error')) return { html: text, url: normalizedUrl };
     }
   } catch { /* try fallback */ }
-
   try {
     const res = await fetch(normalizedUrl, { signal: AbortSignal.timeout(8000) });
     if (res.ok) return { html: await res.text(), url: normalizedUrl };
   } catch { /* fall through */ }
-
   throw new Error(`Could not fetch ${normalizedUrl}. Try pasting HTML directly instead.`);
 }
 
 // ─── Iframe DOM walker ───
 
 function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, depth: number, win: Window) {
-  if (depth > 12) return;
+  if (depth > 14) return;
   const children = Array.from(el.children).filter((c): c is HTMLElement => c instanceof HTMLElement);
   for (const child of children) {
     const tag = child.tagName;
