@@ -54,50 +54,81 @@ function resolveUrl(href: string, baseOrigin: string): string {
 }
 
 /**
- * Fetch all external <link rel="stylesheet"> URLs through our proxy
- * and inline them as <style> tags so the iframe doesn't need cross-origin CSS loads.
+ * Rewrite relative url() references inside CSS to absolute URLs.
  */
-async function inlineExternalStyles(html: string, sourceUrl?: string): Promise<string> {
+function rewriteCssUrls(css: string, cssBaseUrl: string): string {
+  let origin: string;
+  let basePath: string;
+  try {
+    const u = new URL(cssBaseUrl);
+    origin = u.origin;
+    basePath = u.pathname.replace(/\/[^/]*$/, "/");
+  } catch { return css; }
+
+  return css.replace(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi, (match, ref: string) => {
+    if (ref.startsWith("data:") || ref.startsWith("http://") || ref.startsWith("https://") || ref.startsWith("//")) {
+      return match;
+    }
+    const abs = ref.startsWith("/") ? origin + ref : origin + basePath + ref;
+    return `url("${abs}")`;
+  });
+}
+
+/**
+ * Rewrite relative src/srcset/href attributes in HTML to absolute URLs.
+ */
+function rewriteHtmlUrls(html: string, origin: string): string {
+  return html
+    .replace(/(src|srcset|poster)=["'](?!data:|http:|https:|\/\/|#)([^"']+)["']/gi,
+      (_, attr: string, ref: string) => `${attr}="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`)
+    .replace(/(href)=["'](?!data:|http:|https:|\/\/|#|javascript:|mailto:)([^"']+)["']/gi,
+      (_, attr: string, ref: string) => `${attr}="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`);
+}
+
+/**
+ * Fetch external stylesheets via proxy, inline them with absolute URLs,
+ * and rewrite HTML resource URLs to absolute.
+ */
+async function prepareHtmlForSnapshot(html: string, sourceUrl?: string): Promise<string> {
   if (!sourceUrl) return html;
 
   let origin: string;
   try { origin = new URL(sourceUrl).origin; } catch { return html; }
 
-  // Find all stylesheet link tags
+  // 1. Fetch and inline external stylesheets
   const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi;
   const hrefRegex = /href=["']([^"']+)["']/i;
   const links = html.match(linkRegex) || [];
 
-  const inlinedStyles: string[] = [];
-
-  // Fetch each stylesheet through our proxy (parallel, with timeout)
   const fetches = links.map(async (linkTag) => {
     const hrefMatch = linkTag.match(hrefRegex);
     if (!hrefMatch) return null;
     const cssUrl = resolveUrl(hrefMatch[1], origin);
     try {
-      const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, { signal: AbortSignal.timeout(6000) });
+      const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
-        const css = await res.text();
-        if (css.length > 10 && css.length < 500000) return { linkTag, css };
+        let css = await res.text();
+        if (css.length > 10 && css.length < 800000) {
+          css = rewriteCssUrls(css, cssUrl);
+          return { linkTag, css };
+        }
       }
-    } catch { /* skip this stylesheet */ }
+    } catch { /* skip */ }
     return null;
   });
 
   const results = await Promise.all(fetches);
 
   let modified = html;
+  const inlinedStyles: string[] = [];
   for (const r of results) {
     if (!r) continue;
     inlinedStyles.push(r.css);
-    // Remove the original <link> tag since we're inlining the CSS
     modified = modified.replace(r.linkTag, "");
   }
 
   if (inlinedStyles.length > 0) {
     const styleBlock = `<style>${inlinedStyles.join("\n")}</style>`;
-    // Inject before </head> or at the start
     if (/<\/head>/i.test(modified)) {
       modified = modified.replace(/<\/head>/i, styleBlock + "</head>");
     } else {
@@ -105,7 +136,16 @@ async function inlineExternalStyles(html: string, sourceUrl?: string): Promise<s
     }
   }
 
-  // Also inject a <base> tag for remaining relative URLs (images, etc.)
+  // 2. Rewrite inline style url() references too
+  modified = modified.replace(/style=["']([^"']*url\([^)]+\)[^"']*)["']/gi, (match, styleContent: string) => {
+    const rewritten = rewriteCssUrls(styleContent, sourceUrl);
+    return match.replace(styleContent, rewritten);
+  });
+
+  // 3. Rewrite HTML src/href attributes to absolute
+  modified = rewriteHtmlUrls(modified, origin);
+
+  // 4. Inject <base> as final fallback for anything we missed
   const base = `<base href="${origin}/">`;
   if (/<head[^>]*>/i.test(modified)) {
     modified = modified.replace(/<head[^>]*>/i, (m) => m + base);
@@ -119,8 +159,8 @@ async function inlineExternalStyles(html: string, sourceUrl?: string): Promise<s
 export async function snapshotHtmlToScene(
   html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
 ): Promise<SceneDescription> {
-  // Inline external CSS so iframe can render with styles
-  const prepared = await inlineExternalStyles(html, sourceUrl);
+  // Inline CSS, rewrite URLs to absolute so iframe renders correctly
+  const prepared = await prepareHtmlForSnapshot(html, sourceUrl);
 
   // Try iframe approach with inlined CSS
   const iframeResult = await tryIframeSnapshot(prepared, containerWidth, sceneName);
