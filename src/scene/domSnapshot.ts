@@ -1,6 +1,154 @@
+import { snapshot, rebuild, type serializedNodeWithId } from "rrweb-snapshot";
 import type { SceneDescription, SceneElement, SceneElementType } from "./types";
 
 let snapshotCounter = 0;
+
+// ─── Main snapshot function ───
+
+export async function snapshotHtmlToScene(
+  html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
+): Promise<SceneDescription> {
+  // Try rrweb-snapshot approach: render in iframe, serialize, rebuild, walk
+  const rrwebResult = await tryRrwebSnapshot(html, containerWidth, sceneName, sourceUrl);
+  if (rrwebResult && rrwebResult.elements.length >= 3) {
+    return rrwebResult;
+  }
+
+  // Fall back to structural HTML parser
+  return parseHtmlStructure(html, containerWidth, sceneName);
+}
+
+// ─── rrweb-snapshot based capture ───
+
+function injectBaseTag(html: string, sourceUrl?: string): string {
+  if (!sourceUrl) return html;
+  try {
+    const url = new URL(sourceUrl);
+    const base = `<base href="${url.origin}/">`;
+    if (/<head[^>]*>/i.test(html)) {
+      return html.replace(/<head[^>]*>/i, (m) => m + base);
+    }
+    return `<head>${base}</head>` + html;
+  } catch { return html; }
+}
+
+function tryRrwebSnapshot(
+  html: string, containerWidth: number, sceneName: string, sourceUrl?: string
+): Promise<SceneDescription | null> {
+  return new Promise((resolve) => {
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:4000px;border:none;visibility:hidden;pointer-events:none;`;
+    // allow-same-origin so we can access contentDocument
+    // allow-scripts so JS-rendered pages can execute
+    iframe.sandbox.add("allow-same-origin");
+    iframe.sandbox.add("allow-scripts");
+    iframe.srcdoc = injectBaseTag(html, sourceUrl);
+
+    const timeout = setTimeout(() => {
+      try { document.body.removeChild(iframe); } catch {}
+      resolve(null);
+    }, 10000);
+
+    iframe.onload = () => {
+      // Wait for page to render (CSS loading, JS execution)
+      const attempt = (retries: number) => {
+        setTimeout(() => {
+          try {
+            const iframeDoc = iframe.contentDocument;
+            if (!iframeDoc) { cleanup(); resolve(null); return; }
+
+            // Use rrweb-snapshot to serialize the rendered DOM
+            // This inlines all computed styles, resolves URLs, etc.
+            const serialized = snapshot(iframeDoc, {
+              inlineStylesheet: true,
+              inlineImages: false,
+              recordCanvas: false,
+            });
+
+            if (!serialized) {
+              if (retries > 0) { attempt(retries - 1); return; }
+              cleanup(); resolve(null); return;
+            }
+
+            // Rebuild the serialized DOM in a hidden container
+            const container = document.createElement("div");
+            container.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;overflow:hidden;visibility:hidden;pointer-events:none;`;
+            document.body.appendChild(container);
+
+            // Create a wrapper document context for rebuild
+            const rebuildDoc = document;
+            const node = rebuild(serialized as serializedNodeWithId, {
+              doc: rebuildDoc,
+              hackCss: true,
+              cache: { stylesWithHoverClass: new Map() },
+            });
+
+            if (node) {
+              container.appendChild(node);
+            }
+
+            // Give the rebuilt DOM a moment to layout
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                try {
+                  const elements: SceneElement[] = [];
+                  const containerRect = container.getBoundingClientRect();
+                  walkElement(container, elements, containerRect, 0, window);
+
+                  if (elements.length < 3 && retries > 0) {
+                    document.body.removeChild(container);
+                    attempt(retries - 1);
+                    return;
+                  }
+
+                  const maxY = elements.reduce((m, el) => Math.max(m, el.rect.y + el.rect.height), 600);
+
+                  // Try to get background color
+                  let bgColor = "#ffffff";
+                  const bodyEl = container.querySelector("body") || container.firstElementChild;
+                  if (bodyEl instanceof HTMLElement) {
+                    const cs = window.getComputedStyle(bodyEl);
+                    const bg = parseColor(cs.backgroundColor);
+                    if (bg) bgColor = bg;
+                  }
+
+                  document.body.removeChild(container);
+                  cleanup();
+
+                  resolve(elements.length >= 3 ? {
+                    id: `snapshot-${Date.now()}`, name: sceneName,
+                    width: containerWidth, height: Math.max(maxY + 100, 800),
+                    backgroundColor: bgColor, elements,
+                  } : null);
+                } catch {
+                  try { document.body.removeChild(container); } catch {}
+                  cleanup();
+                  resolve(null);
+                }
+              });
+            });
+          } catch {
+            if (retries > 0) { attempt(retries - 1); return; }
+            cleanup(); resolve(null);
+          }
+        }, 1200);
+      };
+
+      attempt(2);
+    };
+
+    iframe.onerror = () => { cleanup(); resolve(null); };
+
+    function cleanup() {
+      clearTimeout(timeout);
+      try { document.body.removeChild(iframe); } catch {}
+    }
+
+    document.body.appendChild(iframe);
+  });
+}
+
+// ─── DOM walker (shared by rrweb rebuild and iframe approaches) ───
 
 const TAG_TYPE_MAP: Record<string, SceneElementType> = {
   H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading",
@@ -42,400 +190,6 @@ function getDirectTextContent(el: HTMLElement): string {
   for (const node of el.childNodes) { if (node.nodeType === Node.TEXT_NODE) text += node.textContent; }
   return text.trim();
 }
-
-/**
- * Resolve a potentially relative URL against a base origin.
- */
-function resolveUrl(href: string, baseOrigin: string): string {
-  if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("//")) {
-    return href.startsWith("//") ? "https:" + href : href;
-  }
-  return baseOrigin + (href.startsWith("/") ? "" : "/") + href;
-}
-
-/**
- * Rewrite relative url() references inside CSS to absolute URLs.
- */
-function rewriteCssUrls(css: string, cssBaseUrl: string): string {
-  let origin: string;
-  let basePath: string;
-  try {
-    const u = new URL(cssBaseUrl);
-    origin = u.origin;
-    basePath = u.pathname.replace(/\/[^/]*$/, "/");
-  } catch { return css; }
-
-  return css.replace(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi, (match, ref: string) => {
-    if (ref.startsWith("data:") || ref.startsWith("http://") || ref.startsWith("https://") || ref.startsWith("//")) {
-      return match;
-    }
-    const abs = ref.startsWith("/") ? origin + ref : origin + basePath + ref;
-    return `url("${abs}")`;
-  });
-}
-
-/**
- * Rewrite img src attributes to absolute. Only targets <img> tags
- * to avoid breaking script/link/etc tags.
- */
-function rewriteImgUrls(html: string, origin: string): string {
-  return html.replace(/<img([^>]*)\ssrc=["'](?!data:|http:|https:|\/\/)([^"']+)["']/gi,
-    (match, before: string, ref: string) =>
-      `<img${before} src="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`
-  );
-}
-
-/**
- * Fetch external stylesheets via proxy, inline them with absolute URLs,
- * and rewrite HTML resource URLs to absolute.
- */
-async function prepareHtmlForSnapshot(html: string, sourceUrl?: string): Promise<string> {
-  if (!sourceUrl) return html;
-
-  let origin: string;
-  try { origin = new URL(sourceUrl).origin; } catch { return html; }
-
-  // 1. Fetch and inline external stylesheets
-  const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi;
-  const hrefRegex = /href=["']([^"']+)["']/i;
-  const links = html.match(linkRegex) || [];
-
-  const fetches = links.map(async (linkTag) => {
-    const hrefMatch = linkTag.match(hrefRegex);
-    if (!hrefMatch) return null;
-    const rawHref = hrefMatch[1].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
-    const cssUrl = resolveUrl(rawHref, origin);
-    try {
-      const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, { signal: AbortSignal.timeout(8000) });
-      if (res.ok) {
-        let css = await res.text();
-        if (css.length > 10 && css.length < 800000) {
-          css = rewriteCssUrls(css, cssUrl);
-          return { linkTag, css };
-        }
-      }
-    } catch { /* skip */ }
-    return null;
-  });
-
-  const results = await Promise.all(fetches);
-
-  let modified = html;
-  const inlinedStyles: string[] = [];
-  for (const r of results) {
-    if (!r) continue;
-    inlinedStyles.push(r.css);
-    modified = modified.replace(r.linkTag, "");
-  }
-
-  if (inlinedStyles.length > 0) {
-    const styleBlock = `<style>${inlinedStyles.join("\n")}</style>`;
-    if (/<\/head>/i.test(modified)) {
-      modified = modified.replace(/<\/head>/i, styleBlock + "</head>");
-    } else {
-      modified = styleBlock + modified;
-    }
-  }
-
-  // 2. Rewrite <img src> to absolute (since <base> in srcdoc can be unreliable)
-  modified = rewriteImgUrls(modified, origin);
-
-  // 3. Inject <base> tag — handles remaining relative URLs (a href, etc.)
-  const base = `<base href="${origin}/">`;
-  if (/<head[^>]*>/i.test(modified)) {
-    modified = modified.replace(/<head[^>]*>/i, (m) => m + base);
-  }
-
-  // 4. Remove scripts to avoid executing foreign JS in sandbox
-  modified = modified.replace(/<script[\s\S]*?<\/script>/gi, "");
-
-  return modified;
-}
-
-// ─── Main snapshot function ───
-
-export async function snapshotHtmlToScene(
-  html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
-): Promise<SceneDescription> {
-  // Inline CSS, rewrite URLs to absolute so iframe renders correctly
-  const prepared = await prepareHtmlForSnapshot(html, sourceUrl);
-
-  // Try iframe approach with inlined CSS
-  const iframeResult = await tryIframeSnapshot(prepared, containerWidth, sceneName);
-  if (iframeResult && iframeResult.elements.length >= 5) {
-    return iframeResult;
-  }
-
-  // Fall back to structural HTML parser
-  return parseHtmlStructure(html, containerWidth, sceneName);
-}
-
-// ─── Iframe-based snapshot ───
-
-function tryIframeSnapshot(
-  html: string, containerWidth: number, sceneName: string
-): Promise<SceneDescription | null> {
-  return new Promise((resolve) => {
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:4000px;border:none;visibility:hidden;pointer-events:none;`;
-    iframe.sandbox.add("allow-same-origin");
-    iframe.srcdoc = html;
-
-    const timeout = setTimeout(() => {
-      try { document.body.removeChild(iframe); } catch {}
-      resolve(null);
-    }, 8000);
-
-    iframe.onload = () => {
-      const attempt = (retries: number) => {
-        try {
-          const doc = iframe.contentDocument;
-          const win = doc?.defaultView;
-          if (!doc || !doc.body || !win) { clearTimeout(timeout); document.body.removeChild(iframe); resolve(null); return; }
-
-          const elements: SceneElement[] = [];
-          walkElement(doc.body, elements, doc.body.getBoundingClientRect(), 0, win);
-
-          if (elements.length < 5 && retries > 0) {
-            setTimeout(() => attempt(retries - 1), 800);
-            return;
-          }
-
-          clearTimeout(timeout);
-          const maxY = elements.reduce((m, el) => Math.max(m, el.rect.y + el.rect.height), 600);
-          const bgColor = parseColor(win.getComputedStyle(doc.body).backgroundColor) || "#ffffff";
-          document.body.removeChild(iframe);
-
-          resolve(elements.length >= 5 ? {
-            id: `snapshot-${Date.now()}`, name: sceneName,
-            width: containerWidth, height: Math.max(maxY + 100, 800),
-            backgroundColor: bgColor, elements,
-          } : null);
-        } catch { clearTimeout(timeout); try { document.body.removeChild(iframe); } catch {} resolve(null); }
-      };
-      // Wait for inlined CSS to apply
-      setTimeout(() => attempt(3), 300);
-    };
-
-    iframe.onerror = () => { clearTimeout(timeout); try { document.body.removeChild(iframe); } catch {} resolve(null); };
-    document.body.appendChild(iframe);
-  });
-}
-
-// ─── Structure-based HTML parser fallback ───
-
-function parseHtmlStructure(html: string, containerWidth: number, sceneName: string): SceneDescription {
-  const SANS = '"DM Sans", "Helvetica Neue", sans-serif';
-  const SERIF = '"Source Serif 4", Georgia, serif';
-  const mx = 40;
-  const contentW = Math.min(containerWidth - 80, 800);
-  const elements: SceneElement[] = [];
-  let y = 32;
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-
-  const title = doc.title?.trim() || sceneName;
-  elements.push({
-    id: `sp-${snapshotCounter++}`, type: "heading",
-    rect: { x: mx, y, width: contentW, height: 44 },
-    throwable: false, pinned: true, text: title,
-    fontSize: 30, fontWeight: 700, fontFamily: SANS, lineHeight: 38, color: "#1a1a1a",
-  });
-  y += 52;
-
-  const descMeta = doc.querySelector('meta[name="description"]') as HTMLMetaElement | null;
-  if (descMeta?.content) {
-    elements.push({
-      id: `sp-${snapshotCounter++}`, type: "paragraph",
-      rect: { x: mx, y, width: contentW, height: 60 },
-      throwable: false, pinned: true, text: descMeta.content.trim(),
-      fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#666",
-    });
-    y += 70;
-  }
-
-  const body = doc.body;
-  if (body) {
-    const skipTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "LINK", "META", "HEAD", "NAV", "FOOTER", "ASIDE", "TEMPLATE", "IFRAME"]);
-
-    function extractInlineColor(el: Element): string | undefined {
-      const style = el.getAttribute("style") || "";
-      const m = style.match(/color\s*:\s*([^;]+)/i);
-      return m ? m[1].trim() : undefined;
-    }
-    function extractInlineBg(el: Element): string | undefined {
-      const style = el.getAttribute("style") || "";
-      const m = style.match(/background(?:-color)?\s*:\s*([^;]+)/i);
-      return m ? m[1].trim() : undefined;
-    }
-
-    function walk(el: Element) {
-      if (y > 5000) return;
-      for (const child of Array.from(el.children)) {
-        if (y > 5000) return;
-        const tag = child.tagName;
-        if (skipTags.has(tag)) continue;
-
-        const cls = (child.className || "").toString().toLowerCase();
-        const id = (child.id || "").toLowerCase();
-        if (cls.includes("hidden") || cls.includes("modal") || cls.includes("popup") || cls.includes("cookie") ||
-            id.includes("hidden") || id.includes("modal") || id.includes("popup")) continue;
-
-        if (tag === "HR") {
-          elements.push({ id: `sp-${snapshotCounter++}`, type: "divider", rect: { x: mx, y, width: contentW, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" });
-          y += 16;
-          continue;
-        }
-
-        if (tag === "IMG") {
-          const alt = (child as HTMLImageElement).alt || "";
-          elements.push({ id: `sp-${snapshotCounter++}`, type: "image", rect: { x: mx, y, width: Math.min(contentW, 400), height: 200 }, throwable: true, pinned: false, backgroundColor: "#e8e5e0", borderRadius: 8, imageAlt: alt, imageSrc: (child as HTMLImageElement).src, mass: 2 });
-          y += 216;
-          continue;
-        }
-
-        if (/^H[1-6]$/.test(tag)) {
-          const text = (child.textContent || "").trim();
-          if (!text || text.length > 500) { walk(child); continue; }
-          const level = parseInt(tag[1]);
-          const fontSize = [0, 28, 24, 20, 17, 15, 14][level];
-          const lineH = [0, 34, 30, 26, 24, 22, 20][level];
-          const charsPerLine = Math.floor(contentW / (fontSize * 0.55));
-          const height = Math.min(Math.ceil(text.length / charsPerLine) * lineH + 8, 120);
-          elements.push({
-            id: `sp-${snapshotCounter++}`, type: "heading",
-            rect: { x: mx, y, width: contentW, height },
-            throwable: false, pinned: true, text,
-            fontSize, fontWeight: 700, fontFamily: level <= 2 ? SERIF : SANS,
-            lineHeight: lineH, color: extractInlineColor(child) || "#1a1a1a",
-          });
-          y += height + 12;
-          continue;
-        }
-
-        if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION") {
-          const text = (child.textContent || "").trim();
-          if (!text || text.length < 3 || text.length > 5000) { walk(child); continue; }
-          const lineH = 24;
-          const charsPerLine = Math.floor(contentW / 9);
-          const lineCount = Math.ceil(text.length / charsPerLine);
-          const height = Math.min(lineCount * lineH + 8, 600);
-          elements.push({
-            id: `sp-${snapshotCounter++}`, type: "paragraph",
-            rect: { x: mx, y, width: contentW, height },
-            throwable: false, pinned: true, text,
-            fontSize: 15, fontWeight: 400, fontFamily: SERIF,
-            lineHeight: lineH, color: extractInlineColor(child) || "#333",
-            backgroundColor: extractInlineBg(child),
-          });
-          y += height + 14;
-          continue;
-        }
-
-        if (tag === "TABLE") {
-          // Render table as a card with text summary
-          const text = (child.textContent || "").trim().slice(0, 500);
-          if (text.length > 10) {
-            elements.push({
-              id: `sp-${snapshotCounter++}`, type: "card",
-              rect: { x: mx, y, width: contentW, height: 120 },
-              throwable: true, pinned: false, text: text.slice(0, 120) + (text.length > 120 ? "..." : ""),
-              fontSize: 12, fontWeight: 400, fontFamily: SANS, lineHeight: 18,
-              color: "#444", backgroundColor: "#f9f9f9", borderRadius: 8, padding: 12,
-              border: "1px solid #e0e0e0", mass: 1,
-            });
-            y += 136;
-          }
-          continue;
-        }
-
-        if (tag === "BUTTON" || (tag === "A" && child.children.length <= 2 && (child.textContent || "").length < 40)) {
-          const text = (child.textContent || "").trim();
-          if (!text || text.length > 40) { walk(child); continue; }
-          elements.push({
-            id: `sp-${snapshotCounter++}`, type: "button",
-            rect: { x: mx, y, width: Math.min(text.length * 9 + 32, 200), height: 36 },
-            throwable: true, pinned: false, text,
-            fontSize: 13, fontWeight: 600, fontFamily: SANS,
-            color: "#fff", backgroundColor: extractInlineBg(child) || "#1a1a1a",
-            borderRadius: 8, mass: 0.3,
-          });
-          y += 48;
-          continue;
-        }
-
-        if (tag === "LI") {
-          const text = (child.textContent || "").trim();
-          if (!text || text.length < 3 || text.length > 1000) continue;
-          const lineH = 22;
-          const charsPerLine = Math.floor((contentW - 16) / 9);
-          const lineCount = Math.ceil(text.length / charsPerLine);
-          const height = Math.min(lineCount * lineH + 4, 200);
-          elements.push({
-            id: `sp-${snapshotCounter++}`, type: "paragraph",
-            rect: { x: mx + 16, y, width: contentW - 16, height },
-            throwable: false, pinned: true, text: "\u2022 " + text,
-            fontSize: 14, fontWeight: 400, fontFamily: SANS, lineHeight: lineH, color: "#444",
-          });
-          y += height + 6;
-          continue;
-        }
-
-        // For divs with inline styles that give them visual identity, capture as cards
-        const inlineBg = extractInlineBg(child);
-        if (inlineBg && child.children.length <= 4) {
-          const text = (child.textContent || "").trim().slice(0, 200);
-          if (text) {
-            elements.push({
-              id: `sp-${snapshotCounter++}`, type: "card",
-              rect: { x: mx, y, width: contentW, height: 80 },
-              throwable: true, pinned: false, text,
-              fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 20,
-              color: extractInlineColor(child) || "#333",
-              backgroundColor: inlineBg, borderRadius: 8, padding: 12, mass: 0.8,
-            });
-            y += 96;
-            continue;
-          }
-        }
-
-        walk(child);
-      }
-    }
-
-    walk(body);
-  }
-
-  return {
-    id: `snapshot-${Date.now()}`, name: sceneName,
-    width: containerWidth, height: Math.max(y + 100, 800),
-    backgroundColor: "#ffffff", elements,
-  };
-}
-
-// ─── URL fetching ───
-
-export async function fetchPageHtml(url: string): Promise<{ html: string; url: string }> {
-  let normalizedUrl = url.trim();
-  if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
-    normalizedUrl = "https://" + normalizedUrl;
-  }
-  try {
-    const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(normalizedUrl)}`, { signal: AbortSignal.timeout(18000) });
-    if (res.ok) {
-      const text = await res.text();
-      if (text.length > 100 && !text.startsWith('{"error')) return { html: text, url: normalizedUrl };
-    }
-  } catch { /* try fallback */ }
-  try {
-    const res = await fetch(normalizedUrl, { signal: AbortSignal.timeout(8000) });
-    if (res.ok) return { html: await res.text(), url: normalizedUrl };
-  } catch { /* fall through */ }
-  throw new Error(`Could not fetch ${normalizedUrl}. Try pasting HTML directly instead.`);
-}
-
-// ─── Iframe DOM walker ───
 
 function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, depth: number, win: Window) {
   if (depth > 14) return;
@@ -481,6 +235,100 @@ function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, de
       element.children = childElements.map((ce) => ({ ...ce, rect: { ...ce.rect, x: ce.rect.x - x, y: ce.rect.y - y } }));
     }
   }
+}
+
+// ─── Structure-based fallback parser ───
+
+function parseHtmlStructure(html: string, containerWidth: number, sceneName: string): SceneDescription {
+  const SANS = '"DM Sans", "Helvetica Neue", sans-serif';
+  const SERIF = '"Source Serif 4", Georgia, serif';
+  const mx = 40;
+  const contentW = Math.min(containerWidth - 80, 800);
+  const elements: SceneElement[] = [];
+  let y = 32;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  const title = doc.title?.trim() || sceneName;
+  elements.push({ id: `sp-${snapshotCounter++}`, type: "heading", rect: { x: mx, y, width: contentW, height: 44 }, throwable: false, pinned: true, text: title, fontSize: 30, fontWeight: 700, fontFamily: SANS, lineHeight: 38, color: "#1a1a1a" });
+  y += 52;
+
+  const descMeta = doc.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+  if (descMeta?.content) {
+    elements.push({ id: `sp-${snapshotCounter++}`, type: "paragraph", rect: { x: mx, y, width: contentW, height: 60 }, throwable: false, pinned: true, text: descMeta.content.trim(), fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#666" });
+    y += 70;
+  }
+
+  const body = doc.body;
+  if (body) {
+    const skipTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "LINK", "META", "HEAD", "NAV", "FOOTER", "ASIDE", "TEMPLATE", "IFRAME"]);
+
+    function walk(el: Element) {
+      if (y > 5000) return;
+      for (const child of Array.from(el.children)) {
+        if (y > 5000) return;
+        const tag = child.tagName;
+        if (skipTags.has(tag)) continue;
+        const cls = (child.className || "").toString().toLowerCase();
+        const cid = (child.id || "").toLowerCase();
+        if (cls.includes("hidden") || cls.includes("modal") || cls.includes("popup") || cls.includes("cookie") || cid.includes("hidden") || cid.includes("modal")) continue;
+
+        if (tag === "HR") { elements.push({ id: `sp-${snapshotCounter++}`, type: "divider", rect: { x: mx, y, width: contentW, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" }); y += 16; continue; }
+        if (tag === "IMG") { elements.push({ id: `sp-${snapshotCounter++}`, type: "image", rect: { x: mx, y, width: Math.min(contentW, 400), height: 200 }, throwable: true, pinned: false, backgroundColor: "#e8e5e0", borderRadius: 8, imageAlt: (child as HTMLImageElement).alt, imageSrc: (child as HTMLImageElement).src, mass: 2 }); y += 216; continue; }
+        if (/^H[1-6]$/.test(tag)) {
+          const text = (child.textContent || "").trim();
+          if (!text || text.length > 500) { walk(child); continue; }
+          const level = parseInt(tag[1]);
+          const fs = [0, 28, 24, 20, 17, 15, 14][level];
+          const lh = [0, 34, 30, 26, 24, 22, 20][level];
+          const h = Math.min(Math.ceil(text.length / Math.floor(contentW / (fs * 0.55))) * lh + 8, 120);
+          elements.push({ id: `sp-${snapshotCounter++}`, type: "heading", rect: { x: mx, y, width: contentW, height: h }, throwable: false, pinned: true, text, fontSize: fs, fontWeight: 700, fontFamily: level <= 2 ? SERIF : SANS, lineHeight: lh, color: "#1a1a1a" });
+          y += h + 12; continue;
+        }
+        if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION") {
+          const text = (child.textContent || "").trim();
+          if (!text || text.length < 3 || text.length > 5000) { walk(child); continue; }
+          const cpl = Math.floor(contentW / 9);
+          const h = Math.min(Math.ceil(text.length / cpl) * 24 + 8, 600);
+          elements.push({ id: `sp-${snapshotCounter++}`, type: "paragraph", rect: { x: mx, y, width: contentW, height: h }, throwable: false, pinned: true, text, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" });
+          y += h + 14; continue;
+        }
+        if (tag === "LI") {
+          const text = (child.textContent || "").trim();
+          if (!text || text.length < 3 || text.length > 1000) continue;
+          const h = Math.min(Math.ceil(text.length / Math.floor((contentW - 16) / 9)) * 22 + 4, 200);
+          elements.push({ id: `sp-${snapshotCounter++}`, type: "paragraph", rect: { x: mx + 16, y, width: contentW - 16, height: h }, throwable: false, pinned: true, text: "\u2022 " + text, fontSize: 14, fontWeight: 400, fontFamily: SANS, lineHeight: 22, color: "#444" });
+          y += h + 6; continue;
+        }
+        walk(child);
+      }
+    }
+    walk(body);
+  }
+
+  return { id: `snapshot-${Date.now()}`, name: sceneName, width: containerWidth, height: Math.max(y + 100, 800), backgroundColor: "#ffffff", elements };
+}
+
+// ─── URL fetching ───
+
+export async function fetchPageHtml(url: string): Promise<{ html: string; url: string }> {
+  let normalizedUrl = url.trim();
+  if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+    normalizedUrl = "https://" + normalizedUrl;
+  }
+  try {
+    const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(normalizedUrl)}`, { signal: AbortSignal.timeout(18000) });
+    if (res.ok) {
+      const text = await res.text();
+      if (text.length > 100 && !text.startsWith('{"error')) return { html: text, url: normalizedUrl };
+    }
+  } catch { /* try fallback */ }
+  try {
+    const res = await fetch(normalizedUrl, { signal: AbortSignal.timeout(8000) });
+    if (res.ok) return { html: await res.text(), url: normalizedUrl };
+  } catch { /* fall through */ }
+  throw new Error(`Could not fetch ${normalizedUrl}. Try pasting HTML directly instead.`);
 }
 
 export function autoSelectThrowables(scene: SceneDescription): SceneDescription {
