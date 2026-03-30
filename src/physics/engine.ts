@@ -97,6 +97,10 @@ export function createPhysicsEngine(
   const mouse = Mouse.create(container);
   mouse.pixelRatio = 1;
 
+  // Matter's Mouse adds a non-passive 'wheel' listener that calls preventDefault(),
+  // blocking native page scrolling. Remove it since we don't use wheelDelta.
+  container.removeEventListener("wheel", (mouse as any).mousewheel);
+
   const mouseConstraint = MouseConstraint.create(engine, {
     mouse,
     constraint: {
