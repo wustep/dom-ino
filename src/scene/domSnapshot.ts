@@ -7,55 +7,118 @@ let snapshotCounter = 0;
 export async function snapshotHtmlToScene(
   html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
 ): Promise<SceneDescription> {
-  // Try rendering in iframe and walking the live DOM directly
-  const result = await tryIframeWalk(html, containerWidth, sceneName, sourceUrl);
+  // Step 1: Prepare HTML — fetch CSS through proxy and inline it
+  const prepared = sourceUrl ? await prepareHtml(html, sourceUrl) : html;
+
+  // Step 2: Render in iframe and walk the live DOM
+  const result = await renderAndWalk(prepared, containerWidth, sceneName);
   if (result && result.elements.length >= 3) {
     return result;
   }
-  // Fall back to structural HTML parser
+
+  // Step 3: Fall back to structure parser
   return parseHtmlStructure(html, containerWidth, sceneName);
 }
 
-// ─── Iframe-based DOM walk ───
-// Renders HTML in a sandboxed iframe with scripts enabled,
-// waits for it to render, then walks the live DOM directly
-// reading computed styles. No serialize/rebuild round-trip needed.
+// ─── HTML preparation: inline CSS + fix URLs ───
 
-function injectBaseTag(html: string, sourceUrl?: string): string {
-  if (!sourceUrl) return html;
-  try {
-    const url = new URL(sourceUrl);
-    const base = `<base href="${url.origin}/">`;
-    if (/<head[^>]*>/i.test(html)) {
-      return html.replace(/<head[^>]*>/i, (m) => m + base);
-    }
-    return `<head>${base}</head>` + html;
-  } catch { return html; }
+async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
+  let origin: string;
+  try { origin = new URL(sourceUrl).origin; } catch { return html; }
+
+  let modified = html;
+
+  // 1. Fetch external stylesheets through our proxy and inline them
+  const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi;
+  const hrefRegex = /href=["']([^"']+)["']/i;
+  const links = modified.match(linkRegex) || [];
+
+  const cssResults = await Promise.all(links.map(async (linkTag) => {
+    const m = linkTag.match(hrefRegex);
+    if (!m) return null;
+    // Decode HTML entities in href
+    const rawHref = m[1].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    const cssUrl = rawHref.startsWith("http") || rawHref.startsWith("//")
+      ? (rawHref.startsWith("//") ? "https:" + rawHref : rawHref)
+      : origin + (rawHref.startsWith("/") ? "" : "/") + rawHref;
+    try {
+      const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        let css = await res.text();
+        if (css.length > 10 && css.length < 1000000) {
+          // Rewrite url() references in CSS to absolute
+          const cssBase = cssUrl.replace(/[^/]*$/, "");
+          css = css.replace(/url\(\s*['"]?(?!data:|https?:|\/\/)([^'")]+)['"]?\s*\)/gi,
+            (_, ref: string) => {
+              const abs = ref.startsWith("/") ? origin + ref : cssBase + ref;
+              return `url("${abs}")`;
+            });
+          return { linkTag, css };
+        }
+      }
+    } catch { /* skip */ }
+    return null;
+  }));
+
+  for (const r of cssResults) {
+    if (!r) continue;
+    modified = modified.replace(r.linkTag, `<style>${r.css}</style>`);
+  }
+
+  // 2. Rewrite <img src> to absolute
+  modified = modified.replace(/<img([^>]*)\ssrc=["'](?!data:|https?:|\/\/)([^"']+)["']/gi,
+    (match, before: string, ref: string) =>
+      `<img${before} src="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`);
+
+  // 3. Rewrite srcset to absolute
+  modified = modified.replace(/srcset=["'](?!data:|https?:)([^"']+)["']/gi,
+    (_, srcset: string) => {
+      const fixed = srcset.replace(/(?:^|,\s*)(?!https?:)(\/[^\s,]+)/g,
+        (m2, ref: string) => m2.replace(ref, origin + ref));
+      return `srcset="${fixed}"`;
+    });
+
+  // 4. Remove scripts to prevent foreign JS execution
+  modified = modified.replace(/<script[\s\S]*?<\/script>/gi, "");
+
+  // 5. Add base tag for remaining relative URLs
+  const base = `<base href="${origin}/">`;
+  if (/<head[^>]*>/i.test(modified)) {
+    modified = modified.replace(/<head[^>]*>/i, (m) => m + base);
+  } else {
+    modified = `<head>${base}</head>` + modified;
+  }
+
+  return modified;
 }
 
-function tryIframeWalk(
-  html: string, containerWidth: number, sceneName: string, sourceUrl?: string
+// ─── Iframe render + walk ───
+
+function renderAndWalk(
+  html: string, containerWidth: number, sceneName: string
 ): Promise<SceneDescription | null> {
   return new Promise((resolve) => {
     const iframe = document.createElement("iframe");
-    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:5000px;border:none;visibility:hidden;pointer-events:none;`;
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:6000px;border:none;visibility:hidden;pointer-events:none;`;
+    // Only allow-same-origin (no scripts since we stripped them)
     iframe.sandbox.add("allow-same-origin");
-    iframe.sandbox.add("allow-scripts");
-    iframe.srcdoc = injectBaseTag(html, sourceUrl);
+    iframe.srcdoc = html;
 
     const timeout = setTimeout(() => {
       try { document.body.removeChild(iframe); } catch {}
       resolve(null);
-    }, 12000);
+    }, 10000);
 
     iframe.onload = () => {
-      // Retry logic: wait for CSS/JS to render, then walk
+      // CSS is inlined so it applies immediately; small wait for images
       const attempt = (retries: number) => {
         setTimeout(() => {
           try {
             const doc = iframe.contentDocument;
             const win = iframe.contentWindow;
-            if (!doc || !doc.body || !win) {
+            if (!doc?.body || !win) {
               clearTimeout(timeout);
               try { document.body.removeChild(iframe); } catch {}
               resolve(null);
@@ -66,7 +129,6 @@ function tryIframeWalk(
             const bodyRect = doc.body.getBoundingClientRect();
             walkElement(doc.body, elements, bodyRect, 0, win);
 
-            // If we found very few elements, retry (page might still be rendering)
             if (elements.length < 3 && retries > 0) {
               attempt(retries - 1);
               return;
@@ -75,12 +137,12 @@ function tryIframeWalk(
             const maxY = elements.reduce((m, el) => Math.max(m, el.rect.y + el.rect.height), 600);
 
             let bgColor = "#ffffff";
-            const bodyCs = win.getComputedStyle(doc.body);
-            const htmlCs = doc.documentElement ? win.getComputedStyle(doc.documentElement) : null;
-            const bodyBg = parseColor(bodyCs.backgroundColor);
-            const htmlBg = htmlCs ? parseColor(htmlCs.backgroundColor) : "";
-            if (bodyBg) bgColor = bodyBg;
-            else if (htmlBg) bgColor = htmlBg;
+            try {
+              const bodyBg = parseColor(win.getComputedStyle(doc.body).backgroundColor);
+              const htmlBg = parseColor(win.getComputedStyle(doc.documentElement).backgroundColor);
+              if (bodyBg) bgColor = bodyBg;
+              else if (htmlBg) bgColor = htmlBg;
+            } catch { /* */ }
 
             clearTimeout(timeout);
             try { document.body.removeChild(iframe); } catch {}
@@ -96,7 +158,7 @@ function tryIframeWalk(
             try { document.body.removeChild(iframe); } catch {}
             resolve(null);
           }
-        }, 1500);
+        }, 500);
       };
 
       attempt(3);
@@ -156,7 +218,7 @@ function getDirectTextContent(el: HTMLElement): string {
 }
 
 function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, depth: number, win: Window) {
-  if (depth > 14) return;
+  if (depth > 20) return;
   const children = Array.from(el.children).filter((c): c is HTMLElement => c instanceof HTMLElement);
   for (const child of children) {
     const tag = child.tagName;
@@ -167,7 +229,7 @@ function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, de
     const rect = child.getBoundingClientRect();
     const x = rect.left - rootRect.left, y = rect.top - rootRect.top, w = rect.width, h = rect.height;
     if (w < 1 || h < 1) { walkElement(child, out, rootRect, depth + 1, win); continue; }
-    if (x + w < -100 || y + h < -100 || x > rootRect.width + 100) continue;
+    if (x + w < -100 || y + h < -100 || x > rootRect.width + 200) continue;
     const type = inferElementType(child, cs);
     const id = `snap-${snapshotCounter++}`;
     if (type === "container" && child.children.length > 0) {
@@ -225,7 +287,6 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
     y += 70;
   }
 
-  // Try to get OG image
   const ogImage = doc.querySelector('meta[property="og:image"]') as HTMLMetaElement | null;
   if (ogImage?.content) {
     elements.push({ id: `sp-${snapshotCounter++}`, type: "image", rect: { x: mx, y, width: Math.min(contentW, 600), height: 300 }, throwable: true, pinned: false, backgroundColor: "#f0f0f0", borderRadius: 8, imageSrc: ogImage.content, imageAlt: "Page preview", mass: 2 });
@@ -235,7 +296,6 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
   const body = doc.body;
   if (body) {
     const skipTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "LINK", "META", "HEAD", "NAV", "FOOTER", "ASIDE", "TEMPLATE", "IFRAME"]);
-
     function walk(el: Element) {
       if (y > 5000) return;
       for (const child of Array.from(el.children)) {
@@ -245,7 +305,6 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
         const cls = (child.className || "").toString().toLowerCase();
         const cid = (child.id || "").toLowerCase();
         if (cls.includes("hidden") || cls.includes("modal") || cls.includes("popup") || cls.includes("cookie") || cid.includes("hidden") || cid.includes("modal")) continue;
-
         if (tag === "HR") { elements.push({ id: `sp-${snapshotCounter++}`, type: "divider", rect: { x: mx, y, width: contentW, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" }); y += 16; continue; }
         if (tag === "IMG") { elements.push({ id: `sp-${snapshotCounter++}`, type: "image", rect: { x: mx, y, width: Math.min(contentW, 400), height: 200 }, throwable: true, pinned: false, backgroundColor: "#e8e5e0", borderRadius: 8, imageAlt: (child as HTMLImageElement).alt, imageSrc: (child as HTMLImageElement).src, mass: 2 }); y += 216; continue; }
         if (/^H[1-6]$/.test(tag)) {
