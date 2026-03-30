@@ -111,53 +111,56 @@ export async function snapshotHtmlToScene(
 	return new Promise((resolve) => {
 		const iframe = document.createElement("iframe")
 		iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:3000px;border:none;visibility:hidden;pointer-events:none;`
-		// allow-same-origin so we can read the DOM; allow-scripts for JS-dependent layouts
+		// allow-same-origin to read DOM, allow-scripts so JS-rendered content loads
 		iframe.sandbox.add("allow-same-origin")
+		iframe.sandbox.add("allow-scripts")
 		iframe.srcdoc = injectBaseTag(html, sourceUrl)
 
 		iframe.onload = () => {
-			// Longer wait for external stylesheets to load
-			setTimeout(() => {
+			// Try to snapshot, with a retry for JS-rendered pages
+			const attempt = (retries: number) => {
 				try {
-					const doc = iframe.contentDocument
-					const win = doc?.defaultView
+					const doc = iframe.contentDocument;
+					const win = doc?.defaultView;
 					if (!doc || !doc.body || !win) {
-						resolve(makeFallbackScene(html, containerWidth, sceneName))
-						document.body.removeChild(iframe)
-						return
+						resolve(makeFallbackScene(html, containerWidth, sceneName));
+						document.body.removeChild(iframe);
+						return;
 					}
 
-					const elements: SceneElement[] = []
-					const bodyRect = doc.body.getBoundingClientRect()
-					walkElement(doc.body, elements, bodyRect, 0, win)
+					const elements: SceneElement[] = [];
+					const bodyRect = doc.body.getBoundingClientRect();
+					walkElement(doc.body, elements, bodyRect, 0, win);
 
-					const maxY = elements.reduce(
-						(m, el) => Math.max(m, el.rect.y + el.rect.height),
-						600
-					)
-					const bodyCs = win.getComputedStyle(doc.body)
-					const bgColor = parseColor(bodyCs.backgroundColor) || "#ffffff"
+					if (elements.length < 3 && retries > 0) {
+						// Page might still be rendering via JS — retry
+						setTimeout(() => attempt(retries - 1), 800);
+						return;
+					}
 
-					document.body.removeChild(iframe)
+					const maxY = elements.reduce((m, el) => Math.max(m, el.rect.y + el.rect.height), 600);
+					const bodyCs = win.getComputedStyle(doc.body);
+					const bgColor = parseColor(bodyCs.backgroundColor) || "#ffffff";
+
+					document.body.removeChild(iframe);
 
 					if (elements.length === 0) {
-						resolve(makeFallbackScene(html, containerWidth, sceneName))
-						return
+						resolve(makeFallbackScene(html, containerWidth, sceneName));
+						return;
 					}
 
 					resolve({
-						id: `snapshot-${Date.now()}`,
-						name: sceneName,
-						width: containerWidth,
-						height: Math.max(maxY + 100, 800),
-						backgroundColor: bgColor,
-						elements,
-					})
+						id: `snapshot-${Date.now()}`, name: sceneName,
+						width: containerWidth, height: Math.max(maxY + 100, 800),
+						backgroundColor: bgColor, elements,
+					});
 				} catch {
-					document.body.removeChild(iframe)
-					resolve(makeFallbackScene(html, containerWidth, sceneName))
+					document.body.removeChild(iframe);
+					resolve(makeFallbackScene(html, containerWidth, sceneName));
 				}
-			}, 1000)
+			};
+			// Initial wait for CSS to load, then attempt with retries
+			setTimeout(() => attempt(2), 800);
 		}
 
 		iframe.onerror = () => {
@@ -169,37 +172,61 @@ export async function snapshotHtmlToScene(
 	})
 }
 
+function extractReadableText(html: string): string {
+	// Strip script, style, noscript, svg, and their contents
+	const cleaned = html
+		.replace(/<script[\s\S]*?<\/script>/gi, "")
+		.replace(/<style[\s\S]*?<\/style>/gi, "")
+		.replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+		.replace(/<svg[\s\S]*?<\/svg>/gi, "");
+	const tmp = document.createElement("div");
+	tmp.innerHTML = cleaned;
+	// Get text, collapse whitespace
+	const raw = tmp.textContent ?? "";
+	return raw.replace(/\s+/g, " ").trim();
+}
+
 function makeFallbackScene(
 	html: string,
 	width: number,
 	name: string
 ): SceneDescription {
-	const tmp = document.createElement("div")
-	tmp.innerHTML = html
-	const text =
-		tmp.textContent?.trim().slice(0, 2000) || "Could not parse page content."
+	// Try to extract a title
+	const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+	const title = titleMatch?.[1]?.trim() || name;
+
+	// Try to extract meta description
+	const descMatch = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
+		|| html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i);
+	const description = descMatch?.[1]?.trim() || "";
+
+	const bodyText = extractReadableText(html).slice(0, 3000);
+	const mainText = description
+		? `${description}\n\n${bodyText}`
+		: bodyText || "This page requires JavaScript to render its content.";
+
+	const mx = 40;
+	const contentW = Math.min(width - 80, 700);
+
 	return {
-		id: `snapshot-${Date.now()}`,
-		name,
-		width,
-		height: 800,
-		backgroundColor: "#ffffff",
+		id: `snapshot-${Date.now()}`, name, width, height: 900, backgroundColor: "#ffffff",
 		elements: [
 			{
-				id: `snap-fallback-${snapshotCounter++}`,
-				type: "paragraph",
-				rect: { x: 40, y: 40, width: Math.min(width - 80, 700), height: 600 },
-				throwable: false,
-				pinned: true,
-				text,
-				fontSize: 16,
-				fontWeight: 400,
-				fontFamily: '"DM Sans", sans-serif',
-				lineHeight: 26,
-				color: "#333",
+				id: `snap-title-${snapshotCounter++}`, type: "heading",
+				rect: { x: mx, y: 40, width: contentW, height: 40 },
+				throwable: false, pinned: true, text: title,
+				fontSize: 28, fontWeight: 700, fontFamily: '"DM Sans", sans-serif',
+				lineHeight: 36, color: "#1a1a1a",
+			},
+			{
+				id: `snap-body-${snapshotCounter++}`, type: "paragraph",
+				rect: { x: mx, y: 96, width: contentW, height: 700 },
+				throwable: false, pinned: true, text: mainText,
+				fontSize: 15, fontWeight: 400, fontFamily: '"DM Sans", sans-serif',
+				lineHeight: 24, color: "#444",
 			},
 		],
-	}
+	};
 }
 
 export async function fetchPageHtml(
