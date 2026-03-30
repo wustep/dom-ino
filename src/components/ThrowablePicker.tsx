@@ -17,6 +17,9 @@ const PILL_FONT: React.CSSProperties = {
   letterSpacing: "0.01em",
 };
 
+const CONTROL_HALO = 18;
+const OUTLINE_INSET = CONTROL_HALO - 2;
+
 export const ThrowablePicker = memo(function ThrowablePicker({
   elements, savedElements, onToggle, onSave, onUnsave, onDelete, onClose,
 }: ThrowablePickerProps) {
@@ -72,25 +75,39 @@ export const ThrowablePicker = memo(function ThrowablePicker({
             onMouseLeave={() => setHoveredId(null)}
             style={{
               position: "absolute",
-              left: el.rect.x - 2, top: el.rect.y - 2,
-              width: el.rect.width + 4, height: el.rect.height + 4,
+              left: el.rect.x - CONTROL_HALO,
+              top: el.rect.y - CONTROL_HALO,
+              width: el.rect.width + CONTROL_HALO * 2,
+              height: el.rect.height + CONTROL_HALO * 2,
               zIndex: 205,
-              borderRadius: (el.borderRadius ?? 0) + 2,
-              border: el.throwable
-                ? "2px solid rgba(59,130,246,0.7)"
-                : isHovered ? "2px dashed rgba(59,130,246,0.4)" : "2px dashed rgba(150,150,150,0.2)",
-              backgroundColor: el.throwable
-                ? "rgba(59,130,246,0.06)"
-                : isHovered ? "rgba(59,130,246,0.03)" : "transparent",
-              transition: "border-color 0.15s, background-color 0.15s",
-              boxSizing: "border-box", pointerEvents: "auto",
+              pointerEvents: "auto",
             }}
           >
+            <div
+              style={{
+                position: "absolute",
+                left: OUTLINE_INSET,
+                top: OUTLINE_INSET,
+                width: el.rect.width + 4,
+                height: el.rect.height + 4,
+                borderRadius: (el.borderRadius ?? 0) + 2,
+                border: el.throwable
+                  ? "2px solid rgba(59,130,246,0.7)"
+                  : isHovered ? "2px dashed rgba(59,130,246,0.4)" : "2px dashed rgba(150,150,150,0.2)",
+                backgroundColor: el.throwable
+                  ? "rgba(59,130,246,0.06)"
+                  : isHovered ? "rgba(59,130,246,0.03)" : "transparent",
+                transition: "border-color 0.15s, background-color 0.15s",
+                boxSizing: "border-box",
+                pointerEvents: "none",
+              }}
+            />
+
             {/* Physics pill (top-right) — clickable to toggle */}
             <div
               onClick={(e) => { e.stopPropagation(); onToggle(el.id); }}
               style={{
-                position: "absolute", top: -8, right: -8,
+                position: "absolute", top: CONTROL_HALO - 8, right: CONTROL_HALO - 8,
                 height: 18, borderRadius: 9,
                 padding: wide ? "0 7px" : "0 4px",
                 minWidth: 18,
@@ -115,7 +132,7 @@ export const ThrowablePicker = memo(function ThrowablePicker({
               <div
                 onClick={(e) => { e.stopPropagation(); onUnsave(el.id); }}
                 style={{
-                  position: "absolute", top: -8, left: -8,
+                  position: "absolute", top: CONTROL_HALO - 8, left: CONTROL_HALO - 8,
                   height: 18, borderRadius: 9,
                   padding: wide ? "0 7px" : "0 4px",
                   minWidth: 18,
@@ -137,7 +154,7 @@ export const ThrowablePicker = memo(function ThrowablePicker({
               <div
                 onClick={(e) => { e.stopPropagation(); handleSave(el); }}
                 style={{
-                  position: "absolute", top: -8, left: -8,
+                  position: "absolute", top: CONTROL_HALO - 8, left: CONTROL_HALO - 8,
                   height: 18, borderRadius: 9,
                   padding: "0 7px",
                   backgroundColor: "#7c3aed",
@@ -158,7 +175,7 @@ export const ThrowablePicker = memo(function ThrowablePicker({
               <div
                 onClick={(e) => { e.stopPropagation(); onDelete(el.id); }}
                 style={{
-                  position: "absolute", bottom: -8, right: -8,
+                  position: "absolute", bottom: CONTROL_HALO - 8, right: CONTROL_HALO - 8,
                   width: 18, height: 18, borderRadius: 9,
                   backgroundColor: "#dc2626",
                   border: "2px solid #fff",

@@ -22,6 +22,8 @@ interface ToolbarProps {
   onReset: () => void;
   onTogglePicker: () => void;
   pickerMode: boolean;
+  savePickerMode: boolean;
+  onToggleSavePicker: () => void;
   fps: number;
   bodyCount: number;
   lineCount: number;
@@ -47,7 +49,7 @@ let _pendingPanel: FlyoutPanel = null;
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const {
     settings, onSettingsChange, onExplode, onReset,
-    onTogglePicker, pickerMode, fps, bodyCount, lineCount,
+    onTogglePicker, pickerMode, savePickerMode, onToggleSavePicker, fps, bodyCount, lineCount,
     currentPreset, onSelectPreset, onImportHtml, onFetchUrl,
     savedElements, onDropSaved, onClearSaved, onRemoveSaved,
     customPages, activeCustomId, onSelectCustomPage, onResetAll,
@@ -179,12 +181,23 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <div style={{ ...flyoutBase, bottom: 56, right: 16, width: 300 }}>
           <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>Saved Components</div>
-            {savedElements.length > 0 && <button onClick={onClearSaved} style={{ ...tinyBtnStyle, color: "#f87171" }}>Clear</button>}
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                onClick={() => {
+                  setOpenPanel(null);
+                  onToggleSavePicker();
+                }}
+                style={{ ...tinyBtnStyle, color: savePickerMode ? "#c4b5fd" : "#a78bfa", borderColor: savePickerMode ? "rgba(196,181,253,0.35)" : undefined }}
+              >
+                {savePickerMode ? "Done picking" : "Pick from page"}
+              </button>
+              {savedElements.length > 0 && <button onClick={onClearSaved} style={{ ...tinyBtnStyle, color: "#f87171" }}>Clear</button>}
+            </div>
           </div>
           <div style={{ padding: "6px 10px", maxHeight: 260, overflowY: "auto" }}>
             {savedElements.length === 0 ? (
               <div style={{ padding: "14px 4px", color: "#555", fontSize: 10, fontFamily: '"DM Sans", sans-serif', lineHeight: 1.6 }}>
-                Enter component mode (grid icon) and hover elements to save them to this stash. Then drop them onto other pages.
+                Use `Pick from page` for a quick eyedropper-style save, or enter component mode when you also want to toggle physics and delete elements.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -274,7 +287,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <Sep />
         {/* Components mode: combined picker + stash entry point */}
         <Btn active={pickerMode} onClick={onTogglePicker} tip="Components: toggle throwable & save" accent={pickerMode ? "#3b82f6" : undefined}><PickerIcon /></Btn>
-        <Btn active={openPanel === "stash"} onClick={() => toggle("stash")} tip="Saved components" accent={savedElements.length > 0 ? "#a78bfa" : undefined}>
+        <Btn active={openPanel === "stash" || savePickerMode} onClick={() => toggle("stash")} tip="Saved components" accent={savePickerMode ? "#c4b5fd" : savedElements.length > 0 ? "#a78bfa" : undefined} dataAttrs={{ "data-domino-stash-trigger": "true" }}>
           <StashIcon />
           {savedElements.length > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "#a78bfa", marginLeft: -2 }}>{savedElements.length}</span>}
         </Btn>
@@ -300,8 +313,24 @@ const tinyBtnStyle: React.CSSProperties = { padding: "2px 6px", borderRadius: 4,
 // ─── Sub-components ───
 function Sep() { return <div style={{ width: 1, height: 16, backgroundColor: "rgba(255,255,255,0.06)", margin: "0 1px" }} />; }
 
-function Btn({ children, onClick, active, tip, accent, compact }: { children: React.ReactNode; onClick: () => void; active?: boolean; tip?: string; accent?: string; compact?: boolean }) {
-  return <button onClick={onClick} title={tip} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 7px", borderRadius: 7, border: "none", backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent", color: accent ?? (active ? "#fff" : "#777"), cursor: "pointer", transition: "all 0.12s", height: 30, minWidth: compact ? 24 : 30 }}>{children}</button>;
+function Btn({
+  children,
+  onClick,
+  active,
+  tip,
+  accent,
+  compact,
+  dataAttrs,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  tip?: string;
+  accent?: string;
+  compact?: boolean;
+  dataAttrs?: Record<string, string>;
+}) {
+  return <button {...dataAttrs} onClick={onClick} title={tip} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 7px", borderRadius: 7, border: "none", backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent", color: accent ?? (active ? "#fff" : "#777"), cursor: "pointer", transition: "all 0.12s", height: 30, minWidth: compact ? 24 : 30 }}>{children}</button>;
 }
 
 function Lbl({ text }: { text: string }) { return <div style={{ fontSize: 8, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4, marginBottom: -2 }}>{text}</div>; }

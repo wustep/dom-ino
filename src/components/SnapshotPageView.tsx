@@ -176,7 +176,10 @@ export function SnapshotPageView({
     if (!doc || !win || !doc.body) return;
 
     const root = pickContentRoot(doc);
-    const rootRect = root.getBoundingClientRect();
+    // Physics/text overlays are positioned relative to the iframe viewport,
+    // not the semantic content root. Using root-relative coordinates causes
+    // selected clones to appear shifted away from the original DOM node.
+    const viewportRect = new DOMRect(0, 0, 0, 0);
     const frameRect = iframe.getBoundingClientRect();
     const nodes = new Map<string, HTMLElement>();
     const textNodes = new Map<string, HTMLElement>();
@@ -226,7 +229,7 @@ export function SnapshotPageView({
 
         const dominoId = `snapshot-node-${counter++}`;
         childEl.dataset.dominoId = dominoId;
-        const sceneElement = elementToSceneElement(childEl, rootRect, win);
+        const sceneElement = elementToSceneElement(childEl, viewportRect, win);
         nodes.set(dominoId, childEl);
         if (
           sceneElement &&

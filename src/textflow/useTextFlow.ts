@@ -73,6 +73,7 @@ export function computeTextFlow(
   containerMaxHeight: number,
   obstacles: ObstacleRect[],
   obstaclePadding: number = 8,
+  minSegmentWidth: number = 8,
   allowWordBreaks: boolean = true
 ): TextFlowResult {
   if (!text || containerWidth < 30) {
@@ -104,7 +105,7 @@ export function computeTextFlow(
       right: b.right + obstaclePadding,
     }));
 
-    const segments = getAvailableSegments(padded, cLeft, cRight, 8);
+    const segments = getAvailableSegments(padded, cLeft, cRight, minSegmentWidth);
     if (segments.length === 0) {
       y += lineHeight;
       emptyStreak++;
@@ -140,7 +141,13 @@ export function computeTextFlow(
       placedFragment = true;
     }
 
-    if (!placedFragment) break;
+    if (!placedFragment) {
+      if (exhausted) break;
+      y += lineHeight;
+      emptyStreak++;
+      if (emptyStreak > 5) break;
+      continue;
+    }
 
     cursor = rowCursor;
     y += lineHeight;

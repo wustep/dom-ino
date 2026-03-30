@@ -1,80 +1,540 @@
-import type { SceneDescription } from "../types";
-import { SERIF, SANS, MONO } from "./fonts";
+import type { SceneDescription } from "../types"
+import { SERIF, SANS, MONO } from "./fonts"
+
+const svgUri = (svg: string) =>
+	`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+
+const LEAD_L = `A Sunday front page lives on its contrasts: the heavy certainty of the masthead, the compressed urgency of the deck, the long patience of the columns beneath it. When editorial design works, every inset item has a purpose. The illustration advances the argument. The side note gives the reader a second register of information. The quote does not decorate the copy; it reframes it.`
+
+const LEAD_R = `That is the threshold these presets need to cross. An editorial layout cannot feel like a stack of text boxes with a loose ornament drifting through the middle. It needs the clues of a real publication: issue markers, section labels, an image plate that looks commissioned, and the kind of annotated marginalia a reader expects from a thoughtful print package translated to the web.`
+
+const SEC2_1 = `The technical novelty of a moving page only matters if the composition still feels edited while it moves. That means each object must carry actual semantic weight. A note card should read like reporting. A seal should suggest edition and authorship. The illustration should interrupt the columns with enough authority that its movement changes the reading path rather than merely bouncing around inside it.`
+
+const SEC2_2 = `DOMino's advantage is that those interruptions are not simulated by swapping screenshots. The text is recomputed as geometry. Every line checks the space left by nearby obstacles, fills viable segments, and proceeds. The layout responds with the speed of a physics demo but with the density of a newspaper spread. That combination is what makes the page feel believable once it starts drifting.`
+
+const SEC2_3 = `Richer presets matter because they teach a better instinct. They encourage building pages with side matter, evidence, and narrative staging rather than defaulting to boilerplate hero-copy-plus-card grids. The result is more than a nicer demo. It is a better model for what dynamic editorial interfaces could actually become.`
+
+const DISPATCH = `Editors often describe a finished page as one that can survive being glanced at from several distances. At ten feet, the silhouette should be unmistakable. At one foot, the hierarchy should be legible. At reading distance, the small notes should reward attention. That is the standard a preset like this should aim for as well. Even when its plate, seal, and annotations are thrown out of place, the page should still read as a deliberate publication, not as a wrecked template.`
+
+const EDITORIAL_PLATE = svgUri(`
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="340" viewBox="0 0 300 340" fill="none">
+  <rect width="300" height="340" rx="16" fill="#F7F1E7"/>
+  <rect x="20" y="20" width="260" height="300" rx="12" fill="#FFFDFC" stroke="#D8CFC0"/>
+  <rect x="40" y="42" width="220" height="116" rx="10" fill="#1F2937"/>
+  <circle cx="108" cy="98" r="38" fill="#D4A373"/>
+  <path d="M144 124C168 86 196 78 230 88V158H120C120 146 130 136 144 124Z" fill="#7C3AED"/>
+  <rect x="40" y="176" width="120" height="12" rx="6" fill="#2C241F"/>
+  <rect x="40" y="198" width="148" height="8" rx="4" fill="#C8BCAC"/>
+  <rect x="40" y="214" width="206" height="8" rx="4" fill="#D6CCBF"/>
+  <rect x="40" y="230" width="192" height="8" rx="4" fill="#E3DBD0"/>
+  <rect x="40" y="258" width="92" height="28" rx="14" fill="#EEE7DA"/>
+  <text x="58" y="276" fill="#8A5A21" font-size="12" font-family="Arial, sans-serif" font-weight="700">Plate I</text>
+  <text x="160" y="277" fill="#6B645E" font-size="12" font-family="Arial, sans-serif">A page in motion</text>
+</svg>
+`)
 
 export function createEditorialScene(vw: number, vh: number): SceneDescription {
-  const w = Math.min(vw - 40, 920);
-  const mx = Math.max(20, (vw - w) / 2);
-  const H = Math.max(vh, 1600);
-  const col2W = (w - 28) / 2;
-  const col3W = (w - 48) / 3;
+	const w = Math.min(vw - 40, 940)
+	const mx = Math.max(20, (vw - w) / 2)
+	const H = Math.max(vh, 1660)
+	const col2W = (w - 28) / 2
+	const col3W = (w - 48) / 3
 
-  const COL_L = `In the quiet hours before dawn, when the city sleeps and the machines hum, there exists a peculiar kind of clarity. The words arrange themselves differently at this hour — more honestly, perhaps. The typographer knows this feeling intimately: the moment when spacing clicks into place, when the river of white space between lines finds its natural course, and the page begins to breathe. It is not merely an arrangement of letters; it is an architecture of meaning, built one glyph at a time, tested against the constraints of the medium.`;
+	return {
+		id: "editorial",
+		name: "Editorial",
+		width: vw,
+		height: H,
+		backgroundColor: "#F4F0E8",
+		elements: [
+			{
+				id: "e-r1",
+				type: "divider",
+				rect: { x: mx, y: 20, width: w, height: 3 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#1A1612",
+			},
+			{
+				id: "e-mast",
+				type: "heading",
+				rect: { x: mx, y: 28, width: w, height: 50 },
+				throwable: false,
+				pinned: true,
+				text: "The Editorial Engine",
+				fontSize: 42,
+				fontWeight: 700,
+				fontFamily: SERIF,
+				lineHeight: 48,
+				color: "#1A1612",
+			},
+			{
+				id: "e-vol",
+				type: "heading",
+				rect: { x: mx, y: 80, width: w / 2, height: 16 },
+				throwable: false,
+				pinned: true,
+				text: "Vol. II  |  Sunday edition  |  March 2026",
+				fontSize: 10,
+				fontWeight: 500,
+				fontFamily: MONO,
+				lineHeight: 14,
+				color: "#8F8578",
+			},
+			{
+				id: "e-weather",
+				type: "heading",
+				rect: { x: mx + w - 220, y: 80, width: 120, height: 16 },
+				throwable: false,
+				pinned: true,
+				text: "LONDON  9C  Clear",
+				fontSize: 10,
+				fontWeight: 500,
+				fontFamily: MONO,
+				lineHeight: 14,
+				color: "#8F8578",
+			},
+			{
+				id: "e-price",
+				type: "badge",
+				rect: { x: mx + w - 72, y: 74, width: 72, height: 22 },
+				throwable: true,
+				pinned: false,
+				text: "$3.00",
+				fontSize: 10,
+				fontWeight: 700,
+				fontFamily: MONO,
+				color: "#1A1612",
+				backgroundColor: "#FBF7F1",
+				borderRadius: 0,
+				border: "1px solid #C9BFAF",
+				mass: 0.08,
+			},
+			{
+				id: "e-r2",
+				type: "divider",
+				rect: { x: mx, y: 102, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#B9AFA1",
+			},
+			{
+				id: "e-r2b",
+				type: "divider",
+				rect: { x: mx, y: 105, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#B9AFA1",
+			},
 
-  const COL_R = `The relationship between text and its obstacles has fascinated layout designers since the invention of the printing press. A woodcut illustration dropped into a column of text creates a conversation between image and word. The text must negotiate its path — flowing left when blocked on the right, splitting into rivulets around a central obstruction, sometimes abandoning a line entirely when no space remains. These negotiations happen invisibly in every browser, every typesetting engine on earth.`;
+			{
+				id: "e-sec-1",
+				type: "badge",
+				rect: { x: mx, y: 112, width: 64, height: 20 },
+				throwable: true,
+				pinned: false,
+				text: "ESSAY",
+				fontSize: 9,
+				fontWeight: 700,
+				fontFamily: MONO,
+				color: "#B45309",
+				backgroundColor: "transparent",
+				borderRadius: 0,
+				mass: 0.04,
+			},
+			{
+				id: "e-sec-2",
+				type: "badge",
+				rect: { x: mx + 72, y: 112, width: 76, height: 20 },
+				throwable: true,
+				pinned: false,
+				text: "LAYOUT",
+				fontSize: 9,
+				fontWeight: 700,
+				fontFamily: MONO,
+				color: "#7C3AED",
+				backgroundColor: "transparent",
+				borderRadius: 0,
+				mass: 0.04,
+			},
+			{
+				id: "e-sec-3",
+				type: "badge",
+				rect: { x: mx + 156, y: 112, width: 78, height: 20 },
+				throwable: true,
+				pinned: false,
+				text: "SUNDAY",
+				fontSize: 9,
+				fontWeight: 700,
+				fontFamily: MONO,
+				color: "#0F766E",
+				backgroundColor: "transparent",
+				borderRadius: 0,
+				mass: 0.04,
+			},
 
-  const SEC2_1 = `The physics of digital typography operate on principles that would be familiar to any compositor from the age of hot metal. Weight, space, and rhythm govern the placement of every character. But where the compositor had minutes to set a single line, the modern layout engine must recalculate thousands of lines in a single frame — sixteen milliseconds of pure arithmetic.`;
+			{
+				id: "e-hl",
+				type: "heading",
+				rect: { x: mx, y: 142, width: w, height: 42 },
+				throwable: false,
+				pinned: true,
+				text: "The Page That Learns To Breathe",
+				fontSize: 32,
+				fontWeight: 700,
+				fontFamily: SERIF,
+				lineHeight: 38,
+				color: "#1A1612",
+			},
+			{
+				id: "e-deck",
+				type: "paragraph",
+				rect: { x: mx, y: 194, width: w, height: 56 },
+				throwable: false,
+				pinned: true,
+				text: "A more believable editorial preset needs more than ornamental shapes. It needs the structure of a real spread: a commissioned-looking plate, notes that read like reporting, and a hierarchy that still makes sense after the reader starts disturbing it.",
+				fontSize: 16,
+				fontWeight: 400,
+				fontFamily: SERIF,
+				lineHeight: 24,
+				color: "#5E574F",
+			},
+			{
+				id: "e-by",
+				type: "heading",
+				rect: { x: mx, y: 258, width: w, height: 16 },
+				throwable: false,
+				pinned: true,
+				text: "By the DOMino editorial board  |  Illustration generated in-scene  |  Layout reacts in real time",
+				fontSize: 11,
+				fontWeight: 500,
+				fontFamily: MONO,
+				lineHeight: 16,
+				color: "#8F8578",
+			},
+			{
+				id: "e-r3",
+				type: "divider",
+				rect: { x: mx, y: 286, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#D8CEC0",
+			},
 
-  const SEC2_2 = `Pretext, the engine beneath this demonstration, achieves this through a single key insight: text measurement can be decoupled from the DOM entirely. By pre-computing segment widths using the browser's own font engine, then performing layout as pure mathematics, it sidesteps the most expensive operation in web rendering: layout reflow. The result is text that can be re-laid out hundreds of times per second.`;
+			{
+				id: "e-c1",
+				type: "paragraph",
+				rect: { x: mx, y: 304, width: col2W, height: 368 },
+				throwable: false,
+				pinned: true,
+				text: LEAD_L,
+				fontSize: 15,
+				fontWeight: 400,
+				fontFamily: SERIF,
+				lineHeight: 24,
+				color: "#2D2925",
+			},
+			{
+				id: "e-c2",
+				type: "paragraph",
+				rect: { x: mx + col2W + 28, y: 304, width: col2W, height: 368 },
+				throwable: false,
+				pinned: true,
+				text: LEAD_R,
+				fontSize: 15,
+				fontWeight: 400,
+				fontFamily: SERIF,
+				lineHeight: 24,
+				color: "#2D2925",
+			},
+			{
+				id: "e-plate",
+				type: "image",
+				rect: { x: mx + col2W - 20, y: 380, width: 212, height: 238 },
+				throwable: true,
+				pinned: false,
+				backgroundColor: "#ECE5D8",
+				borderRadius: 10,
+				imageAlt: "Editorial illustration plate",
+				imageSrc: EDITORIAL_PLATE,
+				boxShadow: "0 14px 32px rgba(26,22,18,0.08)",
+				mass: 1.95,
+			},
+			{
+				id: "e-note",
+				type: "card",
+				rect: { x: mx + w - 178, y: 552, width: 178, height: 116 },
+				throwable: true,
+				pinned: false,
+				text: "Editor's note",
+				fontSize: 13,
+				fontWeight: 700,
+				fontFamily: SANS,
+				color: "#1A1612",
+				backgroundColor: "#FFFDF8",
+				borderRadius: 12,
+				padding: 16,
+				border: "1px solid #D9D0C2",
+				boxShadow: "0 8px 20px rgba(26,22,18,0.05)",
+				mass: 0.9,
+				children: [
+					{
+						id: "e-note-a",
+						type: "paragraph",
+						rect: { x: 0, y: 10, width: 0, height: 0 },
+						throwable: false,
+						pinned: true,
+						text: "The plate is movable on purpose. It should alter the reading path, not sit politely in place.",
+						fontSize: 12,
+						fontWeight: 400,
+						fontFamily: SANS,
+						lineHeight: 17,
+						color: "#6A625A",
+					},
+				],
+			},
 
-  const SEC2_3 = `The editorial implications are profound. Imagine a newspaper where the illustrations drift lazily across the page, and the columns of text reform around them like water around stones in a stream. Imagine a textbook where diagrams can be repositioned by the reader, with every paragraph automatically adjusting. This is the future that DOMino explores.`;
+			{
+				id: "e-r4",
+				type: "divider",
+				rect: { x: mx, y: 706, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#CDBFAF",
+			},
+			{
+				id: "e-mid-h",
+				type: "heading",
+				rect: { x: mx, y: 722, width: w, height: 24 },
+				throwable: false,
+				pinned: true,
+				text: "What richer presets teach",
+				fontSize: 22,
+				fontWeight: 700,
+				fontFamily: SERIF,
+				lineHeight: 24,
+				color: "#1A1612",
+			},
+			{
+				id: "e-r5",
+				type: "divider",
+				rect: { x: mx, y: 754, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#D8CEC0",
+			},
 
-  return {
-    id: "editorial", name: "Editorial", width: vw, height: H, backgroundColor: "#f4f1eb",
-    elements: [
-      // Masthead
-      { id: "e-r1", type: "divider", rect: { x: mx, y: 20, width: w, height: 3 }, throwable: false, pinned: true, backgroundColor: "#1a1a1a" },
-      { id: "e-mast", type: "heading", rect: { x: mx, y: 28, width: w, height: 48 }, throwable: false, pinned: true, text: "The Editorial Engine", fontSize: 40, fontWeight: 700, fontFamily: SERIF, lineHeight: 46, color: "#1a1a1a" },
-      { id: "e-vol", type: "heading", rect: { x: mx, y: 78, width: w / 2, height: 16 }, throwable: false, pinned: true, text: "Vol. I · Sunday Edition · March 2026", fontSize: 10, fontWeight: 400, fontFamily: SERIF, lineHeight: 14, color: "#999" },
-      { id: "e-price", type: "badge", rect: { x: mx + w - 60, y: 74, width: 60, height: 20 }, throwable: true, pinned: false, text: "$2.50", fontSize: 10, fontWeight: 600, fontFamily: MONO, color: "#1a1a1a", backgroundColor: "transparent", borderRadius: 0, border: "1px solid #ccc", mass: 0.08 },
-      { id: "e-r2", type: "divider", rect: { x: mx, y: 100, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#bbb" },
-      { id: "e-r2b", type: "divider", rect: { x: mx, y: 103, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#bbb" },
+			{
+				id: "e-t1",
+				type: "paragraph",
+				rect: { x: mx, y: 772, width: col3W, height: 332 },
+				throwable: false,
+				pinned: true,
+				text: SEC2_1,
+				fontSize: 14,
+				fontWeight: 400,
+				fontFamily: SERIF,
+				lineHeight: 22,
+				color: "#3A352F",
+			},
+			{
+				id: "e-t2",
+				type: "paragraph",
+				rect: { x: mx + col3W + 24, y: 772, width: col3W, height: 332 },
+				throwable: false,
+				pinned: true,
+				text: SEC2_2,
+				fontSize: 14,
+				fontWeight: 400,
+				fontFamily: SERIF,
+				lineHeight: 22,
+				color: "#3A352F",
+			},
+			{
+				id: "e-t3",
+				type: "paragraph",
+				rect: { x: mx + (col3W + 24) * 2, y: 772, width: col3W, height: 332 },
+				throwable: false,
+				pinned: true,
+				text: SEC2_3,
+				fontSize: 14,
+				fontWeight: 400,
+				fontFamily: SERIF,
+				lineHeight: 22,
+				color: "#3A352F",
+			},
+			{
+				id: "e-seal",
+				type: "badge",
+				rect: { x: mx + 32, y: 914, width: 58, height: 58 },
+				throwable: true,
+				pinned: false,
+				text: "No.7",
+				fontSize: 12,
+				fontWeight: 700,
+				fontFamily: MONO,
+				color: "#fff",
+				backgroundColor: "#B45309",
+				borderRadius: 29,
+				mass: 0.72,
+			},
+			{
+				id: "e-pq",
+				type: "card",
+				rect: { x: mx + col3W + 22, y: 914, width: 224, height: 116 },
+				throwable: true,
+				pinned: false,
+				text: '"A moving page still has to feel edited."',
+				fontSize: 17,
+				fontWeight: 500,
+				fontFamily: SERIF,
+				color: "#7C3AED",
+				backgroundColor: "#FFFDF8",
+				borderRadius: 12,
+				padding: 16,
+				border: "1px solid #D9D0C2",
+				boxShadow: "0 8px 24px rgba(26,22,18,0.05)",
+				mass: 0.95,
+				children: [
+					{
+						id: "e-pq-a",
+						type: "paragraph",
+						rect: { x: 0, y: 10, width: 0, height: 0 },
+						throwable: false,
+						pinned: true,
+						text: "That is what separates a demo asset from a real editorial surface.",
+						fontSize: 12,
+						fontWeight: 400,
+						fontFamily: SANS,
+						lineHeight: 17,
+						color: "#6A625A",
+					},
+				],
+			},
 
-      // Section badges
-      { id: "e-sec-1", type: "badge", rect: { x: mx, y: 108, width: 72, height: 18 }, throwable: true, pinned: false, text: "OPINION", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: "#c0392b", backgroundColor: "transparent", borderRadius: 0, mass: 0.04 },
-      { id: "e-sec-2", type: "badge", rect: { x: mx + 80, y: 108, width: 48, height: 18 }, throwable: true, pinned: false, text: "TECH", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: "#2980b9", backgroundColor: "transparent", borderRadius: 0, mass: 0.04 },
-      { id: "e-sec-3", type: "badge", rect: { x: mx + 136, y: 108, width: 66, height: 18 }, throwable: true, pinned: false, text: "CULTURE", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: "#27ae60", backgroundColor: "transparent", borderRadius: 0, mass: 0.04 },
+			{
+				id: "e-r6",
+				type: "divider",
+				rect: { x: mx, y: 1154, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#CDBFAF",
+			},
+			{
+				id: "e-disp-h",
+				type: "heading",
+				rect: { x: mx, y: 1170, width: w, height: 24 },
+				throwable: false,
+				pinned: true,
+				text: "Dispatches",
+				fontSize: 22,
+				fontWeight: 700,
+				fontFamily: SERIF,
+				lineHeight: 24,
+				color: "#1A1612",
+			},
+			{
+				id: "e-r7",
+				type: "divider",
+				rect: { x: mx, y: 1202, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#D8CEC0",
+			},
+			{
+				id: "e-dispatch",
+				type: "paragraph",
+				rect: { x: mx, y: 1220, width: w, height: 180 },
+				throwable: false,
+				pinned: true,
+				text: DISPATCH,
+				fontSize: 16,
+				fontWeight: 400,
+				fontFamily: SERIF,
+				lineHeight: 26,
+				color: "#2D2925",
+			},
+			{
+				id: "e-briefs",
+				type: "card",
+				rect: { x: mx + w - 228, y: 1256, width: 228, height: 138 },
+				throwable: true,
+				pinned: false,
+				text: "Inside this issue",
+				fontSize: 14,
+				fontWeight: 700,
+				fontFamily: SANS,
+				color: "#1A1612",
+				backgroundColor: "#FFFDF8",
+				borderRadius: 12,
+				padding: 16,
+				border: "1px solid #D9D0C2",
+				boxShadow: "0 8px 24px rgba(26,22,18,0.05)",
+				mass: 1.02,
+				children: [
+					{
+						id: "briefs-a",
+						type: "paragraph",
+						rect: { x: 0, y: 10, width: 0, height: 0 },
+						throwable: false,
+						pinned: true,
+						text: "Field report: dashboards that feel publishable",
+						fontSize: 12,
+						fontWeight: 500,
+						fontFamily: SANS,
+						lineHeight: 17,
+						color: "#1A1612",
+					},
+					{
+						id: "briefs-b",
+						type: "paragraph",
+						rect: { x: 0, y: 8, width: 0, height: 0 },
+						throwable: false,
+						pinned: true,
+						text: "Essay: why layout engines need narrative ambition",
+						fontSize: 12,
+						fontWeight: 500,
+						fontFamily: SANS,
+						lineHeight: 17,
+						color: "#1A1612",
+					},
+					{
+						id: "briefs-c",
+						type: "paragraph",
+						rect: { x: 0, y: 8, width: 0, height: 0 },
+						throwable: false,
+						pinned: true,
+						text: "Notebook: movable marginalia and reader agency",
+						fontSize: 12,
+						fontWeight: 500,
+						fontFamily: SANS,
+						lineHeight: 17,
+						color: "#1A1612",
+					},
+				],
+			},
 
-      // Headline
-      { id: "e-hl", type: "heading", rect: { x: mx, y: 136, width: w, height: 34 }, throwable: false, pinned: true, text: "When Text Becomes Liquid", fontSize: 28, fontWeight: 700, fontFamily: SERIF, lineHeight: 34, color: "#1a1a1a" },
-      { id: "e-by", type: "heading", rect: { x: mx, y: 176, width: w, height: 16 }, throwable: false, pinned: true, text: "By the DOMino Editorial Board · Illustrated in real-time", fontSize: 11, fontWeight: 400, fontFamily: SERIF, lineHeight: 16, color: "#999" },
-      { id: "e-r3", type: "divider", rect: { x: mx, y: 200, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" },
-
-      // Two-column section
-      { id: "e-c1", type: "paragraph", rect: { x: mx, y: 216, width: col2W, height: 360 }, throwable: false, pinned: true, text: COL_L, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" },
-      { id: "e-c2", type: "paragraph", rect: { x: mx + col2W + 28, y: 216, width: col2W, height: 360 }, throwable: false, pinned: true, text: COL_R, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" },
-
-      // Orbs in two-column area
-      { id: "e-o1", type: "badge", rect: { x: mx + col2W / 2 - 28, y: 290, width: 56, height: 56 }, throwable: true, pinned: false, text: "A", fontSize: 20, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#c0392b", borderRadius: 28, mass: 0.7 },
-      { id: "e-o2", type: "badge", rect: { x: mx + col2W + 28 + col2W / 2 - 24, y: 320, width: 48, height: 48 }, throwable: true, pinned: false, text: "B", fontSize: 18, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#2980b9", borderRadius: 24, mass: 0.6 },
-
-      // Mid-section rule + heading
-      { id: "e-r4", type: "divider", rect: { x: mx, y: 600, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ccc" },
-      { id: "e-mid-h", type: "heading", rect: { x: mx, y: 616, width: w, height: 24 }, throwable: false, pinned: true, text: "The Physics of the Page", fontSize: 20, fontWeight: 700, fontFamily: SERIF, lineHeight: 24, color: "#1a1a1a" },
-      { id: "e-r5", type: "divider", rect: { x: mx, y: 648, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" },
-
-      // Three-column section
-      { id: "e-t1", type: "paragraph", rect: { x: mx, y: 664, width: col3W, height: 340 }, throwable: false, pinned: true, text: SEC2_1, fontSize: 14, fontWeight: 400, fontFamily: SERIF, lineHeight: 22, color: "#444" },
-      { id: "e-t2", type: "paragraph", rect: { x: mx + col3W + 24, y: 664, width: col3W, height: 340 }, throwable: false, pinned: true, text: SEC2_2, fontSize: 14, fontWeight: 400, fontFamily: SERIF, lineHeight: 22, color: "#444" },
-      { id: "e-t3", type: "paragraph", rect: { x: mx + (col3W + 24) * 2, y: 664, width: col3W, height: 340 }, throwable: false, pinned: true, text: SEC2_3, fontSize: 14, fontWeight: 400, fontFamily: SERIF, lineHeight: 22, color: "#444" },
-
-      // Orbs in three-column area
-      { id: "e-o3", type: "badge", rect: { x: mx + col3W + 24 + col3W / 2 - 32, y: 740, width: 64, height: 64 }, throwable: true, pinned: false, text: "C", fontSize: 22, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#27ae60", borderRadius: 32, mass: 0.9 },
-      { id: "e-o4", type: "badge", rect: { x: mx + 60, y: 780, width: 40, height: 40 }, throwable: true, pinned: false, text: "D", fontSize: 14, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#8e44ad", borderRadius: 20, mass: 0.4 },
-      { id: "e-o5", type: "badge", rect: { x: mx + (col3W + 24) * 2 + col3W / 2 - 26, y: 760, width: 52, height: 52 }, throwable: true, pinned: false, text: "E", fontSize: 18, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#e67e22", borderRadius: 26, mass: 0.6 },
-
-      // Floating cards
-      { id: "e-card-1", type: "card", rect: { x: mx + col2W - 30, y: 460, width: 90, height: 56 }, throwable: true, pinned: false, text: "Drag me", fontSize: 11, fontWeight: 600, fontFamily: SANS, color: "#1a1a1a", backgroundColor: "#fff", borderRadius: 8, padding: 12, border: "1px solid #ddd", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", mass: 0.4 },
-      { id: "e-card-2", type: "card", rect: { x: mx + col2W + 58, y: 460, width: 90, height: 56 }, throwable: true, pinned: false, text: "Throw me", fontSize: 11, fontWeight: 600, fontFamily: SANS, color: "#1a1a1a", backgroundColor: "#fff", borderRadius: 8, padding: 12, border: "1px solid #ddd", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", mass: 0.4 },
-      { id: "e-img", type: "image", rect: { x: mx + w / 2 - 70, y: 920, width: 140, height: 90 }, throwable: true, pinned: false, backgroundColor: "#e0dcd4", borderRadius: 6, boxShadow: "0 2px 8px rgba(0,0,0,0.06)", mass: 1.2 },
-
-      // Decorative pull-quote
-      { id: "e-pq", type: "card", rect: { x: mx + w / 2 - 140, y: 1040, width: 280, height: 50 }, throwable: true, pinned: false,
-        text: '"The page begins to breathe."', fontSize: 16, fontWeight: 500, fontFamily: SERIF, color: "#8e44ad", backgroundColor: "transparent",
-        borderRadius: 0, padding: 12, border: "none", boxShadow: "none", mass: 0.5, children: [] },
-
-      // Footer
-      { id: "e-r6", type: "divider", rect: { x: mx, y: 1120, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ccc" },
-      { id: "e-foot", type: "heading", rect: { x: mx, y: 1134, width: w, height: 14 }, throwable: false, pinned: true, text: "Powered by @chenglou/pretext · Inspired by somnai-dreams/pretext-demos · Built with Matter.js", fontSize: 9, fontWeight: 400, fontFamily: MONO, lineHeight: 14, color: "#bbb" },
-    ],
-  };
+			{
+				id: "e-r8",
+				type: "divider",
+				rect: { x: mx, y: 1540, width: w, height: 1 },
+				throwable: false,
+				pinned: true,
+				backgroundColor: "#CDBFAF",
+			},
+			{
+				id: "e-foot",
+				type: "heading",
+				rect: { x: mx, y: 1554, width: w, height: 14 },
+				throwable: false,
+				pinned: true,
+				text: "Printed in code  |  Powered by Pretext and Matter.js  |  Sunday editorial prototype",
+				fontSize: 9,
+				fontWeight: 500,
+				fontFamily: MONO,
+				lineHeight: 14,
+				color: "#A19486",
+			},
+		],
+	}
 }

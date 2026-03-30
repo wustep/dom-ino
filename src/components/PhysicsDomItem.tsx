@@ -19,13 +19,13 @@ function getBackgroundStyle(background?: string): React.CSSProperties {
 }
 
 export const PhysicsDomItem = memo(function PhysicsDomItem({
-  element, x, y, angle, isPhysicsEnabled, showDebug, isPinned,
+  element, x, y, angle, isPhysicsEnabled, showDebug, isPinned: _isPinned,
 }: PhysicsDomItemProps) {
   const isThrowable = element.throwable;
   const live = isPhysicsEnabled && isThrowable;
   const px = live ? x : element.rect.x;
   const py = live ? y : element.rect.y;
-  const pa = live ? angle : 0;
+  const pa = live && !element.lockRotation ? angle : 0;
 
   const wrapStyle: React.CSSProperties = {
     position: "absolute", left: px, top: py,

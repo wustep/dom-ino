@@ -1,5 +1,5 @@
 import Matter from "matter-js";
-import type { SceneElement, SceneDescription } from "../scene/types";
+import type { SceneDescription } from "../scene/types";
 
 const { Engine, World, Bodies, Body, Mouse, MouseConstraint, Events, Runner } =
   Matter;
@@ -11,6 +11,8 @@ export interface PhysicsBody {
   originalY: number;
   originalW: number;
   originalH: number;
+  initialVelocityX: number;
+  initialVelocityY: number;
 }
 
 export interface PhysicsEngine {
@@ -47,6 +49,7 @@ export function createPhysicsEngine(
   const runner = Runner.create({ delta: 1000 / 60 });
 
   const bodies = new Map<string, PhysicsBody>();
+  const elementsById = new Map(scene.elements.map((el) => [el.id, el]));
   const walls: Matter.Body[] = [];
 
   const wallThickness = 80;
@@ -68,19 +71,45 @@ export function createPhysicsEngine(
 
     const cx = el.rect.x + el.rect.width / 2;
     const cy = el.rect.y + el.rect.height / 2;
+    const physicsShape = el.physicsShape ?? "rectangle";
 
     if (el.throwable) {
       const mass = el.mass ?? 1;
-      const body = Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
+      const bodyOptions = {
         isStatic: false,
-        friction: 0.5,
-        frictionAir: 0.03,
-        restitution: 0.3,
+        friction: el.friction ?? 0.5,
+        frictionAir: el.frictionAir ?? 0.03,
+        restitution: el.restitution ?? 0.3,
         density: 0.002 * mass,
-        chamfer: { radius: Math.min(el.borderRadius ?? 0, 6) },
         label: el.id,
+      };
+      const body = physicsShape === "circle"
+        ? Bodies.circle(cx, cy, Math.min(el.rect.width, el.rect.height) / 2, bodyOptions)
+        : Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
+            ...bodyOptions,
+            chamfer: { radius: Math.min(el.borderRadius ?? 0, 6) },
+          });
+      if (el.lockRotation) {
+        Body.setInertia(body, Infinity);
+        Body.setAngularVelocity(body, 0);
+        Body.setAngle(body, 0);
+      }
+      if (el.initialVelocityX !== undefined || el.initialVelocityY !== undefined) {
+        Body.setVelocity(body, {
+          x: el.initialVelocityX ?? 0,
+          y: el.initialVelocityY ?? 0,
+        });
+      }
+      bodies.set(el.id, {
+        elementId: el.id,
+        body,
+        originalX: el.rect.x,
+        originalY: el.rect.y,
+        originalW: el.rect.width,
+        originalH: el.rect.height,
+        initialVelocityX: el.initialVelocityX ?? 0,
+        initialVelocityY: el.initialVelocityY ?? 0,
       });
-      bodies.set(el.id, { elementId: el.id, body, originalX: el.rect.x, originalY: el.rect.y, originalW: el.rect.width, originalH: el.rect.height });
       World.add(engine.world, body);
     } else {
       const body = Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
@@ -89,7 +118,16 @@ export function createPhysicsEngine(
         restitution: 0.2,
         label: `static-${el.id}`,
       });
-      bodies.set(el.id, { elementId: el.id, body, originalX: el.rect.x, originalY: el.rect.y, originalW: el.rect.width, originalH: el.rect.height });
+      bodies.set(el.id, {
+        elementId: el.id,
+        body,
+        originalX: el.rect.x,
+        originalY: el.rect.y,
+        originalW: el.rect.width,
+        originalH: el.rect.height,
+        initialVelocityX: 0,
+        initialVelocityY: 0,
+      });
       World.add(engine.world, body);
     }
   }
@@ -143,6 +181,12 @@ export function createPhysicsEngine(
         Body.setPosition(b, { x: nx, y: ny });
         Body.setVelocity(b, { x: b.velocity.x * 0.5, y: b.velocity.y * 0.5 });
       }
+
+      const element = elementsById.get(pb.elementId);
+      if (element?.lockRotation) {
+        if (Math.abs(b.angle) > 0.0001) Body.setAngle(b, 0);
+        if (Math.abs(b.angularVelocity) > 0.0001) Body.setAngularVelocity(b, 0);
+      }
     }
   });
 
@@ -165,7 +209,7 @@ export function createPhysicsEngine(
         if (pb.body.isStatic) continue;
         Body.setPosition(pb.body, { x: pb.originalX + pb.originalW / 2, y: pb.originalY + pb.originalH / 2 });
         Body.setAngle(pb.body, 0);
-        Body.setVelocity(pb.body, { x: 0, y: 0 });
+        Body.setVelocity(pb.body, { x: pb.initialVelocityX, y: pb.initialVelocityY });
         Body.setAngularVelocity(pb.body, 0);
       }
     },

@@ -20,6 +20,7 @@ interface TextFlowRegionProps {
   showDebug?: boolean;
   generation: number;
   onLineCount?: (count: number) => void;
+  minSegmentWidth?: number;
   allowWordBreaks?: boolean;
 }
 
@@ -62,6 +63,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
   showDebug,
   generation,
   onLineCount,
+  minSegmentWidth = 8,
   allowWordBreaks = true,
 }: TextFlowRegionProps) {
   const flow = useMemo(() => {
@@ -75,10 +77,11 @@ export const TextFlowRegion = memo(function TextFlowRegion({
       containerMaxHeight,
       obstacles,
       8,
+      minSegmentWidth,
       allowWordBreaks
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, font, lineHeight, containerX, containerY, containerWidth, containerMaxHeight, obstacles, generation, allowWordBreaks]);
+  }, [text, font, lineHeight, containerX, containerY, containerWidth, containerMaxHeight, obstacles, generation, minSegmentWidth, allowWordBreaks]);
 
   useEffect(() => {
     onLineCount?.(flow.lines.length);
@@ -104,10 +107,11 @@ export const TextFlowRegion = memo(function TextFlowRegion({
             color,
             opacity,
             letterSpacing,
-            textAlign,
+            textAlign: textAlign as React.CSSProperties["textAlign"] | undefined,
             whiteSpace: "pre",
             overflow: "visible",
             pointerEvents: "none",
+            zIndex: 2,
           }}
         >
           {line.text}

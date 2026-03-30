@@ -10,6 +10,7 @@ import { Toolbar } from "./Toolbar";
 import type { DebugSettings } from "./Toolbar";
 import { getObstacleAABB } from "../textflow/obstacles";
 import { ThrowablePicker } from "./ThrowablePicker";
+import { QuickSavePicker } from "./QuickSavePicker";
 
 interface DominoSceneProps {
   scene: SceneDescription;
@@ -65,6 +66,7 @@ export function DominoScene({
   const [fps, setFps] = useState(60);
   const [totalLineCount, setTotalLineCount] = useState(0);
   const [pickerMode, setPickerMode] = useState(false);
+  const [savePickerMode, setSavePickerMode] = useState(false);
 
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true, showObstacleBounds: false, showLineBounds: false,
@@ -137,6 +139,24 @@ export function DominoScene({
 
   const handleSaveElement = useCallback((el: SceneElement) => onSaveElement(el), [onSaveElement]);
 
+  const saveCandidates = useMemo(() => {
+    return scene.elements
+      .filter((el) => el.type !== "divider" && !(el.type === "paragraph" && !el.throwable) && !(el.type === "heading" && !el.throwable))
+      .map((el) => {
+        const pos = bodyPositions.get(el.id);
+        return {
+          id: el.id,
+          element: el,
+          x: pos?.x ?? el.rect.x,
+          y: pos?.y ?? el.rect.y,
+          width: pos?.w ?? el.rect.width,
+          height: pos?.h ?? el.rect.height,
+          borderRadius: el.borderRadius,
+          saved: savedElements.some((saved) => saved.element.id === el.id),
+        };
+      });
+  }, [scene.elements, bodyPositions, savedElements]);
+
   const lineCountRef = useRef(0);
   const reportLines = useCallback((count: number) => { lineCountRef.current += count; }, []);
   useEffect(() => { lineCountRef.current = 0; const t = setTimeout(() => setTotalLineCount(lineCountRef.current), 50); return () => clearTimeout(t); }, [generation]);
@@ -169,6 +189,8 @@ export function DominoScene({
               const weightPart = fw !== 400 ? `${fw} ` : "";
               const font = `${stylePrefix}${weightPart}${fs}px ${ff}`;
               const pad = el.padding ?? 0;
+              const flowMinSegmentWidth = el.minSegmentWidth ?? (el.type === "heading" ? 80 : 8);
+              const allowWordBreaks = el.allowWordBreaks ?? (el.type === "heading" ? false : settings.allowWordBreaks);
               return (<TextFlowRegion key={el.id} text={el.text!} font={font} fontSize={fs}
                 lineHeight={el.lineHeight ?? 28} color={el.color ?? "#333"}
                 opacity={el.opacity} letterSpacing={el.letterSpacing} textAlign={el.textAlign}
@@ -177,12 +199,13 @@ export function DominoScene({
                 containerMaxHeight={(textMaxHeights.get(el.id) ?? el.rect.height) - pad * 2}
                 obstacles={obstacles} showDebug={settings.showLineBounds}
                 generation={generation} onLineCount={reportLines}
-                allowWordBreaks={settings.allowWordBreaks} />);
+                minSegmentWidth={flowMinSegmentWidth}
+                allowWordBreaks={allowWordBreaks} />);
             })
           : textElements.map((el) => {
               const pad = el.padding ?? 0;
               return (
-                <div key={el.id} style={{ position: "absolute", left: el.rect.x + pad, top: el.rect.y + pad, width: el.rect.width - pad * 2, fontSize: el.fontSize ?? 16, fontWeight: el.fontWeight ?? 400, fontStyle: el.fontStyle ?? "normal", fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif', lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6", color: el.color ?? "#333", opacity: el.opacity, letterSpacing: el.letterSpacing, textAlign: el.textAlign, pointerEvents: "none" }}>{el.text}</div>
+                <div key={el.id} style={{ position: "absolute", left: el.rect.x + pad, top: el.rect.y + pad, width: el.rect.width - pad * 2, fontSize: el.fontSize ?? 16, fontWeight: el.fontWeight ?? 400, fontStyle: el.fontStyle ?? "normal", fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif', lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6", color: el.color ?? "#333", opacity: el.opacity, letterSpacing: el.letterSpacing, textAlign: el.textAlign as React.CSSProperties["textAlign"] | undefined, pointerEvents: "none", zIndex: 2 }}>{el.text}</div>
               );
             })}
 
@@ -211,6 +234,17 @@ export function DominoScene({
               if (!settings.paused) physicsRef.current?.resume();
             }} />
         )}
+
+        {savePickerMode && (
+          <QuickSavePicker
+            candidates={saveCandidates}
+            onSave={handleSaveElement}
+            onClose={() => {
+              setSavePickerMode(false);
+              if (!settings.paused) physicsRef.current?.resume();
+            }}
+          />
+        )}
       </div>
 
       <Toolbar
@@ -220,6 +254,7 @@ export function DominoScene({
           setPickerMode((prev) => {
             if (!prev) {
               // Entering picker: reset bodies to original positions and pause
+              setSavePickerMode(false);
               physicsRef.current?.reset();
               physicsRef.current?.pause();
             } else {
@@ -229,6 +264,18 @@ export function DominoScene({
             return !prev;
           });
         }} pickerMode={pickerMode}
+        savePickerMode={savePickerMode}
+        onToggleSavePicker={() => {
+          setSavePickerMode((prev) => {
+            if (!prev) {
+              setPickerMode(false);
+              physicsRef.current?.pause();
+            } else if (!settings.paused) {
+              physicsRef.current?.resume();
+            }
+            return !prev;
+          });
+        }}
         fps={fps} bodyCount={throwableElements.length} lineCount={totalLineCount}
         currentPreset={currentPreset} onSelectPreset={onSelectPreset}
         onImportHtml={onImportHtml} onFetchUrl={onFetchUrl}

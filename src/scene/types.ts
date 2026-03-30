@@ -44,8 +44,17 @@ export interface SceneElement {
   textAlign?: string;
   letterSpacing?: string;
   gap?: number;
+  allowWordBreaks?: boolean;
+  minSegmentWidth?: number;
 
   mass?: number;
+  physicsShape?: "rectangle" | "circle";
+  lockRotation?: boolean;
+  initialVelocityX?: number;
+  initialVelocityY?: number;
+  friction?: number;
+  frictionAir?: number;
+  restitution?: number;
 }
 
 export interface SceneDescription {
