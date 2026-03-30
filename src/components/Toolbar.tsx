@@ -29,7 +29,7 @@ interface ToolbarProps {
   onImportHtml: (html: string, name: string) => void;
   onFetchUrl: (url: string) => Promise<void>;
   savedElements: SavedElement[];
-  onDropSaved: (saved: SavedElement) => void;
+  onDropSaved: (saved: SavedElement, x?: number, y?: number) => void;
   onClearSaved: () => void;
   onRemoveSaved: (index: number) => void;
   customPages: CustomPage[];
@@ -181,14 +181,20 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 {savedElements.map((s, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 6px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                  <div key={i}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/domino-saved", JSON.stringify(s));
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 6px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)", cursor: "grab" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                       <div style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, backgroundColor: s.element.backgroundColor ?? "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, color: s.element.color ?? "#999", fontFamily: '"JetBrains Mono", monospace', overflow: "hidden" }}>
                         {s.element.type.slice(0, 3)}
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 10, color: "#ddd", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.element.text?.slice(0, 20) || s.element.type}</div>
-                        <div style={{ fontSize: 8, color: "#666" }}>{s.sourceScene}</div>
+                        <div style={{ fontSize: 8, color: "#666" }}>drag to page · {s.sourceScene}</div>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>

@@ -21,7 +21,7 @@ interface DominoSceneProps {
   savedElements: SavedElement[];
   onSaveElement: (el: SceneElement) => void;
   onUnsaveElement: (id: string) => void;
-  onDropSaved: (saved: SavedElement) => void;
+  onDropSaved: (saved: SavedElement, x?: number, y?: number) => void;
   onClearSaved: () => void;
   onRemoveSaved: (index: number) => void;
   customPages?: CustomPage[];
@@ -141,7 +141,20 @@ export function DominoScene({
   useEffect(() => { lineCountRef.current = 0; const t = setTimeout(() => setTotalLineCount(lineCountRef.current), 50); return () => clearTimeout(t); }, [generation]);
 
   return (
-    <div style={{ position: "relative", width: scene.width, height: scene.height, backgroundColor: scene.backgroundColor, overflow: "hidden", cursor: "grab" }}>
+    <div
+      style={{ position: "relative", width: scene.width, height: scene.height, backgroundColor: scene.backgroundColor, overflow: "hidden", cursor: "grab" }}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+      onDrop={(e) => {
+        e.preventDefault();
+        try {
+          const data = JSON.parse(e.dataTransfer.getData("application/domino-saved"));
+          if (data) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            onDropSaved(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top);
+          }
+        } catch { /* not a valid drop */ }
+      }}
+    >
       <div ref={containerRef} style={{ position: "absolute", inset: 0, width: scene.width, height: scene.height }}>
         {staticElements.map((el) => (
           <PhysicsDomItem key={el.id} element={el} x={el.rect.x} y={el.rect.y} angle={0} isPhysicsEnabled={false} showDebug={false} isPinned={true} />

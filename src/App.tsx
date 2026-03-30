@@ -100,14 +100,14 @@ export default function App() {
     setSavedElements((prev) => prev.filter((s) => s.element.id !== id));
   }, []);
 
-  const handleDropSaved = useCallback((saved: SavedElement) => {
+  const handleDropSaved = useCallback((saved: SavedElement, dropX?: number, dropY?: number) => {
     const el = { ...saved.element };
     el.id = `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     el.throwable = true; el.pinned = false;
     el.rect = {
       ...el.rect,
-      x: (windowSize.width - el.rect.width) / 2 + (Math.random() - 0.5) * 120,
-      y: window.scrollY + windowSize.height / 2 - el.rect.height / 2 + (Math.random() - 0.5) * 60,
+      x: dropX != null ? dropX - el.rect.width / 2 : (windowSize.width - el.rect.width) / 2 + (Math.random() - 0.5) * 120,
+      y: dropY != null ? dropY - el.rect.height / 2 : window.scrollY + windowSize.height / 2 - el.rect.height / 2 + (Math.random() - 0.5) * 60,
     };
     const newScene = { ...scene, elements: [...scene.elements, el] };
     if (activeCustomId) {
