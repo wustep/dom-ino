@@ -185,87 +185,98 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
   };
 }
 
-export function createBubblesScene(vw: number, vh: number): SceneDescription {
-  const w = Math.min(vw - 40, 800);
-  const mx = Math.max(20, (vw - w) / 2);
-  const H = Math.max(vh, 1200);
-  const chatW = Math.min(w * 0.45, 340);
-  const chatX = mx + (w - chatW) / 2;
+export function createDarkEngineScene(vw: number, vh: number): SceneDescription {
+  const PAL_SERIF = '"Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif';
+  const w = Math.min(vw - 80, 1200);
+  const mx = Math.max(40, (vw - w) / 2);
+  const H = Math.max(vh, 1800);
+  const colGap = 40;
+  const colCount = vw > 900 ? 2 : 1;
+  const colW = colCount === 2 ? (w - colGap) / 2 : w;
+  const col2X = mx + colW + colGap;
 
-  // Bubble messages as throwable cards
-  const msgs: { text: string; sent: boolean; w: number; h: number }[] = [
-    { text: "Yo did you see the new Pretext library?", sent: false, w: chatW * 0.75, h: 44 },
-    { text: "yeah! It measures text without the DOM. Pure JavaScript arithmetic", sent: true, w: chatW * 0.8, h: 52 },
-    { text: "That shrinkwrap demo is wild", sent: false, w: chatW * 0.6, h: 44 },
-    { text: "\uC131\uB2A5 \uCD5C\uC801\uD654\uAC00 \uC815\uB9D0 \uB9CE\uC774 \uB418\uC5C8\uB354\uB77C\uACE0\uC694 \uD83C\uDF89", sent: true, w: chatW * 0.7, h: 44 },
-    { text: "Oh wow it handles CJK and emoji too??", sent: false, w: chatW * 0.65, h: 44 },
-    { text: "the best part: zero layout reflow", sent: true, w: chatW * 0.6, h: 44 },
-  ];
+  const BODY_1 = `The web renders text through a pipeline designed thirty years ago for static documents. A browser loads a font, shapes text into glyphs, measures their combined width, determines where lines break, and positions each line vertically. Every step depends on the previous one. Every step requires the rendering engine to consult its internal layout tree \u2014 a structure so expensive to maintain that browsers guard access behind synchronous reflow barriers that can freeze the main thread for tens of milliseconds at a time.`;
 
-  let bubbleY = 280;
-  const bubbleEls = msgs.map((m, i) => {
-    const bx = m.sent ? chatX + chatW - m.w - 12 : chatX + 12;
-    const el = {
-      id: `bubble-${i}`, type: "card" as const,
-      rect: { x: bx, y: bubbleY, width: m.w, height: m.h },
-      throwable: true, pinned: false,
-      text: m.text,
-      fontSize: 14, fontWeight: 400 as number, fontFamily: SANS,
-      color: "#fff",
-      backgroundColor: m.sent ? "#0b84fe" : "#2c2c2e",
-      borderRadius: 16, padding: 10,
-      border: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-      mass: 0.3,
-    };
-    bubbleY += m.h + 8;
-    return el;
-  });
+  const BODY_2 = `For a paragraph in a blog post, this pipeline is invisible. The browser loads, lays out, and paints before the reader\u2019s eye has traveled from the address bar to the first word. But the web is no longer a collection of static documents. It is a platform for applications, and those applications need to know about text in ways the original pipeline never anticipated. A messaging app needs exact bubble heights. A masonry layout needs card heights. An editorial page needs text flowing around images, ads, and interactive elements.`;
+
+  const BODY_3 = `What if text measurement did not require the DOM at all? What if you could compute exactly where every line of text would break, exactly how wide each line would be, and exactly how tall the entire text block would be, using nothing but arithmetic? This is the core insight of Pretext. The browser\u2019s canvas API includes a measureText method that returns the width of any string in any font without triggering a layout reflow. Pretext exploits this asymmetry: measure once via canvas, cache the widths, then layout is pure arithmetic.`;
+
+  const BODY_4 = `The performance improvement is not incremental. Measuring five hundred text blocks with DOM methods costs fifteen to thirty milliseconds and triggers five hundred layout reflows. With Pretext, the same operation costs 0.05 milliseconds and triggers zero reflows. This is a three-hundred-fold improvement. But even that number understates the impact, because Pretext\u2019s cost does not scale with page complexity \u2014 it is independent of how many other elements exist on the page.`;
+
+  const BODY_5 = `With DOM-free text measurement, an entire class of previously impractical interfaces becomes trivial. Text can flow around arbitrary shapes \u2014 rectangles, circles, polygons, even image alpha channels. Obstacles can move, animate, or be dragged by the user, and the text reflows instantly because the layout computation takes less than a millisecond. This is exactly what CSS Shapes tried to accomplish, but with none of its limitations.`;
+
+  const BODY_6 = `The glowing orbs drifting across this page are not decorative \u2014 they are the demonstration. Each orb is a circular obstacle. For every line of text, the engine checks whether the line\u2019s vertical band intersects each orb. If it does, it computes the blocked horizontal interval and subtracts it from the available width. The remaining width might be split into two or more segments \u2014 and the engine fills every viable slot, flowing text on both sides of the obstacle simultaneously.`;
+
+  const bodyY = 140;
 
   return {
-    id: "bubbles", name: "Bubbles", width: vw, height: H, backgroundColor: "#f4f1ea",
+    id: "engine", name: "Engine", width: vw, height: H, backgroundColor: "#0a0a0c",
     elements: [
-      // Header
-      { id: "b-eyebrow", type: "heading", rect: { x: mx, y: 24, width: w, height: 16 }, throwable: false, pinned: true, text: "DEMO", fontSize: 11, fontWeight: 600, fontFamily: MONO, lineHeight: 14, color: "#955f3b" },
-      { id: "b-title", type: "heading", rect: { x: mx, y: 44, width: w, height: 40 }, throwable: false, pinned: true, text: "Shrinkwrap Showdown", fontSize: 30, fontWeight: 700, fontFamily: SERIF, lineHeight: 36, color: "#201b18" },
-      { id: "b-intro", type: "paragraph", rect: { x: mx, y: 92, width: Math.min(w, 560), height: 80 }, throwable: false, pinned: true,
-        text: `CSS width: fit-content sizes a bubble to its widest wrapped line, leaving dead space when the last line is short. Pretext finds the tightest width that still wraps to the exact same number of lines \u2014 zero wasted pixels.`,
-        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#6d645d" },
+      // Headline
+      { id: "de-hl", type: "heading", rect: { x: mx, y: 40, width: w, height: 70 }, throwable: false, pinned: true,
+        text: "THE FUTURE OF TEXT LAYOUT IS NOT CSS", fontSize: 48, fontWeight: 700, fontFamily: PAL_SERIF, lineHeight: 52, color: "#ffffff" },
+      { id: "de-hint", type: "heading", rect: { x: mx, y: 112, width: w, height: 16 }, throwable: false, pinned: true,
+        text: "Drag the orbs \u00b7 Text reflows at 60fps \u00b7 Zero DOM reads", fontSize: 12, fontWeight: 400, fontFamily: SANS, lineHeight: 16, color: "rgba(255,255,255,0.22)" },
 
-      // Chat container background
-      { id: "b-chat-bg", type: "card", rect: { x: chatX - 16, y: 200, width: chatW + 32, height: bubbleY - 200 + 20 }, throwable: false, pinned: true,
-        backgroundColor: "#1c1c1e", borderRadius: 18, padding: 16, border: "none", boxShadow: "0 18px 40px rgba(54,40,23,0.08)" },
+      // Column 1
+      { id: "de-p1", type: "paragraph", rect: { x: mx, y: bodyY, width: colW, height: 320 }, throwable: false, pinned: true,
+        text: BODY_1, fontSize: 17, fontWeight: 400, fontFamily: PAL_SERIF, lineHeight: 28, color: "#e8e4dc" },
+      { id: "de-p2", type: "paragraph", rect: { x: mx, y: bodyY + 340, width: colW, height: 320 }, throwable: false, pinned: true,
+        text: BODY_2, fontSize: 17, fontWeight: 400, fontFamily: PAL_SERIF, lineHeight: 28, color: "#e8e4dc" },
+      { id: "de-p3", type: "paragraph", rect: { x: mx, y: bodyY + 680, width: colW, height: 320 }, throwable: false, pinned: true,
+        text: BODY_3, fontSize: 17, fontWeight: 400, fontFamily: PAL_SERIF, lineHeight: 28, color: "#e8e4dc" },
 
-      // Chat label
-      { id: "b-chat-label", type: "heading", rect: { x: chatX - 16, y: 204, width: chatW + 32, height: 18 }, throwable: false, pinned: true, text: "Messages", fontSize: 11, fontWeight: 600, fontFamily: SANS, lineHeight: 16, color: "#666", textAlign: "center" },
+      // Column 2 (or below on narrow)
+      { id: "de-p4", type: "paragraph", rect: { x: colCount === 2 ? col2X : mx, y: colCount === 2 ? bodyY : bodyY + 1020, width: colW, height: 320 }, throwable: false, pinned: true,
+        text: BODY_4, fontSize: 17, fontWeight: 400, fontFamily: PAL_SERIF, lineHeight: 28, color: "#e8e4dc" },
+      { id: "de-p5", type: "paragraph", rect: { x: colCount === 2 ? col2X : mx, y: colCount === 2 ? bodyY + 340 : bodyY + 1360, width: colW, height: 320 }, throwable: false, pinned: true,
+        text: BODY_5, fontSize: 17, fontWeight: 400, fontFamily: PAL_SERIF, lineHeight: 28, color: "#e8e4dc" },
+      { id: "de-p6", type: "paragraph", rect: { x: colCount === 2 ? col2X : mx, y: colCount === 2 ? bodyY + 680 : bodyY + 1700, width: colW, height: 320 }, throwable: false, pinned: true,
+        text: BODY_6, fontSize: 17, fontWeight: 400, fontFamily: PAL_SERIF, lineHeight: 28, color: "#e8e4dc" },
 
-      // Bubbles
-      ...bubbleEls,
+      // Pullquote
+      { id: "de-pq", type: "card", rect: { x: mx, y: bodyY + 1020, width: colCount === 2 ? colW : w, height: 60 }, throwable: true, pinned: false,
+        text: "\u201CThe performance improvement is not incremental \u2014 it is categorical. 0.05ms versus 30ms.\u201D",
+        fontSize: 17, fontWeight: 400, fontFamily: PAL_SERIF, color: "#b8a070", backgroundColor: "transparent",
+        borderRadius: 0, padding: 14, border: "none", mass: 0.6 },
 
-      // Explanation below
-      { id: "b-why-h", type: "heading", rect: { x: mx, y: bubbleY + 60, width: w, height: 28 }, throwable: false, pinned: true, text: "Why can\u2019t CSS do this?", fontSize: 20, fontWeight: 700, fontFamily: SERIF, lineHeight: 28, color: "#201b18" },
-      { id: "b-why", type: "paragraph", rect: { x: mx, y: bubbleY + 96, width: w, height: 200 }, throwable: false, pinned: true,
-        text: `CSS only knows fit-content, which is the width of the widest line after wrapping. If a paragraph wraps to three lines and the last line is short, CSS still sizes the container to the longest line. There is no CSS property to say "find the narrowest width that still produces exactly three lines." That requires measuring the text at multiple widths and comparing line counts, which is exactly what Pretext's walkLineRanges() does \u2014 without DOM text measurement in the resize path. Pure arithmetic, no reflows, instant results.`,
-        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#6d645d" },
-
-      // Throwable metric badges
-      { id: "b-metric-1", type: "badge", rect: { x: mx, y: bubbleY + 20, width: 130, height: 28 }, throwable: true, pinned: false, text: "0 wasted px", fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#201b18", backgroundColor: "#f0e4da", borderRadius: 14, padding: 6, mass: 0.15 },
-      { id: "b-metric-2", type: "badge", rect: { x: mx + 140, y: bubbleY + 20, width: 100, height: 28 }, throwable: true, pinned: false, text: "0ms reflow", fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#201b18", backgroundColor: "#f0e4da", borderRadius: 14, padding: 6, mass: 0.15 },
-      { id: "b-metric-3", type: "badge", rect: { x: mx + 250, y: bubbleY + 20, width: 110, height: 28 }, throwable: true, pinned: false, text: "0 DOM reads", fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#201b18", backgroundColor: "#f0e4da", borderRadius: 14, padding: 6, mass: 0.15 },
+      // Glowing orbs
+      { id: "de-orb-gold", type: "badge", rect: { x: mx + colW * 0.4, y: bodyY + 100, width: 120, height: 120 }, throwable: true, pinned: false,
+        text: "", fontSize: 1, fontWeight: 400, fontFamily: SANS, color: "transparent",
+        backgroundColor: "radial-gradient(circle at 35% 35%, rgba(196,163,90,0.35), rgba(196,163,90,0.12) 55%, transparent 72%)",
+        borderRadius: 60, mass: 1.5, boxShadow: "0 0 60px 15px rgba(196,163,90,0.18), 0 0 120px 40px rgba(196,163,90,0.07)" },
+      { id: "de-orb-blue", type: "badge", rect: { x: colCount === 2 ? col2X + 80 : mx + 60, y: bodyY + 400, width: 90, height: 90 }, throwable: true, pinned: false,
+        text: "", fontSize: 1, fontWeight: 400, fontFamily: SANS, color: "transparent",
+        backgroundColor: "radial-gradient(circle at 35% 35%, rgba(100,140,255,0.35), rgba(100,140,255,0.12) 55%, transparent 72%)",
+        borderRadius: 45, mass: 1.0, boxShadow: "0 0 60px 15px rgba(100,140,255,0.18), 0 0 120px 40px rgba(100,140,255,0.07)" },
+      { id: "de-orb-pink", type: "badge", rect: { x: mx + colW * 0.6, y: bodyY + 600, width: 100, height: 100 }, throwable: true, pinned: false,
+        text: "", fontSize: 1, fontWeight: 400, fontFamily: SANS, color: "transparent",
+        backgroundColor: "radial-gradient(circle at 35% 35%, rgba(232,100,130,0.35), rgba(232,100,130,0.12) 55%, transparent 72%)",
+        borderRadius: 50, mass: 1.2, boxShadow: "0 0 60px 15px rgba(232,100,130,0.18), 0 0 120px 40px rgba(232,100,130,0.07)" },
+      { id: "de-orb-green", type: "badge", rect: { x: colCount === 2 ? col2X + colW * 0.3 : mx + w * 0.5, y: bodyY + 250, width: 80, height: 80 }, throwable: true, pinned: false,
+        text: "", fontSize: 1, fontWeight: 400, fontFamily: SANS, color: "transparent",
+        backgroundColor: "radial-gradient(circle at 35% 35%, rgba(80,200,140,0.35), rgba(80,200,140,0.12) 55%, transparent 72%)",
+        borderRadius: 40, mass: 0.8, boxShadow: "0 0 60px 15px rgba(80,200,140,0.18), 0 0 120px 40px rgba(80,200,140,0.07)" },
+      { id: "de-orb-purple", type: "badge", rect: { x: colCount === 2 ? col2X + colW - 100 : mx + w - 100, y: bodyY + 60, width: 70, height: 70 }, throwable: true, pinned: false,
+        text: "", fontSize: 1, fontWeight: 400, fontFamily: SANS, color: "transparent",
+        backgroundColor: "radial-gradient(circle at 35% 35%, rgba(150,100,220,0.35), rgba(150,100,220,0.12) 55%, transparent 72%)",
+        borderRadius: 35, mass: 0.7, boxShadow: "0 0 60px 15px rgba(150,100,220,0.18), 0 0 120px 40px rgba(150,100,220,0.07)" },
 
       // Credit
-      { id: "b-credit", type: "heading", rect: { x: mx, y: bubbleY + 320, width: w, height: 14 }, throwable: false, pinned: true, text: "Adapted from chenglou/pretext bubbles demo", fontSize: 9, fontWeight: 400, fontFamily: MONO, lineHeight: 14, color: "#bbb" },
+      { id: "de-credit", type: "heading", rect: { x: mx, y: colCount === 2 ? bodyY + 1100 : bodyY + 2060, width: w, height: 14 }, throwable: false, pinned: true,
+        text: "Adapted from somnai-dreams/pretext-demos \u00b7 Powered by @chenglou/pretext", fontSize: 9, fontWeight: 400, fontFamily: MONO, lineHeight: 14, color: "rgba(255,255,255,0.28)" },
     ],
   };
 }
 
-export type PresetKey = "article" | "dashboard" | "landing" | "editorial" | "bubbles";
+export type PresetKey = "article" | "dashboard" | "landing" | "editorial" | "engine";
 
 export const PRESET_LIST: { key: PresetKey; label: string }[] = [
   { key: "article", label: "Article" },
   { key: "dashboard", label: "Dashboard" },
   { key: "landing", label: "Landing" },
   { key: "editorial", label: "Editorial" },
-  { key: "bubbles", label: "Bubbles" },
+  { key: "engine", label: "Engine" },
 ];
 
 export function getPresetScene(key: PresetKey, vw: number, vh: number): SceneDescription {
@@ -274,6 +285,6 @@ export function getPresetScene(key: PresetKey, vw: number, vh: number): SceneDes
     case "dashboard": return createDashboardScene(vw, vh);
     case "landing": return createLandingScene(vw, vh);
     case "editorial": return createEditorialScene(vw, vh);
-    case "bubbles": return createBubblesScene(vw, vh);
+    case "engine": return createDarkEngineScene(vw, vh);
   }
 }
