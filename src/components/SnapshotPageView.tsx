@@ -6,6 +6,9 @@ import { Toolbar, type DebugSettings } from "./Toolbar";
 import { createPhysicsEngine } from "../physics/engine";
 import type { PhysicsEngine } from "../physics/engine";
 import { PhysicsDomItem } from "./PhysicsDomItem";
+import { TextFlowRegion } from "./TextFlowRegion";
+import type { ObstacleRect } from "../scene/types";
+import { QuickSavePicker } from "./QuickSavePicker";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -32,6 +35,13 @@ type SnapshotCandidate = {
   saved: boolean;
   node: HTMLElement;
   sceneElement: SceneElement | null;
+  display: string;
+};
+
+type SnapshotTextBlock = {
+  id: string;
+  sceneElement: SceneElement;
+  node: HTMLElement;
 };
 
 function textOf(el: HTMLElement): string {
@@ -85,8 +95,8 @@ function elementToSceneElement(el: HTMLElement, rootRect: DOMRect, win: Window):
     padding: parseFloat(cs.paddingLeft) || 0,
     border: parseFloat(cs.borderWidth) > 0 ? cs.border : undefined,
     boxShadow: cs.boxShadow !== "none" ? cs.boxShadow : undefined,
-    imageSrc: el instanceof HTMLImageElement ? el.src : undefined,
-    imageAlt: el instanceof HTMLImageElement ? el.alt : undefined,
+    imageSrc: el.tagName === "IMG" ? (el as HTMLImageElement).src : undefined,
+    imageAlt: el.tagName === "IMG" ? (el as HTMLImageElement).alt : undefined,
     mass: 1,
   };
 }
@@ -131,12 +141,15 @@ export function SnapshotPageView({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const nodesRef = useRef<Map<string, HTMLElement>>(new Map());
+  const textNodesRef = useRef<Map<string, HTMLElement>>(new Map());
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const rafRef = useRef<number>(0);
   const fpsFrames = useRef<number[]>([]);
   const [iframeHeight, setIframeHeight] = useState(1600);
   const [pickerMode, setPickerMode] = useState(false);
+  const [savePickerMode, setSavePickerMode] = useState(false);
   const [candidates, setCandidates] = useState<SnapshotCandidate[]>([]);
+  const [textBlocks, setTextBlocks] = useState<SnapshotTextBlock[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [droppedElements, setDroppedElements] = useState<SceneElement[]>([]);
   const [bodyPositions, setBodyPositions] = useState<Map<string, { x: number; y: number; angle: number; w: number; h: number }>>(new Map());
@@ -166,45 +179,63 @@ export function SnapshotPageView({
     const rootRect = root.getBoundingClientRect();
     const frameRect = iframe.getBoundingClientRect();
     const nodes = new Map<string, HTMLElement>();
+    const textNodes = new Map<string, HTMLElement>();
     const next: SnapshotCandidate[] = [];
+    const nextTextBlocks: SnapshotTextBlock[] = [];
 
     let counter = 0;
     const walk = (el: HTMLElement, depth: number) => {
       if (depth > 20) return;
       for (const child of Array.from(el.children)) {
-        if (!(child instanceof HTMLElement)) continue;
-        const tag = child.tagName;
+        if (child.nodeType !== Node.ELEMENT_NODE) continue;
+        const childEl = child as HTMLElement;
+        const tag = childEl.tagName;
         if (["SCRIPT", "STYLE", "NOSCRIPT", "LINK", "META", "HEAD", "TEMPLATE"].includes(tag)) continue;
-        const role = child.getAttribute("role");
+        const role = childEl.getAttribute("role");
         if (role === "navigation" || role === "banner" || role === "complementary") continue;
-        const cls = (child.className || "").toString().toLowerCase();
-        const id = (child.id || "").toLowerCase();
+        const cls = (childEl.className || "").toString().toLowerCase();
+        const id = (childEl.id || "").toLowerCase();
         if (cls.includes("sidebar") || cls.includes("navigation") || cls.includes("interlanguage") || id.includes("sidebar")) continue;
 
         let cs: CSSStyleDeclaration;
-        try { cs = win.getComputedStyle(child); } catch { continue; }
+        try { cs = win.getComputedStyle(childEl); } catch { continue; }
         if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity || "1") === 0) continue;
         if (cs.position === "fixed" || cs.position === "sticky") continue;
 
-        const rect = child.getBoundingClientRect();
-        if (rect.width < 12 || rect.height < 12) { walk(child, depth + 1); continue; }
-        if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) { walk(child, depth + 1); continue; }
+        const rect = childEl.getBoundingClientRect();
+        if (rect.width < 12 || rect.height < 12) { walk(childEl, depth + 1); continue; }
+        if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) { walk(childEl, depth + 1); continue; }
 
-        const text = textOf(child);
+        const text = textOf(childEl);
+        const display = cs.display || "";
+        const inlineish = display === "inline" || display === "contents";
         const bg = cs.backgroundColor;
         const hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
         const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
         const hasShadow = cs.boxShadow && cs.boxShadow !== "none";
-        const semantic = /^(BUTTON|A|IMG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION)$/.test(tag);
-        if (!semantic && !hasBg && !hasBorder && !hasShadow && text.length < 12) {
-          walk(child, depth + 1);
+        const semantic = /^(BUTTON|A|IMG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION|TABLE|FIGURE)$/.test(tag);
+        const sizableBlock = rect.width >= 48 && rect.height >= 24;
+        if (inlineish && !hasBg && !hasBorder && !hasShadow) {
+          walk(childEl, depth + 1);
+          continue;
+        }
+        if (!semantic && !hasBg && !hasBorder && !hasShadow && text.length < 12 && !sizableBlock) {
+          walk(childEl, depth + 1);
           continue;
         }
 
         const dominoId = `snapshot-node-${counter++}`;
-        child.dataset.dominoId = dominoId;
-        const sceneElement = elementToSceneElement(child, rootRect, win);
-        nodes.set(dominoId, child);
+        childEl.dataset.dominoId = dominoId;
+        const sceneElement = elementToSceneElement(childEl, rootRect, win);
+        nodes.set(dominoId, childEl);
+        if (
+          sceneElement &&
+          (sceneElement.type === "paragraph" || sceneElement.type === "heading") &&
+          text.length > 0
+        ) {
+          textNodes.set(dominoId, childEl);
+          nextTextBlocks.push({ id: dominoId, sceneElement, node: childEl });
+        }
         next.push({
           id: dominoId,
           x: rect.left - frameRect.left,
@@ -213,34 +244,45 @@ export function SnapshotPageView({
           height: rect.height,
           borderRadius: parseFloat(cs.borderRadius) || 0,
           saved: savedIds.has(dominoId),
-          node: child,
+          node: childEl,
           sceneElement,
+          display,
         });
 
-        walk(child, depth + 1);
+        walk(childEl, depth + 1);
       }
     };
 
     walk(root, 0);
     nodesRef.current = nodes;
+    textNodesRef.current = textNodes;
     setCandidates(next);
+    setTextBlocks(nextTextBlocks);
 
     const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, frameRect.height);
     setIframeHeight(Math.max(800, bodyH));
   }, [savedIds]);
 
   const selectableCandidates = useMemo(
-    () => candidates.filter((c) => c.sceneElement && c.sceneElement.type !== "paragraph" && c.sceneElement.type !== "heading"),
+    () => candidates.filter((c) =>
+      c.sceneElement &&
+      c.sceneElement.type !== "paragraph" &&
+      c.sceneElement.type !== "heading" &&
+      c.display !== "inline" &&
+      c.display !== "contents" &&
+      c.width >= 40 &&
+      c.height >= 20
+    ),
     [candidates]
   );
 
   useEffect(() => {
-    if (!pickerMode) return;
+    if (!pickerMode && !savePickerMode) return;
     scanCandidates();
     const onResize = () => scanCandidates();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [pickerMode, scanCandidates]);
+  }, [pickerMode, savePickerMode, scanCandidates]);
 
   const handleIframeLoad = useCallback(() => {
     const iframe = iframeRef.current;
@@ -248,8 +290,8 @@ export function SnapshotPageView({
     if (!doc?.body) return;
     const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, 1200);
     setIframeHeight(h);
-    if (pickerMode) scanCandidates();
-  }, [pickerMode, scanCandidates]);
+    if (pickerMode || savePickerMode) scanCandidates();
+  }, [pickerMode, savePickerMode, scanCandidates]);
 
   const saveNode = useCallback((id: string) => {
     const candidate = candidates.find((c) => c.id === id);
@@ -294,6 +336,31 @@ export function SnapshotPageView({
     };
   }, [selectedIds, candidates]);
 
+  // Hide original text nodes when Pretext overlay is active
+  const importedTextFlowActive = settings.pretextEnabled && (selectedElements.length > 0 || droppedElements.length > 0);
+  useEffect(() => {
+    const current = textNodesRef.current;
+    current.forEach((node) => {
+      if (importedTextFlowActive) {
+        if (!node.dataset.dominoOriginalVisibility) {
+          node.dataset.dominoOriginalVisibility = node.style.visibility || "";
+        }
+        node.style.visibility = "hidden";
+      } else if (node.dataset.dominoOriginalVisibility !== undefined) {
+        node.style.visibility = node.dataset.dominoOriginalVisibility;
+        delete node.dataset.dominoOriginalVisibility;
+      }
+    });
+    return () => {
+      current.forEach((node) => {
+        if (node.dataset.dominoOriginalVisibility !== undefined) {
+          node.style.visibility = node.dataset.dominoOriginalVisibility;
+          delete node.dataset.dominoOriginalVisibility;
+        }
+      });
+    };
+  }, [importedTextFlowActive, textBlocks]);
+
   const selectedElements = useMemo(() => {
     return selectableCandidates
       .filter((c) => selectedIds.has(c.id) && c.sceneElement)
@@ -315,6 +382,33 @@ export function SnapshotPageView({
         pinned: true,
       }));
   }, [selectableCandidates, selectedIds]);
+
+  const importedObstacles: ObstacleRect[] = useMemo(() => {
+    const moving: ObstacleRect[] = [...selectedElements, ...droppedElements].map((el) => {
+      const pos = bodyPositions.get(el.id);
+      return {
+        id: el.id,
+        x: pos?.x ?? el.rect.x,
+        y: pos?.y ?? el.rect.y,
+        width: pos?.w ?? el.rect.width,
+        height: pos?.h ?? el.rect.height,
+        angle: pos?.angle ?? 0,
+        borderRadius: el.borderRadius,
+      };
+    });
+
+    const staticRects: ObstacleRect[] = staticObstacleElements.map((el) => ({
+      id: el.id,
+      x: el.rect.x,
+      y: el.rect.y,
+      width: el.rect.width,
+      height: el.rect.height,
+      angle: 0,
+      borderRadius: el.borderRadius,
+    }));
+
+    return [...staticRects, ...moving];
+  }, [selectedElements, droppedElements, bodyPositions, staticObstacleElements]);
 
   const overlayScene = useMemo(() => ({
     id: `snapshot-overlay-${page.id}`,
@@ -394,7 +488,14 @@ export function SnapshotPageView({
         ref={iframeRef}
         srcDoc={page.preparedHtml}
         sandbox="allow-same-origin"
-        style={{ width: "100%", height: iframeHeight, border: "none", display: "block", background: "#fff" }}
+        style={{
+          width: "100%",
+          height: iframeHeight,
+          border: "none",
+          display: "block",
+          background: "#fff",
+          pointerEvents: pickerMode || settings.physicsEnabled ? "none" : "auto",
+        }}
         onLoad={handleIframeLoad}
       />
 
@@ -417,12 +518,17 @@ export function SnapshotPageView({
                   border: selected ? "2px solid rgba(59,130,246,0.8)" : "2px dashed rgba(59,130,246,0.45)",
                   background: selected ? "rgba(59,130,246,0.08)" : "rgba(59,130,246,0.04)",
                   boxSizing: "border-box",
-                  pointerEvents: "none",
+                  pointerEvents: "auto",
                   zIndex: 100,
+                  cursor: "pointer",
                 }}
+                onClick={() => toggleSelected(c.id)}
               >
                 <button
-                  onClick={() => toggleSelected(c.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSelected(c.id);
+                  }}
                   style={{
                     position: "absolute",
                     top: -8,
@@ -451,7 +557,10 @@ export function SnapshotPageView({
                   {wide && (selected ? " Physics" : "")}
                 </button>
                 <button
-                  onClick={() => (c.saved ? unsaveNode(c.id) : saveNode(c.id))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    c.saved ? unsaveNode(c.id) : saveNode(c.id);
+                  }}
                   style={{
                     position: "absolute",
                     top: -8,
@@ -482,11 +591,77 @@ export function SnapshotPageView({
               </div>
             );
           })}
+          <div
+            style={{
+              position: "fixed",
+              top: 12,
+              right: 12,
+              zIndex: 101,
+              padding: "6px 10px",
+              borderRadius: 999,
+              background: "rgba(20,20,24,0.75)",
+              color: "#ddd",
+              fontFamily: '"DM Sans", sans-serif',
+              fontSize: 11,
+              fontWeight: 500,
+              pointerEvents: "none",
+            }}
+          >
+            {selectableCandidates.length} selectable · {selectedIds.size} selected
+          </div>
         </>
       )}
 
+      {savePickerMode && (
+        <QuickSavePicker
+          candidates={selectableCandidates
+            .filter((candidate) => candidate.sceneElement)
+            .map((candidate) => ({
+              id: candidate.id,
+              element: candidate.sceneElement!,
+              x: candidate.x,
+              y: candidate.y,
+              width: candidate.width,
+              height: candidate.height,
+              borderRadius: candidate.borderRadius,
+              saved: candidate.saved,
+            }))}
+          onSave={onSaveElement}
+          onClose={() => {
+            setSavePickerMode(false);
+            if (!settings.paused) physicsRef.current?.resume();
+          }}
+        />
+      )}
+
+      {/* Pretext text overlay for imported pages */}
+      {importedTextFlowActive && textBlocks.map((t) => {
+        const el = t.sceneElement;
+        const fw = el.fontWeight ?? 400;
+        const fs = el.fontSize ?? 16;
+        const ff = el.fontFamily ?? '"DM Sans", sans-serif';
+        const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
+        return (
+          <TextFlowRegion
+            key={`imported-text-${t.id}`}
+            text={el.text ?? ""}
+            font={font}
+            fontSize={fs}
+            lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
+            color={el.color ?? "#333"}
+            containerX={el.rect.x + (el.padding ?? 0)}
+            containerY={el.rect.y + (el.padding ?? 0)}
+            containerWidth={el.rect.width - (el.padding ?? 0) * 2}
+            containerMaxHeight={Math.max(el.rect.height + 200, 300)}
+            obstacles={importedObstacles}
+            showDebug={settings.showLineBounds}
+            generation={bodyPositions.size + selectedIds.size + droppedElements.length}
+          />
+        );
+      })}
+
       {/* Physics overlay for selected/dropped imported-page components */}
-      {settings.physicsEnabled && [...selectedElements, ...droppedElements].map((el) => {
+      {[...selectedElements, ...droppedElements].map((el) => {
         const pos = bodyPositions.get(el.id);
         return (
           <PhysicsDomItem
@@ -510,6 +685,7 @@ export function SnapshotPageView({
         onTogglePicker={() => {
           setPickerMode((prev) => {
             if (!prev) {
+              setSavePickerMode(false);
               physicsRef.current?.reset();
               physicsRef.current?.pause();
             } else if (!settings.paused) {
@@ -519,6 +695,18 @@ export function SnapshotPageView({
           });
         }}
         pickerMode={pickerMode}
+        savePickerMode={savePickerMode}
+        onToggleSavePicker={() => {
+          setSavePickerMode((prev) => {
+            if (!prev) {
+              setPickerMode(false);
+              physicsRef.current?.pause();
+            } else if (!settings.paused) {
+              physicsRef.current?.resume();
+            }
+            return !prev;
+          });
+        }}
         fps={fps}
         bodyCount={selectedElements.length + droppedElements.length}
         lineCount={0}
