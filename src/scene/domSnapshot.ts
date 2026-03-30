@@ -75,14 +75,14 @@ function rewriteCssUrls(css: string, cssBaseUrl: string): string {
 }
 
 /**
- * Rewrite relative src/srcset/href attributes in HTML to absolute URLs.
+ * Rewrite img src attributes to absolute. Only targets <img> tags
+ * to avoid breaking script/link/etc tags.
  */
-function rewriteHtmlUrls(html: string, origin: string): string {
-  return html
-    .replace(/(src|srcset|poster)=["'](?!data:|http:|https:|\/\/|#)([^"']+)["']/gi,
-      (_, attr: string, ref: string) => `${attr}="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`)
-    .replace(/(href)=["'](?!data:|http:|https:|\/\/|#|javascript:|mailto:)([^"']+)["']/gi,
-      (_, attr: string, ref: string) => `${attr}="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`);
+function rewriteImgUrls(html: string, origin: string): string {
+  return html.replace(/<img([^>]*)\ssrc=["'](?!data:|http:|https:|\/\/)([^"']+)["']/gi,
+    (match, before: string, ref: string) =>
+      `<img${before} src="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`
+  );
 }
 
 /**
@@ -103,7 +103,8 @@ async function prepareHtmlForSnapshot(html: string, sourceUrl?: string): Promise
   const fetches = links.map(async (linkTag) => {
     const hrefMatch = linkTag.match(hrefRegex);
     if (!hrefMatch) return null;
-    const cssUrl = resolveUrl(hrefMatch[1], origin);
+    const rawHref = hrefMatch[1].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
+    const cssUrl = resolveUrl(rawHref, origin);
     try {
       const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
@@ -136,20 +137,17 @@ async function prepareHtmlForSnapshot(html: string, sourceUrl?: string): Promise
     }
   }
 
-  // 2. Rewrite inline style url() references too
-  modified = modified.replace(/style=["']([^"']*url\([^)]+\)[^"']*)["']/gi, (match, styleContent: string) => {
-    const rewritten = rewriteCssUrls(styleContent, sourceUrl);
-    return match.replace(styleContent, rewritten);
-  });
+  // 2. Rewrite <img src> to absolute (since <base> in srcdoc can be unreliable)
+  modified = rewriteImgUrls(modified, origin);
 
-  // 3. Rewrite HTML src/href attributes to absolute
-  modified = rewriteHtmlUrls(modified, origin);
-
-  // 4. Inject <base> as final fallback for anything we missed
+  // 3. Inject <base> tag — handles remaining relative URLs (a href, etc.)
   const base = `<base href="${origin}/">`;
   if (/<head[^>]*>/i.test(modified)) {
     modified = modified.replace(/<head[^>]*>/i, (m) => m + base);
   }
+
+  // 4. Remove scripts to avoid executing foreign JS in sandbox
+  modified = modified.replace(/<script[\s\S]*?<\/script>/gi, "");
 
   return modified;
 }
