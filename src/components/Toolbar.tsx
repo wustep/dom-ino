@@ -93,35 +93,14 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     onImportHtml(htmlInput, importName);
     setHtmlInput(""); setOpenPanel(null);
   }, [htmlInput, importName, onImportHtml]);
+  const handleExpandToolbar = useCallback(() => {
+    setCollapsed(false);
+  }, []);
 
-  if (collapsed) {
-    return (
-      <div
-        style={{
-          position: "fixed", bottom: 0, right: 0, zIndex: 9999,
-          width: 80, height: 80,
-        }}
-      >
-        <style>{`${toolbarTooltipCss}
-          .domino-collapsed-trigger .domino-collapsed-btn { opacity: 0; transform: translateY(4px); transition: opacity 0.5s ease, transform 0.3s ease; }
-          .domino-collapsed-trigger:hover .domino-collapsed-btn { opacity: 1; transform: translateY(0); }
-        `}</style>
-        <div className="domino-collapsed-trigger" style={{ width: "100%", height: "100%" }}>
-          <div className="domino-toolbar-tooltip-wrap" style={{ position: "absolute", bottom: 16, right: 16 }}>
-            <button className="domino-collapsed-btn" type="button" onClick={() => setCollapsed(false)} aria-label="Show toolbar" style={{
-              width: 32, height: 32, borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.1)",
-              backgroundColor: "rgba(20,20,24,0.85)", backdropFilter: "blur(12px)",
-              color: "#888", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-            }}><ChevronUpIcon /></button>
-            <span className="domino-toolbar-tooltip">Show toolbar</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleCollapseToolbar = useCallback(() => {
+    setOpenPanel(null);
+    setCollapsed(true);
+  }, []);
 
   return (
     <>
@@ -271,36 +250,63 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         </div>
       )}
 
-      {/* ─── Compact pill ─── */}
-      <div style={{
-        position: "fixed", bottom: 16, right: 16, zIndex: 9999,
-        display: "flex", alignItems: "center", gap: 1,
-        height: 36, padding: "0 2px", borderRadius: 10,
-        backgroundColor: "rgba(20,20,24,0.92)", backdropFilter: "blur(20px)",
-        border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-      }}>
-        <Btn active={openPanel === "pages"} onClick={() => toggle("pages")} tip="Pages"><PageIcon /></Btn>
-        <Sep />
-        <Btn onClick={() => update({ paused: !settings.paused })} tip={settings.paused ? "Resume physics" : "Pause physics"} accent={settings.paused ? "#fbbf24" : undefined}>
-          {settings.paused ? <PlayIcon /> : <PauseIcon />}
-        </Btn>
-        <Btn onClick={onExplode} tip="Explode scene"><ExplodeIcon /></Btn>
-        <Btn onClick={onReset} tip="Reset scene"><ResetIcon /></Btn>
-        <Sep />
-        {/* Components mode: combined picker + stash entry point */}
-        <Btn active={pickerMode} onClick={onTogglePicker} tip={pickerMode ? "Exit component mode" : "Enter component mode"} accent={pickerMode ? "#3b82f6" : undefined}><PickerIcon /></Btn>
-        <Btn active={openPanel === "stash" || savePickerMode} onClick={() => toggle("stash")} tip="Saved components" accent={savePickerMode ? "#c4b5fd" : savedElements.length > 0 ? "#a78bfa" : undefined} dataAttrs={{ "data-domino-stash-trigger": "true" }}>
-          <StashIcon />
-          {savedElements.length > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "#a78bfa", marginLeft: -2 }}>{savedElements.length}</span>}
-        </Btn>
-        <Sep />
-        <Btn active={openPanel === "settings"} onClick={() => toggle("settings")} tip="Settings"><SettingsIcon /></Btn>
-        <Btn onClick={() => { setOpenPanel(null); setCollapsed(true); }} tip="Hide toolbar" compact><ChevronDownIcon /></Btn>
+      <div style={toolbarDockStyle}>
+        <div className="domino-toolbar-tooltip-wrap" style={{ ...toolbarOverlayItemStyle, pointerEvents: collapsed ? "auto" : "none" }}>
+          <button
+            className="domino-toolbar-reveal"
+            type="button"
+            onClick={handleExpandToolbar}
+            aria-label="Show toolbar"
+            style={{
+              ...collapsedBtnStyle,
+              opacity: collapsed ? 0.86 : 0,
+              transform: collapsed ? "translateY(0) scale(1)" : "translateY(10px) scale(0.92)",
+            }}
+          >
+            <ChevronUpIcon />
+          </button>
+          <span className="domino-toolbar-tooltip">Show toolbar</span>
+        </div>
+
+        {/* ─── Compact pill ─── */}
+        <div
+          style={{
+            ...toolbarPillStyle,
+            opacity: collapsed ? 0 : 1,
+            transform: collapsed ? "translateY(16px) scale(0.96)" : "translateY(0) scale(1)",
+            pointerEvents: collapsed ? "none" : "auto",
+          }}
+        >
+          <Btn active={openPanel === "pages"} onClick={() => toggle("pages")} tip="Pages"><PageIcon /></Btn>
+          <Sep />
+          <Btn onClick={() => update({ paused: !settings.paused })} tip={settings.paused ? "Resume physics" : "Pause physics"} accent={settings.paused ? "#fbbf24" : undefined}>
+            {settings.paused ? <PlayIcon /> : <PauseIcon />}
+          </Btn>
+          <Btn onClick={onExplode} tip="Explode scene"><ExplodeIcon /></Btn>
+          <Btn onClick={onReset} tip="Reset scene"><ResetIcon /></Btn>
+          <Sep />
+          {/* Components mode: combined picker + stash entry point */}
+          <Btn active={pickerMode} onClick={onTogglePicker} tip={pickerMode ? "Exit component mode" : "Enter component mode"} accent={pickerMode ? "#3b82f6" : undefined}><PickerIcon /></Btn>
+          <Btn active={openPanel === "stash" || savePickerMode} onClick={() => toggle("stash")} tip="Saved components" accent={savePickerMode ? "#c4b5fd" : savedElements.length > 0 ? "#a78bfa" : undefined} dataAttrs={{ "data-domino-stash-trigger": "true" }}>
+            <StashIcon />
+            {savedElements.length > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "#a78bfa", marginLeft: -2 }}>{savedElements.length}</span>}
+          </Btn>
+          <Sep />
+          <Btn active={openPanel === "settings"} onClick={() => toggle("settings")} tip="Settings"><SettingsIcon /></Btn>
+          <Btn onClick={handleCollapseToolbar} tip="Hide toolbar" compact><ChevronDownIcon /></Btn>
+        </div>
       </div>
 
-      {openPanel && <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onPointerDown={() => setOpenPanel(null)} />}
+      {openPanel && !collapsed && <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onPointerDown={() => setOpenPanel(null)} />}
       <style>{`${toolbarTooltipCss}
-        @keyframes flyUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes flyUp { from { opacity:0; transform:translateY(10px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+        .domino-toolbar-reveal:hover,
+        .domino-toolbar-reveal:focus-visible {
+          opacity: 1 !important;
+          transform: translateY(-2px) scale(1.03) !important;
+          color: #f3f4f6;
+          border-color: rgba(255,255,255,0.22);
+        }
       `}</style>
     </>
   );
@@ -342,7 +348,11 @@ const toolbarTooltipCss = `
   }
 `;
 
-const flyoutBase: React.CSSProperties = { position: "fixed", zIndex: 9998, maxHeight: "calc(100vh - 80px)", overflowY: "auto", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(20,20,24,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 12px 48px rgba(0,0,0,0.45)", fontFamily: '"DM Sans", sans-serif', color: "#ccc", animation: "flyUp 0.15s ease" };
+const flyoutBase: React.CSSProperties = { position: "fixed", zIndex: 9998, maxHeight: "calc(100vh - 80px)", overflowY: "auto", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(20,20,24,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 12px 48px rgba(0,0,0,0.45)", fontFamily: '"DM Sans", sans-serif', color: "#ccc", animation: "flyUp 0.22s cubic-bezier(0.22, 1, 0.36, 1)" };
+const toolbarDockStyle: React.CSSProperties = { position: "fixed", bottom: 16, right: 16, zIndex: 9999, display: "grid", alignItems: "end", justifyItems: "end" };
+const toolbarOverlayItemStyle: React.CSSProperties = { gridArea: "1 / 1" };
+const toolbarPillStyle: React.CSSProperties = { gridArea: "1 / 1", display: "flex", alignItems: "center", gap: 1, height: 36, padding: "0 2px", borderRadius: 10, backgroundColor: "rgba(20,20,24,0.92)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", transformOrigin: "bottom right", willChange: "opacity, transform", transition: "opacity 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 260ms cubic-bezier(0.22, 1, 0.36, 1)" };
+const collapsedBtnStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", backgroundColor: "rgba(20,20,24,0.88)", backdropFilter: "blur(16px)", color: "#9ca3af", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 24px rgba(0,0,0,0.28)", transformOrigin: "bottom right", willChange: "opacity, transform", transition: "opacity 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 260ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms ease, border-color 160ms ease" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)", color: "#ddd", fontSize: 11, fontFamily: '"DM Sans", sans-serif', outline: "none", boxSizing: "border-box" };
 const primaryBtnStyle: React.CSSProperties = { padding: "6px 0", borderRadius: 6, border: "none", backgroundColor: "#7c3aed", color: "#fff", fontSize: 11, fontWeight: 600, fontFamily: '"DM Sans", sans-serif', transition: "opacity 0.12s" };
 const chipStyle: React.CSSProperties = { padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", backgroundColor: "transparent", color: "#999", fontSize: 11, fontWeight: 400, fontFamily: '"DM Sans", sans-serif', cursor: "pointer" };
