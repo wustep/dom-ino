@@ -1,6 +1,6 @@
 import { memo, useState, useCallback } from "react";
-import type { PresetKey } from "../scene/presetScenes";
-import { PRESET_LIST } from "../scene/presetScenes";
+import type { PresetKey } from "../scene/presets";
+import { PRESET_LIST } from "../scene/presets";
 import type { SavedElement } from "../scene/types";
 import type { CustomPage } from "../App";
 

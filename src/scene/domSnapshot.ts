@@ -1,4 +1,3 @@
-import { snapshot, rebuild, type serializedNodeWithId } from "rrweb-snapshot";
 import type { SceneDescription, SceneElement, SceneElementType } from "./types";
 
 let snapshotCounter = 0;
@@ -8,17 +7,19 @@ let snapshotCounter = 0;
 export async function snapshotHtmlToScene(
   html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
 ): Promise<SceneDescription> {
-  // Try rrweb-snapshot approach: render in iframe, serialize, rebuild, walk
-  const rrwebResult = await tryRrwebSnapshot(html, containerWidth, sceneName, sourceUrl);
-  if (rrwebResult && rrwebResult.elements.length >= 3) {
-    return rrwebResult;
+  // Try rendering in iframe and walking the live DOM directly
+  const result = await tryIframeWalk(html, containerWidth, sceneName, sourceUrl);
+  if (result && result.elements.length >= 3) {
+    return result;
   }
-
   // Fall back to structural HTML parser
   return parseHtmlStructure(html, containerWidth, sceneName);
 }
 
-// ─── rrweb-snapshot based capture ───
+// ─── Iframe-based DOM walk ───
+// Renders HTML in a sandboxed iframe with scripts enabled,
+// waits for it to render, then walks the live DOM directly
+// reading computed styles. No serialize/rebuild round-trip needed.
 
 function injectBaseTag(html: string, sourceUrl?: string): string {
   if (!sourceUrl) return html;
@@ -32,14 +33,12 @@ function injectBaseTag(html: string, sourceUrl?: string): string {
   } catch { return html; }
 }
 
-function tryRrwebSnapshot(
+function tryIframeWalk(
   html: string, containerWidth: number, sceneName: string, sourceUrl?: string
 ): Promise<SceneDescription | null> {
   return new Promise((resolve) => {
     const iframe = document.createElement("iframe");
-    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:4000px;border:none;visibility:hidden;pointer-events:none;`;
-    // allow-same-origin so we can access contentDocument
-    // allow-scripts so JS-rendered pages can execute
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:5000px;border:none;visibility:hidden;pointer-events:none;`;
     iframe.sandbox.add("allow-same-origin");
     iframe.sandbox.add("allow-scripts");
     iframe.srcdoc = injectBaseTag(html, sourceUrl);
@@ -47,109 +46,73 @@ function tryRrwebSnapshot(
     const timeout = setTimeout(() => {
       try { document.body.removeChild(iframe); } catch {}
       resolve(null);
-    }, 10000);
+    }, 12000);
 
     iframe.onload = () => {
-      // Wait for page to render (CSS loading, JS execution)
+      // Retry logic: wait for CSS/JS to render, then walk
       const attempt = (retries: number) => {
         setTimeout(() => {
           try {
-            const iframeDoc = iframe.contentDocument;
-            if (!iframeDoc) { cleanup(); resolve(null); return; }
-
-            // Use rrweb-snapshot to serialize the rendered DOM
-            // This inlines all computed styles, resolves URLs, etc.
-            const serialized = snapshot(iframeDoc, {
-              inlineStylesheet: true,
-              inlineImages: false,
-              recordCanvas: false,
-            });
-
-            if (!serialized) {
-              if (retries > 0) { attempt(retries - 1); return; }
-              cleanup(); resolve(null); return;
+            const doc = iframe.contentDocument;
+            const win = iframe.contentWindow;
+            if (!doc || !doc.body || !win) {
+              clearTimeout(timeout);
+              try { document.body.removeChild(iframe); } catch {}
+              resolve(null);
+              return;
             }
 
-            // Rebuild the serialized DOM in a hidden iframe to isolate it
-            // Using an iframe prevents position:fixed elements from escaping
-            const rebuildFrame = document.createElement("iframe");
-            rebuildFrame.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:4000px;border:none;visibility:hidden;pointer-events:none;`;
-            document.body.appendChild(rebuildFrame);
-            const container = rebuildFrame.contentDocument!.body;
-            container.style.cssText = `margin:0;padding:0;width:${containerWidth}px;`;
+            const elements: SceneElement[] = [];
+            const bodyRect = doc.body.getBoundingClientRect();
+            walkElement(doc.body, elements, bodyRect, 0, win);
 
-            const rebuildDoc = rebuildFrame.contentDocument!;
-            const node = rebuild(serialized as serializedNodeWithId, {
-              doc: rebuildDoc,
-              hackCss: true,
-              cache: { stylesWithHoverClass: new Map() },
-            });
-
-            if (node) {
-              container.appendChild(node);
+            // If we found very few elements, retry (page might still be rendering)
+            if (elements.length < 3 && retries > 0) {
+              attempt(retries - 1);
+              return;
             }
 
-            // Give the rebuilt DOM a moment to layout
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                try {
-                  const win = rebuildFrame.contentWindow!;
-                  const elements: SceneElement[] = [];
-                  const containerRect = container.getBoundingClientRect();
-                  walkElement(container, elements, containerRect, 0, win);
+            const maxY = elements.reduce((m, el) => Math.max(m, el.rect.y + el.rect.height), 600);
 
-                  if (elements.length < 3 && retries > 0) {
-                    document.body.removeChild(rebuildFrame);
-                    attempt(retries - 1);
-                    return;
-                  }
+            let bgColor = "#ffffff";
+            const bodyCs = win.getComputedStyle(doc.body);
+            const htmlCs = doc.documentElement ? win.getComputedStyle(doc.documentElement) : null;
+            const bodyBg = parseColor(bodyCs.backgroundColor);
+            const htmlBg = htmlCs ? parseColor(htmlCs.backgroundColor) : "";
+            if (bodyBg) bgColor = bodyBg;
+            else if (htmlBg) bgColor = htmlBg;
 
-                  const maxY = elements.reduce((m, el) => Math.max(m, el.rect.y + el.rect.height), 600);
+            clearTimeout(timeout);
+            try { document.body.removeChild(iframe); } catch {}
 
-                  let bgColor = "#ffffff";
-                  const bodyEl = container.querySelector("body") || container.firstElementChild;
-                  if (bodyEl instanceof HTMLElement) {
-                    const bg = parseColor(win.getComputedStyle(bodyEl).backgroundColor);
-                    if (bg) bgColor = bg;
-                  }
-
-                  document.body.removeChild(rebuildFrame);
-                  cleanup();
-
-                  resolve(elements.length >= 3 ? {
-                    id: `snapshot-${Date.now()}`, name: sceneName,
-                    width: containerWidth, height: Math.max(maxY + 100, 800),
-                    backgroundColor: bgColor, elements,
-                  } : null);
-                } catch {
-                  try { document.body.removeChild(rebuildFrame); } catch {}
-                  cleanup();
-                  resolve(null);
-                }
-              });
-            });
+            resolve(elements.length >= 3 ? {
+              id: `snapshot-${Date.now()}`, name: sceneName,
+              width: containerWidth, height: Math.max(maxY + 100, 800),
+              backgroundColor: bgColor, elements,
+            } : null);
           } catch {
             if (retries > 0) { attempt(retries - 1); return; }
-            cleanup(); resolve(null);
+            clearTimeout(timeout);
+            try { document.body.removeChild(iframe); } catch {}
+            resolve(null);
           }
-        }, 1200);
+        }, 1500);
       };
 
-      attempt(2);
+      attempt(3);
     };
 
-    iframe.onerror = () => { cleanup(); resolve(null); };
-
-    function cleanup() {
+    iframe.onerror = () => {
       clearTimeout(timeout);
       try { document.body.removeChild(iframe); } catch {}
-    }
+      resolve(null);
+    };
 
     document.body.appendChild(iframe);
   });
 }
 
-// ─── DOM walker (shared by rrweb rebuild and iframe approaches) ───
+// ─── DOM walker ───
 
 const TAG_TYPE_MAP: Record<string, SceneElementType> = {
   H1: "heading", H2: "heading", H3: "heading", H4: "heading", H5: "heading", H6: "heading",
@@ -198,7 +161,8 @@ function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, de
   for (const child of children) {
     const tag = child.tagName;
     if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "SVG" || tag === "LINK" || tag === "META" || tag === "HEAD" || tag === "TEMPLATE") continue;
-    const cs = win.getComputedStyle(child);
+    let cs: CSSStyleDeclaration;
+    try { cs = win.getComputedStyle(child); } catch { continue; }
     if (cs.display === "none" || cs.visibility === "hidden" || parsePx(cs.opacity) === 0) continue;
     const rect = child.getBoundingClientRect();
     const x = rect.left - rootRect.left, y = rect.top - rootRect.top, w = rect.width, h = rect.height;
@@ -259,6 +223,13 @@ function parseHtmlStructure(html: string, containerWidth: number, sceneName: str
   if (descMeta?.content) {
     elements.push({ id: `sp-${snapshotCounter++}`, type: "paragraph", rect: { x: mx, y, width: contentW, height: 60 }, throwable: false, pinned: true, text: descMeta.content.trim(), fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#666" });
     y += 70;
+  }
+
+  // Try to get OG image
+  const ogImage = doc.querySelector('meta[property="og:image"]') as HTMLMetaElement | null;
+  if (ogImage?.content) {
+    elements.push({ id: `sp-${snapshotCounter++}`, type: "image", rect: { x: mx, y, width: Math.min(contentW, 600), height: 300 }, throwable: true, pinned: false, backgroundColor: "#f0f0f0", borderRadius: 8, imageSrc: ogImage.content, imageAlt: "Page preview", mass: 2 });
+    y += 316;
   }
 
   const body = doc.body;

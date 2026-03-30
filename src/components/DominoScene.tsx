@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import type { SceneDescription, SceneElement, ObstacleRect, SavedElement } from "../scene/types";
-import type { PresetKey } from "../scene/presetScenes";
+import type { PresetKey } from "../scene/presets";
 import type { CustomPage } from "../App";
 import { createPhysicsEngine } from "../physics/engine";
 import type { PhysicsEngine } from "../physics/engine";

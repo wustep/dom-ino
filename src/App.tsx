@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DominoScene } from "./components/DominoScene";
 import type { SceneDescription, SceneElement, SavedElement } from "./scene/types";
-import type { PresetKey } from "./scene/presetScenes";
-import { getPresetScene } from "./scene/presetScenes";
+import type { PresetKey } from "./scene/presets";
+import { getPresetScene } from "./scene/presets";
 import { snapshotHtmlToScene, autoSelectThrowables, fetchPageHtml } from "./scene/domSnapshot";
 
 export interface CustomPage {
