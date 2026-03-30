@@ -71,16 +71,20 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
     modified = modified.replace(r.linkTag, `<style>${r.css}</style>`);
   }
 
-  // 2. Rewrite <img src> to absolute
+  // 2. Rewrite <img src> to absolute (including protocol-relative //urls)
+  modified = modified.replace(/<img([^>]*)\ssrc=["']\/\/([^"']+)["']/gi,
+    (_match, before: string, ref: string) => `<img${before} src="https://${ref}"`);
   modified = modified.replace(/<img([^>]*)\ssrc=["'](?!data:|https?:|\/\/)([^"']+)["']/gi,
-    (match, before: string, ref: string) =>
+    (_match, before: string, ref: string) =>
       `<img${before} src="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`);
 
-  // 3. Rewrite srcset to absolute
-  modified = modified.replace(/srcset=["'](?!data:|https?:)([^"']+)["']/gi,
+  // 3. Rewrite srcset to absolute (including protocol-relative)
+  modified = modified.replace(/srcset=["']([^"']+)["']/gi,
     (_, srcset: string) => {
-      const fixed = srcset.replace(/(?:^|,\s*)(?!https?:)(\/[^\s,]+)/g,
-        (m2, ref: string) => m2.replace(ref, origin + ref));
+      const fixed = srcset
+        .replace(/\/\/([^\s,]+)/g, "https://$1")
+        .replace(/(?:^|,\s*)(?!https?:)(\/[^\s,]+)/g,
+          (m2, ref: string) => m2.replace(ref, origin + ref));
       return `srcset="${fixed}"`;
     });
 
@@ -238,10 +242,20 @@ function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, de
   const children = Array.from(el.children).filter((c): c is HTMLElement => c instanceof HTMLElement);
   for (const child of children) {
     const tag = child.tagName;
-    if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "SVG" || tag === "LINK" || tag === "META" || tag === "HEAD" || tag === "TEMPLATE") continue;
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "SVG" || tag === "LINK" || tag === "META" || tag === "HEAD" || tag === "TEMPLATE" || tag === "NAV" || tag === "FOOTER") continue;
+    // Skip sidebar, navigation, and other non-content elements by role/class/id
+    const role = child.getAttribute("role");
+    if (role === "navigation" || role === "banner" || role === "complementary") continue;
+    const elId = child.id?.toLowerCase() || "";
+    const elCls = (child.className?.toString() || "").toLowerCase();
+    if (elId.includes("sidebar") || elId.includes("footer") || elId.includes("cookie") || elId.includes("modal") ||
+        elCls.includes("sidebar") || elCls.includes("footer") || elCls.includes("cookie") || elCls.includes("modal") ||
+        elCls.includes("nav-") || elCls.includes("navigation") || elCls.includes("interlanguage")) continue;
     let cs: CSSStyleDeclaration;
     try { cs = win.getComputedStyle(child); } catch { continue; }
     if (cs.display === "none" || cs.visibility === "hidden" || parsePx(cs.opacity) === 0) continue;
+    // Skip fixed/sticky positioned elements (headers, banners)
+    if (cs.position === "fixed" || cs.position === "sticky") continue;
     const rect = child.getBoundingClientRect();
     const x = rect.left - rootRect.left, y = rect.top - rootRect.top, w = rect.width, h = rect.height;
     if (w < 1 || h < 1) { walkElement(child, out, rootRect, depth + 1, win); continue; }
