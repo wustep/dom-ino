@@ -283,7 +283,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <Btn onClick={() => { setOpenPanel(null); setCollapsed(true); }} tip="Hide" compact><ChevronDownIcon /></Btn>
       </div>
 
-      {openPanel && <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onClick={() => setOpenPanel(null)} />}
+      {openPanel && <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onPointerDown={() => setOpenPanel(null)} />}
       <style>{`@keyframes flyUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }`}</style>
     </>
   );
