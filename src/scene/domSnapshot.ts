@@ -134,39 +134,25 @@ export async function fetchPageHtml(url: string): Promise<string> {
     normalizedUrl = "https://" + normalizedUrl;
   }
 
-  // allorigins wraps the response - use the JSON endpoint to get raw HTML
+  // Use local dev server proxy (works in development)
   try {
     const res = await fetch(
-      `https://api.allorigins.win/get?url=${encodeURIComponent(normalizedUrl)}`,
-      { signal: AbortSignal.timeout(15000) }
-    );
-    if (res.ok) {
-      const json = await res.json();
-      if (json.contents && json.contents.length > 200) {
-        return json.contents;
-      }
-    }
-  } catch { /* try next */ }
-
-  // corsproxy.io
-  try {
-    const res = await fetch(
-      `https://corsproxy.io/?${encodeURIComponent(normalizedUrl)}`,
-      { signal: AbortSignal.timeout(12000) }
+      `/api/fetch-page?url=${encodeURIComponent(normalizedUrl)}`,
+      { signal: AbortSignal.timeout(18000) }
     );
     if (res.ok) {
       const text = await res.text();
-      if (text.length > 200) return text;
+      if (text.length > 100 && !text.startsWith("{\"error")) return text;
     }
-  } catch { /* try next */ }
+  } catch { /* try fallbacks */ }
 
-  // Direct fetch as last resort
+  // Direct fetch (works for CORS-enabled sites)
   try {
     const res = await fetch(normalizedUrl, { signal: AbortSignal.timeout(8000) });
     if (res.ok) return await res.text();
   } catch { /* fall through */ }
 
-  throw new Error(`Could not fetch ${normalizedUrl}. The page may block cross-origin requests.`);
+  throw new Error(`Could not fetch ${normalizedUrl}. Try pasting HTML directly instead.`);
 }
 
 function walkElement(el: HTMLElement, out: SceneElement[], rootRect: DOMRect, depth: number, win: Window) {
