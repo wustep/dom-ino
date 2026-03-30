@@ -70,13 +70,15 @@ function tryRrwebSnapshot(
               cleanup(); resolve(null); return;
             }
 
-            // Rebuild the serialized DOM in a hidden container
-            const container = document.createElement("div");
-            container.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;overflow:hidden;visibility:hidden;pointer-events:none;`;
-            document.body.appendChild(container);
+            // Rebuild the serialized DOM in a hidden iframe to isolate it
+            // Using an iframe prevents position:fixed elements from escaping
+            const rebuildFrame = document.createElement("iframe");
+            rebuildFrame.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:4000px;border:none;visibility:hidden;pointer-events:none;`;
+            document.body.appendChild(rebuildFrame);
+            const container = rebuildFrame.contentDocument!.body;
+            container.style.cssText = `margin:0;padding:0;width:${containerWidth}px;`;
 
-            // Create a wrapper document context for rebuild
-            const rebuildDoc = document;
+            const rebuildDoc = rebuildFrame.contentDocument!;
             const node = rebuild(serialized as serializedNodeWithId, {
               doc: rebuildDoc,
               hackCss: true,
@@ -91,28 +93,27 @@ function tryRrwebSnapshot(
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
                 try {
+                  const win = rebuildFrame.contentWindow!;
                   const elements: SceneElement[] = [];
                   const containerRect = container.getBoundingClientRect();
-                  walkElement(container, elements, containerRect, 0, window);
+                  walkElement(container, elements, containerRect, 0, win);
 
                   if (elements.length < 3 && retries > 0) {
-                    document.body.removeChild(container);
+                    document.body.removeChild(rebuildFrame);
                     attempt(retries - 1);
                     return;
                   }
 
                   const maxY = elements.reduce((m, el) => Math.max(m, el.rect.y + el.rect.height), 600);
 
-                  // Try to get background color
                   let bgColor = "#ffffff";
                   const bodyEl = container.querySelector("body") || container.firstElementChild;
                   if (bodyEl instanceof HTMLElement) {
-                    const cs = window.getComputedStyle(bodyEl);
-                    const bg = parseColor(cs.backgroundColor);
+                    const bg = parseColor(win.getComputedStyle(bodyEl).backgroundColor);
                     if (bg) bgColor = bg;
                   }
 
-                  document.body.removeChild(container);
+                  document.body.removeChild(rebuildFrame);
                   cleanup();
 
                   resolve(elements.length >= 3 ? {
@@ -121,7 +122,7 @@ function tryRrwebSnapshot(
                     backgroundColor: bgColor, elements,
                   } : null);
                 } catch {
-                  try { document.body.removeChild(container); } catch {}
+                  try { document.body.removeChild(rebuildFrame); } catch {}
                   cleanup();
                   resolve(null);
                 }
