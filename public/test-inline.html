@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head><title>Inline CSS Test</title></head>
+<body>
+<h2>Testing iframe rendering with inlined CSS</h2>
+<pre id="log" style="font-size:11px;background:#f0f0f0;padding:10px;max-height:600px;overflow:auto;"></pre>
+<script>
+async function test() {
+  const log = s => { document.getElementById('log').textContent += s + '\n'; console.log(s); };
+
+  log('Fetching Wikipedia Typography...');
+  const res = await fetch('/api/fetch-page?url=' + encodeURIComponent('https://en.wikipedia.org/wiki/Typography'));
+  const html = await res.text();
+  log('HTML: ' + html.length + ' bytes');
+
+  // Find stylesheets
+  const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi;
+  const hrefRegex = /href=["']([^"']+)["']/i;
+  const links = html.match(linkRegex) || [];
+  log('Stylesheet links: ' + links.length);
+
+  let modified = html;
+  const origin = 'https://en.wikipedia.org';
+
+  for (const linkTag of links) {
+    const m = linkTag.match(hrefRegex);
+    if (!m) continue;
+    const raw = m[1].replace(/&amp;/g, '&');
+    const cssUrl = origin + raw;
+    try {
+      const r = await fetch('/api/fetch-page?url=' + encodeURIComponent(cssUrl), {signal: AbortSignal.timeout(8000)});
+      if (r.ok) {
+        const css = await r.text();
+        log('CSS fetched: ' + css.length + ' bytes from ' + cssUrl.slice(0, 60));
+        modified = modified.replace(linkTag, '<style>' + css + '</style>');
+      }
+    } catch(e) { log('CSS fetch failed: ' + e); }
+  }
+
+    // Strip scripts, fix nojs classes, add base
+    modified = modified.replace(/<script[\s\S]*?<\/script>/gi, '');
+    modified = modified.replace(/\bclient-nojs\b/g, 'client-js');
+    modified = modified.replace(/\bno-js\b/g, 'js');
+    modified = modified.replace(/\bnojs\b/g, 'js');
+    modified = modified.replace(/<head[^>]*>/i, m => m + '<base href="' + origin + '/">');
+
+  log('Prepared: ' + modified.length + ' bytes');
+  log('<style> tags: ' + (modified.match(/<style>/gi) || []).length);
+
+  // Create iframe
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'width:1200px;height:4000px;border:1px solid #ccc;';
+  iframe.sandbox.add('allow-same-origin');
+  iframe.srcdoc = modified;
+  document.body.appendChild(iframe);
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      const doc = iframe.contentDocument;
+      const win = iframe.contentWindow;
+      log('');
+      log('=== IFRAME LOADED ===');
+      log('body exists: ' + !!doc.body);
+      log('body children: ' + doc.body.children.length);
+      log('body rect: ' + doc.body.getBoundingClientRect().width + 'x' + doc.body.getBoundingClientRect().height);
+
+      // Check a few elements
+      const ps = doc.querySelectorAll('p');
+      log('<p> elements: ' + ps.length);
+      if (ps[0]) {
+        const r = ps[0].getBoundingClientRect();
+        const cs = win.getComputedStyle(ps[0]);
+        log('First <p> rect: ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' @ (' + Math.round(r.left) + ',' + Math.round(r.top) + ')');
+        log('First <p> font: ' + cs.fontSize + ' ' + cs.fontFamily.slice(0,50));
+        log('First <p> color: ' + cs.color);
+        log('First <p> text: ' + ps[0].textContent.trim().slice(0, 80));
+      }
+
+      const h1s = doc.querySelectorAll('h1');
+      log('<h1> elements: ' + h1s.length);
+      if (h1s[0]) {
+        const r = h1s[0].getBoundingClientRect();
+        log('First <h1> rect: ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' @ (' + Math.round(r.left) + ',' + Math.round(r.top) + ')');
+        log('First <h1> text: ' + h1s[0].textContent.trim().slice(0, 80));
+      }
+
+      // Walk and count visible elements
+      let count = 0;
+      function walk(el, depth) {
+        if (depth > 20) return;
+        for (const child of el.children) {
+          const tag = child.tagName;
+          if (['SCRIPT','STYLE','NOSCRIPT','SVG','LINK','META','HEAD','TEMPLATE'].includes(tag)) continue;
+          let cs;
+          try { cs = win.getComputedStyle(child); } catch { continue; }
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+          const rect = child.getBoundingClientRect();
+          if (rect.width >= 1 && rect.height >= 1) count++;
+          walk(child, depth + 1);
+        }
+      }
+      walk(doc.body, 0);
+      log('Visible elements with dimensions: ' + count);
+    }, 500);
+  };
+}
+test();
+</script>
+</body>
+</html>

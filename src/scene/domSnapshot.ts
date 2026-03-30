@@ -8,15 +8,19 @@ export async function snapshotHtmlToScene(
   html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
 ): Promise<SceneDescription> {
   // Step 1: Prepare HTML — fetch CSS through proxy and inline it
+  console.log("[DOMino] Starting snapshot for:", sceneName, "sourceUrl:", sourceUrl);
   const prepared = sourceUrl ? await prepareHtml(html, sourceUrl) : html;
+  console.log("[DOMino] Prepared HTML:", prepared.length, "bytes");
 
   // Step 2: Render in iframe and walk the live DOM
   const result = await renderAndWalk(prepared, containerWidth, sceneName);
+  console.log("[DOMino] Iframe walk result:", result ? `${result.elements.length} elements` : "null");
   if (result && result.elements.length >= 3) {
     return result;
   }
 
   // Step 3: Fall back to structure parser
+  console.log("[DOMino] Falling back to structure parser");
   return parseHtmlStructure(html, containerWidth, sceneName);
 }
 
@@ -83,6 +87,14 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
   // 4. Remove scripts to prevent foreign JS execution
   modified = modified.replace(/<script[\s\S]*?<\/script>/gi, "");
 
+  // 5. Fix JS-dependent visibility classes
+  // Many sites (Wikipedia, etc.) use client-nojs/no-js classes to hide content
+  // when JavaScript hasn't loaded. Since we strip scripts, simulate JS-ready state.
+  modified = modified
+    .replace(/\bclient-nojs\b/g, "client-js")
+    .replace(/\bno-js\b/g, "js")
+    .replace(/\bnojs\b/g, "js");
+
   // 5. Add base tag for remaining relative URLs
   const base = `<base href="${origin}/">`;
   if (/<head[^>]*>/i.test(modified)) {
@@ -127,7 +139,11 @@ function renderAndWalk(
 
             const elements: SceneElement[] = [];
             const bodyRect = doc.body.getBoundingClientRect();
+            console.log("[DOMino] iframe body rect:", bodyRect.width, "x", bodyRect.height);
+            console.log("[DOMino] iframe body children:", doc.body.children.length);
+            console.log("[DOMino] iframe <style> count:", doc.querySelectorAll("style").length);
             walkElement(doc.body, elements, bodyRect, 0, win);
+            console.log("[DOMino] walk found:", elements.length, "elements, retries left:", retries);
 
             if (elements.length < 3 && retries > 0) {
               attempt(retries - 1);

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Snapshot Test</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    #results { white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 400px; overflow: auto; background: #f5f5f5; padding: 10px; border-radius: 8px; }
+    #status { padding: 10px; margin: 10px 0; border-radius: 8px; }
+    .ok { background: #d4edda; color: #155724; }
+    .err { background: #f8d7da; color: #721c24; }
+    .loading { background: #cce5ff; color: #004085; }
+    button { padding: 8px 16px; font-size: 14px; cursor: pointer; margin: 4px; }
+  </style>
+</head>
+<body>
+  <h1>DOMino Snapshot Test</h1>
+  <div>
+    <button onclick="testSnapshot('https://en.wikipedia.org/wiki/Typography')">Test Wikipedia</button>
+    <button onclick="testSnapshot('https://news.ycombinator.com')">Test HN</button>
+    <button onclick="testSnapshot('https://example.com')">Test Example.com</button>
+  </div>
+  <div id="status" class="loading">Ready to test</div>
+  <div id="results"></div>
+
+  <script>
+    async function testSnapshot(url) {
+      const status = document.getElementById('status');
+      const results = document.getElementById('results');
+      status.className = 'loading';
+      status.textContent = `Fetching ${url}...`;
+      results.textContent = '';
+
+      try {
+        // Step 1: Fetch HTML
+        const t0 = performance.now();
+        const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(url)}`);
+        const html = await res.text();
+        const t1 = performance.now();
+        log(`Fetched HTML: ${html.length} bytes in ${(t1-t0).toFixed(0)}ms`);
+
+        // Step 2: Find stylesheet links
+        const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi;
+        const hrefRegex = /href=["']([^"']+)["']/i;
+        const links = html.match(linkRegex) || [];
+        log(`Found ${links.length} stylesheet links`);
+
+        // Step 3: Fetch and inline CSS
+        let prepared = html;
+        const origin = new URL(url).origin;
+        let totalCss = 0;
+
+        for (const linkTag of links) {
+          const m = linkTag.match(hrefRegex);
+          if (!m) continue;
+          const rawHref = m[1].replace(/&amp;/g, '&');
+          const cssUrl = rawHref.startsWith('http') || rawHref.startsWith('//')
+            ? (rawHref.startsWith('//') ? 'https:' + rawHref : rawHref)
+            : origin + (rawHref.startsWith('/') ? '' : '/') + rawHref;
+
+          try {
+            const cssRes = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, { signal: AbortSignal.timeout(8000) });
+            if (cssRes.ok) {
+              const css = await cssRes.text();
+              if (css.length > 10) {
+                totalCss += css.length;
+                prepared = prepared.replace(linkTag, `<style>${css}</style>`);
+                log(`  Inlined CSS: ${css.length} bytes from ${cssUrl.slice(0, 80)}...`);
+              }
+            }
+          } catch (e) {
+            log(`  Failed to fetch CSS: ${e.message}`);
+          }
+        }
+        log(`Total inlined CSS: ${totalCss} bytes`);
+
+        // Step 4: Fix URLs, strip scripts, add base
+        prepared = prepared.replace(/<script[\s\S]*?<\/script>/gi, '');
+        prepared = prepared.replace(/<head[^>]*>/i, m => m + `<base href="${origin}/">`);
+        log(`Prepared HTML: ${prepared.length} bytes (scripts stripped, base injected)`);
+
+        // Step 5: Load in iframe
+        status.textContent = 'Loading in iframe...';
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:6000px;border:none;visibility:hidden;';
+        iframe.sandbox.add('allow-same-origin');
+        iframe.srcdoc = prepared;
+
+        const elements = await new Promise((resolve) => {
+          iframe.onload = () => {
+            setTimeout(() => {
+              const doc = iframe.contentDocument;
+              const win = iframe.contentWindow;
+              if (!doc || !doc.body || !win) { resolve([]); return; }
+
+              const bodyRect = doc.body.getBoundingClientRect();
+              log(`Body rect: ${bodyRect.width}x${bodyRect.height}`);
+
+              // Walk and count elements
+              let count = 0;
+              const found = [];
+              function walk(el, depth) {
+                if (depth > 20) return;
+                for (const child of el.children) {
+                  const tag = child.tagName;
+                  if (['SCRIPT','STYLE','NOSCRIPT','SVG','LINK','META','HEAD','TEMPLATE'].includes(tag)) continue;
+                  let cs;
+                  try { cs = win.getComputedStyle(child); } catch { continue; }
+                  if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+                  const rect = child.getBoundingClientRect();
+                  const w = rect.width, h = rect.height;
+                  if (w < 1 || h < 1) { walk(child, depth + 1); continue; }
+
+                  const text = child.textContent?.trim().slice(0, 50) || '';
+                  if (tag.match(/^H[1-6]$/) || tag === 'P' || tag === 'IMG' || tag === 'BUTTON') {
+                    count++;
+                    if (found.length < 20) {
+                      found.push({
+                        tag, w: Math.round(w), h: Math.round(h),
+                        x: Math.round(rect.left - bodyRect.left),
+                        y: Math.round(rect.top - bodyRect.top),
+                        text: text.slice(0, 40),
+                        bg: cs.backgroundColor,
+                        color: cs.color,
+                        font: cs.fontFamily?.slice(0, 30),
+                        fontSize: cs.fontSize,
+                      });
+                    }
+                  }
+                  walk(child, depth + 1);
+                }
+              }
+              walk(doc.body, 0);
+              log(`Found ${count} content elements (h1-h6, p, img, button)`);
+              resolve(found);
+            }, 500);
+          };
+          iframe.onerror = () => resolve([]);
+        });
+
+        document.body.appendChild(iframe);
+
+        // Show results
+        if (elements.length > 0) {
+          log('\n=== Sample elements ===');
+          for (const el of elements) {
+            log(`  <${el.tag}> ${el.w}x${el.h} @ (${el.x},${el.y}) "${el.text}" font=${el.fontSize} ${el.font} color=${el.color}`);
+          }
+          status.className = 'ok';
+          status.textContent = `Success! Found ${elements.length}+ content elements`;
+        } else {
+          status.className = 'err';
+          status.textContent = 'Failed: No elements found';
+        }
+
+        // Cleanup
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+
+      } catch (e) {
+        status.className = 'err';
+        status.textContent = `Error: ${e.message}`;
+        log(`Error: ${e.stack}`);
+      }
+
+      function log(msg) {
+        results.textContent += msg + '\n';
+      }
+    }
+  </script>
+</body>
+</html>

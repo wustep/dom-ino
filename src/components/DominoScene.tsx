@@ -166,16 +166,21 @@ export function DominoScene({
               const fw = el.fontWeight ?? 400, fs = el.fontSize ?? 16;
               const ff = el.fontFamily ?? '"Source Serif 4", Georgia, serif';
               const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
+              const pad = el.padding ?? 0;
               return (<TextFlowRegion key={el.id} text={el.text!} font={font} fontSize={fs}
                 lineHeight={el.lineHeight ?? 28} color={el.color ?? "#333"}
-                containerX={el.rect.x} containerY={el.rect.y} containerWidth={el.rect.width}
-                containerMaxHeight={textMaxHeights.get(el.id) ?? el.rect.height}
+                containerX={el.rect.x + pad} containerY={el.rect.y + pad}
+                containerWidth={el.rect.width - pad * 2}
+                containerMaxHeight={(textMaxHeights.get(el.id) ?? el.rect.height) - pad * 2}
                 obstacles={obstacles} showDebug={settings.showLineBounds}
                 generation={generation} onLineCount={reportLines} />);
             })
-          : textElements.map((el) => (
-              <div key={el.id} style={{ position: "absolute", left: el.rect.x, top: el.rect.y, width: el.rect.width, fontSize: el.fontSize ?? 16, fontWeight: el.fontWeight ?? 400, fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif', lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6", color: el.color ?? "#333", pointerEvents: "none" }}>{el.text}</div>
-            ))}
+          : textElements.map((el) => {
+              const pad = el.padding ?? 0;
+              return (
+                <div key={el.id} style={{ position: "absolute", left: el.rect.x + pad, top: el.rect.y + pad, width: el.rect.width - pad * 2, fontSize: el.fontSize ?? 16, fontWeight: el.fontWeight ?? 400, fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif', lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6", color: el.color ?? "#333", pointerEvents: "none" }}>{el.text}</div>
+              );
+            })}
 
         {throwableElements.map((el) => {
           const pos = bodyPositions.get(el.id);
