@@ -102,20 +102,22 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           width: 80, height: 80,
         }}
       >
-        <style>{`
+        <style>{`${toolbarTooltipCss}
           .domino-collapsed-trigger .domino-collapsed-btn { opacity: 0; transform: translateY(4px); transition: opacity 0.5s ease, transform 0.3s ease; }
           .domino-collapsed-trigger:hover .domino-collapsed-btn { opacity: 1; transform: translateY(0); }
         `}</style>
         <div className="domino-collapsed-trigger" style={{ width: "100%", height: "100%" }}>
-          <button className="domino-collapsed-btn" onClick={() => setCollapsed(false)} title="Show toolbar" style={{
-            position: "absolute", bottom: 16, right: 16,
-            width: 32, height: 32, borderRadius: 8,
-            border: "1px solid rgba(255,255,255,0.1)",
-            backgroundColor: "rgba(20,20,24,0.85)", backdropFilter: "blur(12px)",
-            color: "#888", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-          }}><ChevronUpIcon /></button>
+          <div className="domino-toolbar-tooltip-wrap" style={{ position: "absolute", bottom: 16, right: 16 }}>
+            <button className="domino-collapsed-btn" type="button" onClick={() => setCollapsed(false)} aria-label="Show toolbar" style={{
+              width: 32, height: 32, borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.1)",
+              backgroundColor: "rgba(20,20,24,0.85)", backdropFilter: "blur(12px)",
+              color: "#888", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+            }}><ChevronUpIcon /></button>
+            <span className="domino-toolbar-tooltip">Show toolbar</span>
+          </div>
         </div>
       </div>
     );
@@ -279,30 +281,67 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       }}>
         <Btn active={openPanel === "pages"} onClick={() => toggle("pages")} tip="Pages"><PageIcon /></Btn>
         <Sep />
-        <Btn onClick={() => update({ paused: !settings.paused })} tip={settings.paused ? "Play" : "Pause"} accent={settings.paused ? "#fbbf24" : undefined}>
+        <Btn onClick={() => update({ paused: !settings.paused })} tip={settings.paused ? "Resume physics" : "Pause physics"} accent={settings.paused ? "#fbbf24" : undefined}>
           {settings.paused ? <PlayIcon /> : <PauseIcon />}
         </Btn>
-        <Btn onClick={onExplode} tip="Explode"><ExplodeIcon /></Btn>
-        <Btn onClick={onReset} tip="Reset"><ResetIcon /></Btn>
+        <Btn onClick={onExplode} tip="Explode scene"><ExplodeIcon /></Btn>
+        <Btn onClick={onReset} tip="Reset scene"><ResetIcon /></Btn>
         <Sep />
         {/* Components mode: combined picker + stash entry point */}
-        <Btn active={pickerMode} onClick={onTogglePicker} tip="Components: toggle throwable & save" accent={pickerMode ? "#3b82f6" : undefined}><PickerIcon /></Btn>
+        <Btn active={pickerMode} onClick={onTogglePicker} tip={pickerMode ? "Exit component mode" : "Enter component mode"} accent={pickerMode ? "#3b82f6" : undefined}><PickerIcon /></Btn>
         <Btn active={openPanel === "stash" || savePickerMode} onClick={() => toggle("stash")} tip="Saved components" accent={savePickerMode ? "#c4b5fd" : savedElements.length > 0 ? "#a78bfa" : undefined} dataAttrs={{ "data-domino-stash-trigger": "true" }}>
           <StashIcon />
           {savedElements.length > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "#a78bfa", marginLeft: -2 }}>{savedElements.length}</span>}
         </Btn>
         <Sep />
         <Btn active={openPanel === "settings"} onClick={() => toggle("settings")} tip="Settings"><SettingsIcon /></Btn>
-        <Btn onClick={() => { setOpenPanel(null); setCollapsed(true); }} tip="Hide" compact><ChevronDownIcon /></Btn>
+        <Btn onClick={() => { setOpenPanel(null); setCollapsed(true); }} tip="Hide toolbar" compact><ChevronDownIcon /></Btn>
       </div>
 
       {openPanel && <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onPointerDown={() => setOpenPanel(null)} />}
-      <style>{`@keyframes flyUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }`}</style>
+      <style>{`${toolbarTooltipCss}
+        @keyframes flyUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+      `}</style>
     </>
   );
 });
 
 // ─── Styles ───
+const toolbarTooltipCss = `
+  .domino-toolbar-tooltip-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .domino-toolbar-tooltip {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translate(-50%, 4px);
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(10,10,14,0.94);
+    color: #f3f4f6;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    font-family: "DM Sans", sans-serif;
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    transition: opacity 0.14s ease, transform 0.14s ease;
+  }
+
+  .domino-toolbar-tooltip-wrap:hover .domino-toolbar-tooltip,
+  .domino-toolbar-tooltip-wrap:focus-within .domino-toolbar-tooltip {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+`;
+
 const flyoutBase: React.CSSProperties = { position: "fixed", zIndex: 9998, maxHeight: "calc(100vh - 80px)", overflowY: "auto", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(20,20,24,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 12px 48px rgba(0,0,0,0.45)", fontFamily: '"DM Sans", sans-serif', color: "#ccc", animation: "flyUp 0.15s ease" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)", color: "#ddd", fontSize: 11, fontFamily: '"DM Sans", sans-serif', outline: "none", boxSizing: "border-box" };
 const primaryBtnStyle: React.CSSProperties = { padding: "6px 0", borderRadius: 6, border: "none", backgroundColor: "#7c3aed", color: "#fff", fontSize: 11, fontWeight: 600, fontFamily: '"DM Sans", sans-serif', transition: "opacity 0.12s" };
@@ -330,7 +369,12 @@ function Btn({
   compact?: boolean;
   dataAttrs?: Record<string, string>;
 }) {
-  return <button {...dataAttrs} onClick={onClick} title={tip} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 7px", borderRadius: 7, border: "none", backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent", color: accent ?? (active ? "#fff" : "#777"), cursor: "pointer", transition: "all 0.12s", height: 30, minWidth: compact ? 24 : 30 }}>{children}</button>;
+  return (
+    <div className="domino-toolbar-tooltip-wrap">
+      <button {...dataAttrs} type="button" onClick={onClick} aria-label={tip} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 7px", borderRadius: 7, border: "none", backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent", color: accent ?? (active ? "#fff" : "#777"), cursor: "pointer", transition: "all 0.12s", height: 30, minWidth: compact ? 24 : 30 }}>{children}</button>
+      {tip ? <span className="domino-toolbar-tooltip">{tip}</span> : null}
+    </div>
+  );
 }
 
 function Lbl({ text }: { text: string }) { return <div style={{ fontSize: 8, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4, marginBottom: -2 }}>{text}</div>; }
