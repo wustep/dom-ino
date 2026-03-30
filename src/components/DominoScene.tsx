@@ -121,7 +121,7 @@ export function DominoScene({
     if (!settings.pretextEnabled) return [];
     return throwableElements.map((el) => {
       const pos = bodyPositions.get(el.id);
-      return { id: el.id, x: pos?.x ?? el.rect.x, y: pos?.y ?? el.rect.y, width: pos?.w ?? el.rect.width, height: pos?.h ?? el.rect.height, angle: pos?.angle ?? 0 };
+      return { id: el.id, x: pos?.x ?? el.rect.x, y: pos?.y ?? el.rect.y, width: pos?.w ?? el.rect.width, height: pos?.h ?? el.rect.height, angle: pos?.angle ?? 0, borderRadius: el.borderRadius };
     });
   }, [throwableElements, bodyPositions, settings.pretextEnabled]);
 

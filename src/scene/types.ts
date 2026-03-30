@@ -63,6 +63,7 @@ export interface ObstacleRect {
   width: number;
   height: number;
   angle: number;
+  borderRadius?: number;
 }
 
 export interface BlockedInterval {
