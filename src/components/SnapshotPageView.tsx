@@ -281,12 +281,13 @@ export function SnapshotPageView({
   );
 
   useEffect(() => {
-    if (!pickerMode && !savePickerMode) return;
+    // Keep snapshot candidates/text blocks current for imported-page overlays.
+    // Pretext and physics overlays depend on this data even when picker mode is closed.
     scanCandidates();
     const onResize = () => scanCandidates();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [pickerMode, savePickerMode, scanCandidates]);
+  }, [scanCandidates, page.preparedHtml]);
 
   const handleIframeLoad = useCallback(() => {
     const iframe = iframeRef.current;
@@ -294,8 +295,8 @@ export function SnapshotPageView({
     if (!doc?.body) return;
     const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, 1200);
     setIframeHeight(h);
-    if (pickerMode || savePickerMode) scanCandidates();
-  }, [pickerMode, savePickerMode, scanCandidates]);
+    scanCandidates();
+  }, [scanCandidates]);
 
   const saveNode = useCallback((id: string) => {
     const candidate = candidates.find((c) => c.id === id);
@@ -341,7 +342,10 @@ export function SnapshotPageView({
   }, [selectedIds, candidates]);
 
   // Hide original text nodes when Pretext overlay is active
-  const importedTextFlowActive = settings.pretextEnabled && (selectedElements.length > 0 || droppedElements.length > 0);
+  const importedTextFlowActive =
+    settings.pretextEnabled &&
+    textBlocks.length > 0 &&
+    (selectedElements.length > 0 || droppedElements.length > 0);
   useEffect(() => {
     const current = textNodesRef.current;
     current.forEach((node) => {
@@ -459,7 +463,15 @@ export function SnapshotPageView({
   }, [settings.physicsEnabled]);
 
   useEffect(() => { physicsRef.current?.setGravity(settings.gravityX, settings.gravityY); }, [settings.gravityX, settings.gravityY]);
-  useEffect(() => { if (settings.paused) physicsRef.current?.pause(); else physicsRef.current?.resume(); }, [settings.paused]);
+  useEffect(() => {
+    const engine = physicsRef.current;
+    if (!engine) return;
+    if (!settings.physicsEnabled || settings.paused || pickerMode || savePickerMode) {
+      engine.pause();
+    } else {
+      engine.resume();
+    }
+  }, [settings.physicsEnabled, settings.paused, pickerMode, savePickerMode]);
 
   return (
     <div
