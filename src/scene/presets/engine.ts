@@ -69,6 +69,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       rect: { x: 0, y: 0, width: vw, height: H },
       throwable: false,
       pinned: true,
+      physicsEnabled: false,
       backgroundColor: "radial-gradient(ellipse at 50% 8%, #121218 0%, #0a0a0c 58%, #070709 100%)",
     },
     {
@@ -77,6 +78,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       rect: { x: 0, y: 0, width: vw, height: H },
       throwable: false,
       pinned: true,
+      physicsEnabled: false,
       backgroundColor: "radial-gradient(circle at 18% 24%, rgba(196,163,90,0.08) 0%, transparent 34%), radial-gradient(circle at 82% 12%, rgba(150,100,220,0.08) 0%, transparent 32%), radial-gradient(circle at 70% 56%, rgba(232,100,130,0.07) 0%, transparent 30%)",
       opacity: 0.9,
     },
@@ -103,6 +105,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       rect: { x: vw / 2 - 176, y: 16, width: 352, height: 30 },
       throwable: false,
       pinned: true,
+      physicsEnabled: false,
       text: "Drag the orbs · Click to pause · Zero DOM reads",
       fontSize: 13,
       fontWeight: 400,
@@ -435,7 +438,6 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       boxShadow: orbShadow(orb.color),
       mass: orb.mass,
       physicsShape: "circle",
-      lockRotation: true,
       initialVelocityX: orb.vx,
       initialVelocityY: orb.vy,
       friction: 0,
@@ -452,6 +454,13 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     backgroundColor: "#0a0a0c",
     elements: elements.map((element) => {
       if (element.type !== "paragraph" && element.type !== "heading") return element;
+      if (element.id === "de-dropcap") {
+        return {
+          ...element,
+          allowWordBreaks: false,
+          minSegmentWidth: 1,
+        };
+      }
       return {
         ...element,
         allowWordBreaks: false,

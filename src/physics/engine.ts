@@ -67,6 +67,7 @@ export function createPhysicsEngine(
   World.add(engine.world, walls);
 
   for (const el of scene.elements) {
+    if (el.physicsEnabled === false) continue;
     if (el.type === "paragraph" || el.type === "heading" || el.type === "divider") continue;
 
     const cx = el.rect.x + el.rect.width / 2;

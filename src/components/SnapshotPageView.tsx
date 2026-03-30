@@ -9,6 +9,7 @@ import { PhysicsDomItem } from "./PhysicsDomItem";
 import { TextFlowRegion } from "./TextFlowRegion";
 import type { ObstacleRect } from "../scene/types";
 import { QuickSavePicker } from "./QuickSavePicker";
+import { ImportedPhysicsClone } from "./ImportedPhysicsClone";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -664,7 +665,25 @@ export function SnapshotPageView({
       })}
 
       {/* Physics overlay for selected/dropped imported-page components */}
-      {[...selectedElements, ...droppedElements].map((el) => {
+      {selectedElements.map((el) => {
+        const pos = bodyPositions.get(el.id);
+        const candidate = selectableCandidates.find((c) => c.id === el.id);
+        if (!candidate) return null;
+        return (
+          <ImportedPhysicsClone
+            key={el.id}
+            sourceNode={candidate.node}
+            sourceWindow={iframeRef.current?.contentWindow ?? window}
+            x={pos?.x ?? el.rect.x}
+            y={pos?.y ?? el.rect.y}
+            angle={pos?.angle ?? 0}
+            width={pos?.w ?? el.rect.width}
+            height={pos?.h ?? el.rect.height}
+            showDebug={settings.showObstacleBounds}
+          />
+        );
+      })}
+      {droppedElements.map((el) => {
         const pos = bodyPositions.get(el.id);
         return (
           <PhysicsDomItem

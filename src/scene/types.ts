@@ -46,6 +46,7 @@ export interface SceneElement {
   gap?: number;
   allowWordBreaks?: boolean;
   minSegmentWidth?: number;
+  physicsEnabled?: boolean;
 
   mass?: number;
   physicsShape?: "rectangle" | "circle";
