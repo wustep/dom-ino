@@ -1,15 +1,27 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DominoScene } from "./components/DominoScene";
+import { SnapshotPageView } from "./components/SnapshotPageView";
 import type { SceneDescription, SceneElement, SavedElement } from "./scene/types";
 import type { PresetKey } from "./scene/presets";
 import { getPresetScene } from "./scene/presets";
-import { snapshotHtmlToScene, autoSelectThrowables, fetchPageHtml } from "./scene/domSnapshot";
+import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot";
 
-export interface CustomPage {
+export interface SceneCustomPage {
   id: string;
   name: string;
+  kind: "scene";
   scene: SceneDescription;
 }
+
+export interface SnapshotCustomPage {
+  id: string;
+  name: string;
+  kind: "snapshot";
+  preparedHtml: string;
+  sourceUrl?: string;
+}
+
+export type CustomPage = SceneCustomPage | SnapshotCustomPage;
 
 const LS_KEY = "domino-state";
 
@@ -20,10 +32,52 @@ interface PersistedState {
   customPages: CustomPage[];
 }
 
+function normalizeCustomPages(pages: unknown): CustomPage[] {
+  if (!Array.isArray(pages)) return [];
+  return pages.flatMap((page) => {
+    if (!page || typeof page !== "object") return [];
+    const p = page as Record<string, unknown>;
+    if (typeof p.id !== "string" || typeof p.name !== "string") return [];
+    if (p.kind === "snapshot" && typeof p.preparedHtml === "string") {
+      return [{
+        id: p.id,
+        name: p.name,
+        kind: "snapshot" as const,
+        preparedHtml: p.preparedHtml,
+        sourceUrl: typeof p.sourceUrl === "string" ? p.sourceUrl : undefined,
+      }];
+    }
+    if (p.kind === "scene" && p.scene && typeof p.scene === "object") {
+      return [{
+        id: p.id,
+        name: p.name,
+        kind: "scene" as const,
+        scene: p.scene as SceneDescription,
+      }];
+    }
+    // Back-compat for older persisted shape
+    if (p.scene && typeof p.scene === "object") {
+      return [{
+        id: p.id,
+        name: p.name,
+        kind: "scene" as const,
+        scene: p.scene as SceneDescription,
+      }];
+    }
+    return [];
+  });
+}
+
 function loadState(): Partial<PersistedState> {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<PersistedState> & { customPages?: unknown };
+      return {
+        ...parsed,
+        customPages: normalizeCustomPages(parsed.customPages),
+      };
+    }
   } catch { /* ignore */ }
   return {};
 }
@@ -64,16 +118,22 @@ export default function App() {
     return () => { window.removeEventListener("mousedown", dismiss); clearTimeout(timer); };
   }, [showHint]);
 
+  const activeCustomPage = useMemo(
+    () => currentPreset === "custom" && activeCustomId
+      ? customPages.find((p) => p.id === activeCustomId) ?? null
+      : null,
+    [currentPreset, activeCustomId, customPages]
+  );
+
   const scene = useMemo(() => {
-    if (currentPreset === "custom" && activeCustomId) {
-      const cp = customPages.find((p) => p.id === activeCustomId);
-      if (cp) return { ...cp.scene, width: windowSize.width };
+    if (activeCustomPage?.kind === "scene") {
+      return { ...activeCustomPage.scene, width: windowSize.width };
     }
     if (currentPreset !== "custom") {
       return getPresetScene(currentPreset, windowSize.width, windowSize.height);
     }
-    return getPresetScene("article", windowSize.width, windowSize.height);
-  }, [currentPreset, activeCustomId, customPages, windowSize.width, windowSize.height]);
+    return null;
+  }, [activeCustomPage, currentPreset, windowSize.width, windowSize.height]);
 
   const handleSelectPreset = useCallback((key: PresetKey) => {
     setCurrentPreset(key);
@@ -90,9 +150,14 @@ export default function App() {
   }, []);
 
   const handleImportHtml = useCallback(async (html: string, name: string, sourceUrl?: string) => {
-    const raw = await snapshotHtmlToScene(html, Math.min(windowSize.width - 40, 1100), name, sourceUrl);
-    const withThrowables = autoSelectThrowables(raw);
-    const page: CustomPage = { id: `custom-${Date.now()}`, name, scene: withThrowables };
+    const preparedHtml = await prepareHtmlForViewer(html, sourceUrl);
+    const page: SnapshotCustomPage = {
+      id: `custom-${Date.now()}`,
+      name,
+      kind: "snapshot",
+      preparedHtml,
+      sourceUrl,
+    };
     setCustomPages((prev) => [...prev, page]);
     setActiveCustomId(page.id);
     setCurrentPreset("custom");
@@ -107,31 +172,32 @@ export default function App() {
     await handleImportHtml(result.html, name, result.url);
   }, [handleImportHtml]);
 
-  // Ensures modifying a preset creates exactly one custom page fork
-  const ensureCustomPage = useCallback((newScene: SceneDescription): string => {
-    if (activeCustomId) {
-      setCustomPages((prev) => prev.map((p) => p.id === activeCustomId ? { ...p, scene: newScene } : p));
-      return activeCustomId;
+  // Ensures modifying a preset creates exactly one scene-backed custom page fork
+  const ensureCustomScenePage = useCallback((newScene: SceneDescription): string => {
+    if (activeCustomPage?.kind === "scene") {
+      setCustomPages((prev) => prev.map((p) => p.id === activeCustomPage.id ? { ...p, scene: newScene } : p));
+      return activeCustomPage.id;
     }
     const id = `custom-${Date.now()}`;
-    const page: CustomPage = { id, name: newScene.name || "Modified", scene: newScene };
+    const page: SceneCustomPage = { id, name: newScene.name || "Modified", kind: "scene", scene: newScene };
     setCustomPages((prev) => [...prev, page]);
     setActiveCustomId(id);
     setCurrentPreset("custom");
     return id;
-  }, [activeCustomId]);
+  }, [activeCustomPage]);
 
   const handleSceneChange = useCallback((newScene: SceneDescription, remount = true) => {
-    ensureCustomPage(newScene);
+    ensureCustomScenePage(newScene);
     if (remount) setSceneKey((k) => k + 1);
-  }, [ensureCustomPage]);
+  }, [ensureCustomScenePage]);
 
   const handleSaveElement = useCallback((el: SceneElement) => {
     setSavedElements((prev) => {
-      if (prev.some((s) => s.element.id === el.id && s.sourceScene === scene.name)) return prev;
-      return [...prev, { element: { ...el }, savedAt: Date.now(), sourceScene: scene.name }];
+      const sourceName = activeCustomPage?.name ?? scene?.name ?? "Imported Page";
+      if (prev.some((s) => s.element.id === el.id && s.sourceScene === sourceName)) return prev;
+      return [...prev, { element: { ...el }, savedAt: Date.now(), sourceScene: sourceName }];
     });
-  }, [scene.name]);
+  }, [activeCustomPage, scene?.name]);
 
   const handleUnsaveElement = useCallback((id: string) => {
     setSavedElements((prev) => prev.filter((s) => s.element.id !== id));
@@ -147,9 +213,9 @@ export default function App() {
       y: dropY != null ? dropY - el.rect.height / 2 : window.scrollY + windowSize.height / 2 - el.rect.height / 2 + (Math.random() - 0.5) * 60,
     };
     const newScene = { ...scene, elements: [...scene.elements, el] };
-    ensureCustomPage(newScene);
+    ensureCustomScenePage(newScene);
     setSceneKey((k) => k + 1);
-  }, [scene, ensureCustomPage, windowSize]);
+  }, [scene, ensureCustomScenePage, windowSize]);
 
   const handleClearSaved = useCallback(() => setSavedElements([]), []);
   const handleRemoveSaved = useCallback((index: number) => {
@@ -167,18 +233,43 @@ export default function App() {
 
   return (
     <>
-      <DominoScene
-        key={sceneKey} scene={scene} onSceneChange={handleSceneChange}
-        currentPreset={currentPreset} onSelectPreset={handleSelectPreset}
-        onImportHtml={handleImportHtml} onFetchUrl={handleFetchUrl}
-        savedElements={savedElements} onSaveElement={handleSaveElement}
-        onUnsaveElement={handleUnsaveElement}
-        onDropSaved={handleDropSaved} onClearSaved={handleClearSaved}
-        onRemoveSaved={handleRemoveSaved}
-        customPages={customPages} activeCustomId={activeCustomId}
-        onSelectCustomPage={handleSelectCustomPage}
-        onResetAll={handleResetAll}
-      />
+      {activeCustomPage?.kind === "snapshot" ? (
+        <SnapshotPageView
+          key={sceneKey}
+          page={activeCustomPage}
+          currentPreset={currentPreset}
+          onSelectPreset={handleSelectPreset}
+          onImportHtml={handleImportHtml}
+          onFetchUrl={handleFetchUrl}
+          savedElements={savedElements}
+          onSaveElement={handleSaveElement}
+          onUnsaveElement={handleUnsaveElement}
+          customPages={customPages}
+          activeCustomId={activeCustomId}
+          onSelectCustomPage={handleSelectCustomPage}
+          onResetAll={handleResetAll}
+        />
+      ) : scene ? (
+        <DominoScene
+          key={sceneKey}
+          scene={scene}
+          onSceneChange={handleSceneChange}
+          currentPreset={currentPreset}
+          onSelectPreset={handleSelectPreset}
+          onImportHtml={handleImportHtml}
+          onFetchUrl={handleFetchUrl}
+          savedElements={savedElements}
+          onSaveElement={handleSaveElement}
+          onUnsaveElement={handleUnsaveElement}
+          onDropSaved={handleDropSaved}
+          onClearSaved={handleClearSaved}
+          onRemoveSaved={handleRemoveSaved}
+          customPages={customPages}
+          activeCustomId={activeCustomId}
+          onSelectCustomPage={handleSelectCustomPage}
+          onResetAll={handleResetAll}
+        />
+      ) : null}
       {showHint && <Hint />}
     </>
   );

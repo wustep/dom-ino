@@ -68,7 +68,7 @@ export function DominoScene({
 
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true, showObstacleBounds: false, showLineBounds: false,
-    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true,
+    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, allowWordBreaks: true,
   });
 
   const { textElements, throwableElements, staticElements } = useMemo(() => {
@@ -173,7 +173,8 @@ export function DominoScene({
                 containerWidth={el.rect.width - pad * 2}
                 containerMaxHeight={(textMaxHeights.get(el.id) ?? el.rect.height) - pad * 2}
                 obstacles={obstacles} showDebug={settings.showLineBounds}
-                generation={generation} onLineCount={reportLines} />);
+                generation={generation} onLineCount={reportLines}
+                allowWordBreaks={settings.allowWordBreaks} />);
             })
           : textElements.map((el) => {
               const pad = el.padding ?? 0;

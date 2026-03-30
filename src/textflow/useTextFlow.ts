@@ -4,7 +4,6 @@ import type { ObstacleRect } from "../scene/types";
 import {
   getBlockedIntervalsForRow,
   getAvailableSegments,
-  pickBestSegment,
 } from "./obstacles";
 
 export interface FlowLine {
@@ -20,6 +19,10 @@ export interface TextFlowResult {
   totalHeight: number;
 }
 
+function lineBreaksInsideSegment(cursor: LayoutCursor): boolean {
+  return cursor.graphemeIndex > 0;
+}
+
 /**
  * Text-flow algorithm using Pretext's layoutNextLine:
  *
@@ -29,10 +32,10 @@ export interface TextFlowResult {
  * 4. Project those obstacles' horizontal extents into "blocked intervals".
  * 5. Subtract blocked intervals from [containerLeft, containerRight] to get
  *    available segments. Add padding around each obstacle.
- * 6. Pick the widest available segment (prefer leftmost on ties).
- * 7. Call layoutNextLine(prepared, cursor, segmentWidth) to get one line's
- *    worth of text that fits in that width.
- * 8. Position the resulting text at (segment.left, rowY).
+ * 6. Walk those segments left-to-right, laying out one fragment per segment.
+ * 7. Call layoutNextLine(prepared, cursor, segmentWidth) for each viable slot
+ *    so a single visual row can occupy both sides of an obstacle.
+ * 8. Position the resulting fragment at (segment.left, rowY).
  * 9. Advance cursor and y; repeat until text is exhausted or we run out
  *    of vertical space.
  *
@@ -69,7 +72,8 @@ export function computeTextFlow(
   containerWidth: number,
   containerMaxHeight: number,
   obstacles: ObstacleRect[],
-  obstaclePadding: number = 8
+  obstaclePadding: number = 8,
+  allowWordBreaks: boolean = true
 ): TextFlowResult {
   if (!text || containerWidth < 30) {
     return { lines: [], totalHeight: 0 };
@@ -101,9 +105,7 @@ export function computeTextFlow(
     }));
 
     const segments = getAvailableSegments(padded, cLeft, cRight, 8);
-    const best = pickBestSegment(segments);
-
-    if (!best) {
+    if (segments.length === 0) {
       y += lineHeight;
       emptyStreak++;
       if (emptyStreak > 5) break;
@@ -111,20 +113,38 @@ export function computeTextFlow(
     }
 
     emptyStreak = 0;
+    let rowCursor = cursor;
+    let placedFragment = false;
+    let exhausted = false;
 
-    const line = layoutNextLine(prepared, cursor, best.width);
-    if (line === null) break;
+    for (const segment of segments) {
+      const line = layoutNextLine(prepared, rowCursor, segment.width);
+      if (line === null) {
+        exhausted = true;
+        break;
+      }
 
-    lines.push({
-      text: line.text,
-      x: best.left,
-      y,
-      width: line.width,
-      maxWidth: best.width,
-    });
+      if (!allowWordBreaks && lineBreaksInsideSegment(line.end)) {
+        continue;
+      }
 
-    cursor = line.end;
+      lines.push({
+        text: line.text,
+        x: segment.left,
+        y,
+        width: line.width,
+        maxWidth: segment.width,
+      });
+
+      rowCursor = line.end;
+      placedFragment = true;
+    }
+
+    if (!placedFragment) break;
+
+    cursor = rowCursor;
     y += lineHeight;
+    if (exhausted) break;
   }
 
   return { lines, totalHeight: y - containerY };

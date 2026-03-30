@@ -12,6 +12,7 @@ export interface DebugSettings {
   gravityY: number;
   paused: boolean;
   pretextEnabled: boolean;
+  allowWordBreaks: boolean;
 }
 
 interface ToolbarProps {
@@ -235,6 +236,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6, fontFamily: '"JetBrains Mono", monospace', fontSize: 10 }}>
             <Toggle label="Physics" checked={settings.physicsEnabled} onChange={(v) => update({ physicsEnabled: v })} />
             <Toggle label="Pretext reflow" checked={settings.pretextEnabled} onChange={(v) => update({ pretextEnabled: v })} />
+            <Toggle label="Break words" checked={settings.allowWordBreaks} onChange={(v) => update({ allowWordBreaks: v })} />
             <Lbl text="Gravity" />
             <Slider label="X" value={settings.gravityX} min={-3} max={3} onValue={(v) => update({ gravityX: v })} onReset={() => update({ gravityX: 0 })} />
             <Slider label="Y" value={settings.gravityY} min={-3} max={3} onValue={(v) => update({ gravityY: v })} onReset={() => update({ gravityY: 0 })} />

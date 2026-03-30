@@ -7,21 +7,23 @@ let snapshotCounter = 0;
 export async function snapshotHtmlToScene(
   html: string, containerWidth: number = 1200, sceneName: string = "Custom Page", sourceUrl?: string
 ): Promise<SceneDescription> {
-  // Step 1: Prepare HTML — fetch CSS through proxy and inline it
-  console.log("[DOMino] Starting snapshot for:", sceneName, "sourceUrl:", sourceUrl);
   const prepared = sourceUrl ? await prepareHtml(html, sourceUrl) : html;
-  console.log("[DOMino] Prepared HTML:", prepared.length, "bytes");
 
   // Step 2: Render in iframe and walk the live DOM
   const result = await renderAndWalk(prepared, containerWidth, sceneName);
-  console.log("[DOMino] Iframe walk result:", result ? `${result.elements.length} elements` : "null");
   if (result && result.elements.length >= 3) {
     return result;
   }
 
   // Step 3: Fall back to structure parser
-  console.log("[DOMino] Falling back to structure parser");
   return parseHtmlStructure(html, containerWidth, sceneName);
+}
+
+export async function prepareHtmlForViewer(
+  html: string,
+  sourceUrl?: string
+): Promise<string> {
+  return sourceUrl ? prepareHtml(html, sourceUrl) : html;
 }
 
 // ─── HTML preparation: inline CSS + fix URLs ───
@@ -143,11 +145,7 @@ function renderAndWalk(
 
             const elements: SceneElement[] = [];
             const bodyRect = doc.body.getBoundingClientRect();
-            console.log("[DOMino] iframe body rect:", bodyRect.width, "x", bodyRect.height);
-            console.log("[DOMino] iframe body children:", doc.body.children.length);
-            console.log("[DOMino] iframe <style> count:", doc.querySelectorAll("style").length);
             walkElement(doc.body, elements, bodyRect, 0, win);
-            console.log("[DOMino] walk found:", elements.length, "elements, retries left:", retries);
 
             if (elements.length < 3 && retries > 0) {
               attempt(retries - 1);

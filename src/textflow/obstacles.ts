@@ -228,20 +228,3 @@ export function getAvailableSegments(
   return segments;
 }
 
-/**
- * Pick the best segment for a text line. Strongly prefers the leftmost
- * segment (natural reading order) unless a segment to the right is
- * dramatically wider (>2x).
- */
-export function pickBestSegment(
-  segments: AvailableSegment[]
-): AvailableSegment | null {
-  if (segments.length === 0) return null;
-  let best = segments[0];
-  for (let i = 1; i < segments.length; i++) {
-    if (segments[i].width > best.width * 2) {
-      best = segments[i];
-    }
-  }
-  return best;
-}
