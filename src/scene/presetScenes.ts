@@ -118,54 +118,69 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
 }
 
 export function createEditorialScene(vw: number, vh: number): SceneDescription {
-  const w = Math.min(vw - 40, 900);
+  const w = Math.min(vw - 40, 920);
   const mx = Math.max(20, (vw - w) / 2);
-  const H = Math.max(vh, 1400);
-  const colW = (w - 30) / 2;
+  const H = Math.max(vh, 1600);
+  const col2W = (w - 28) / 2;
+  const col3W = (w - 48) / 3;
 
-  const EDITORIAL_L = `In the quiet hours before dawn, when the city sleeps and the machines hum, there exists a peculiar kind of clarity. The words arrange themselves differently at this hour — more honestly, perhaps. The typographer knows this feeling intimately: the moment when spacing clicks into place, when the river of white space between lines finds its natural course, and the page begins to breathe. It is not merely an arrangement of letters; it is an architecture of meaning, built one glyph at a time.`;
+  const COL_L = `In the quiet hours before dawn, when the city sleeps and the machines hum, there exists a peculiar kind of clarity. The words arrange themselves differently at this hour \u2014 more honestly, perhaps. The typographer knows this feeling intimately: the moment when spacing clicks into place, when the river of white space between lines finds its natural course, and the page begins to breathe. It is not merely an arrangement of letters; it is an architecture of meaning, built one glyph at a time, tested against the constraints of the medium.`;
 
-  const EDITORIAL_R = `The relationship between text and its obstacles has fascinated layout designers since the invention of the printing press. A woodcut illustration dropped into a column of text creates a conversation between image and word. The text must negotiate its path — flowing left when blocked on the right, splitting into rivulets around a central obstruction, sometimes abandoning a line entirely when no space remains. These negotiations happen invisibly in every browser, every PDF renderer, every typesetting engine on earth.`;
+  const COL_R = `The relationship between text and its obstacles has fascinated layout designers since the invention of the printing press. A woodcut illustration dropped into a column of text creates a conversation between image and word. The text must negotiate its path \u2014 flowing left when blocked on the right, splitting into rivulets around a central obstruction, sometimes abandoning a line entirely when no space remains. These negotiations happen invisibly in every browser, every typesetting engine on earth.`;
 
-  const EDITORIAL_B = `What happens when those obstacles begin to move? When the woodcut illustration slides downward, or drifts to the left, or spins lazily in zero gravity? The text must renegotiate, instantly, for every frame. This is the challenge at the heart of DOMino's editorial engine: real-time text reflow that maintains readability even as the page transforms beneath it. Each line is computed individually, measured against the current obstacle positions, and placed in the widest available segment. The result is text that appears to have a physical awareness of its surroundings — liquid typography that pours itself into whatever shape remains.`;
+  const SEC2_1 = `The physics of digital typography operate on principles that would be familiar to any compositor from the age of hot metal. Weight, space, and rhythm govern the placement of every character. But where the compositor had minutes to set a single line, the modern layout engine must recalculate thousands of lines in a single frame \u2014 sixteen milliseconds of pure arithmetic.`;
+
+  const SEC2_2 = `Pretext, the engine beneath this demonstration, achieves this through a single key insight: text measurement can be decoupled from the DOM entirely. By pre-computing segment widths using the browser's own font engine, then performing layout as pure mathematics, it sidesteps the most expensive operation in web rendering: layout reflow. The result is text that can be re-laid out hundreds of times per second.`;
+
+  const SEC2_3 = `The editorial implications are profound. Imagine a newspaper where the illustrations drift lazily across the page, and the columns of text reform around them like water around stones in a stream. Imagine a textbook where diagrams can be repositioned by the reader, with every paragraph automatically adjusting. This is the future that DOMino explores.`;
 
   return {
     id: "editorial", name: "Editorial", width: vw, height: H, backgroundColor: "#f4f1eb",
     elements: [
       // Masthead
-      { id: "e-rule-top", type: "divider", rect: { x: mx, y: 24, width: w, height: 2 }, throwable: false, pinned: true, backgroundColor: "#1a1a1a" },
-      { id: "e-masthead", type: "heading", rect: { x: mx, y: 32, width: w, height: 50 }, throwable: false, pinned: true, text: "The Editorial Engine", fontSize: 38, fontWeight: 700, fontFamily: SERIF, lineHeight: 46, color: "#1a1a1a" },
-      { id: "e-date", type: "heading", rect: { x: mx, y: 84, width: w, height: 20 }, throwable: false, pinned: true, text: "Vol. I \u00b7 Sunday Edition \u00b7 March 2026", fontSize: 11, fontWeight: 400, fontFamily: SERIF, lineHeight: 18, color: "#888" },
-      { id: "e-rule-mid", type: "divider", rect: { x: mx, y: 110, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ccc" },
+      { id: "e-r1", type: "divider", rect: { x: mx, y: 20, width: w, height: 3 }, throwable: false, pinned: true, backgroundColor: "#1a1a1a" },
+      { id: "e-mast", type: "heading", rect: { x: mx, y: 28, width: w, height: 48 }, throwable: false, pinned: true, text: "The Editorial Engine", fontSize: 40, fontWeight: 700, fontFamily: SERIF, lineHeight: 46, color: "#1a1a1a" },
+      { id: "e-vol", type: "heading", rect: { x: mx, y: 78, width: w / 2, height: 16 }, throwable: false, pinned: true, text: "Vol. I \u00b7 Sunday Edition \u00b7 March 2026", fontSize: 10, fontWeight: 400, fontFamily: SERIF, lineHeight: 14, color: "#999" },
+      { id: "e-price", type: "badge", rect: { x: mx + w - 60, y: 74, width: 60, height: 20 }, throwable: true, pinned: false, text: "$2.50", fontSize: 10, fontWeight: 600, fontFamily: MONO, color: "#1a1a1a", backgroundColor: "transparent", borderRadius: 0, border: "1px solid #ccc", mass: 0.08 },
+      { id: "e-r2", type: "divider", rect: { x: mx, y: 100, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#bbb" },
+      { id: "e-r2b", type: "divider", rect: { x: mx, y: 103, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#bbb" },
 
-      // Subhead
-      { id: "e-subhead", type: "heading", rect: { x: mx, y: 124, width: w, height: 28 }, throwable: false, pinned: true, text: "When Text Becomes Liquid", fontSize: 22, fontWeight: 700, fontFamily: SERIF, lineHeight: 28, color: "#1a1a1a" },
-      { id: "e-byline", type: "heading", rect: { x: mx, y: 158, width: w, height: 18 }, throwable: false, pinned: true, text: "By the DOMino Editorial Board", fontSize: 12, fontWeight: 400, fontFamily: SERIF, lineHeight: 18, color: "#999" },
-      { id: "e-rule-sub", type: "divider", rect: { x: mx, y: 184, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" },
+      // Headline
+      { id: "e-hl", type: "heading", rect: { x: mx, y: 116, width: w, height: 34 }, throwable: false, pinned: true, text: "When Text Becomes Liquid", fontSize: 28, fontWeight: 700, fontFamily: SERIF, lineHeight: 34, color: "#1a1a1a" },
+      { id: "e-by", type: "heading", rect: { x: mx, y: 156, width: w, height: 16 }, throwable: false, pinned: true, text: "By the DOMino Editorial Board \u00b7 Illustrated in real-time", fontSize: 11, fontWeight: 400, fontFamily: SERIF, lineHeight: 16, color: "#999" },
+      { id: "e-r3", type: "divider", rect: { x: mx, y: 180, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" },
 
-      // Left column
-      { id: "e-col-l", type: "paragraph", rect: { x: mx, y: 200, width: colW, height: 400 }, throwable: false, pinned: true, text: EDITORIAL_L, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" },
+      // Two-column section
+      { id: "e-c1", type: "paragraph", rect: { x: mx, y: 196, width: col2W, height: 360 }, throwable: false, pinned: true, text: COL_L, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" },
+      { id: "e-c2", type: "paragraph", rect: { x: mx + col2W + 28, y: 196, width: col2W, height: 360 }, throwable: false, pinned: true, text: COL_R, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" },
 
-      // Right column
-      { id: "e-col-r", type: "paragraph", rect: { x: mx + colW + 30, y: 200, width: colW, height: 400 }, throwable: false, pinned: true, text: EDITORIAL_R, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" },
+      // Orbs in two-column area
+      { id: "e-o1", type: "badge", rect: { x: mx + col2W / 2 - 28, y: 270, width: 56, height: 56 }, throwable: true, pinned: false, text: "A", fontSize: 20, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#c0392b", borderRadius: 28, mass: 0.7 },
+      { id: "e-o2", type: "badge", rect: { x: mx + col2W + 28 + col2W / 2 - 24, y: 300, width: 48, height: 48 }, throwable: true, pinned: false, text: "B", fontSize: 18, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#2980b9", borderRadius: 24, mass: 0.6 },
 
-      // Full-width bottom paragraph
-      { id: "e-rule-bot", type: "divider", rect: { x: mx, y: 630, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" },
-      { id: "e-full", type: "paragraph", rect: { x: mx, y: 650, width: w, height: 400 }, throwable: false, pinned: true, text: EDITORIAL_B, fontSize: 15, fontWeight: 400, fontFamily: SERIF, lineHeight: 24, color: "#333" },
+      // Mid-section rule + heading
+      { id: "e-r4", type: "divider", rect: { x: mx, y: 580, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ccc" },
+      { id: "e-mid-h", type: "heading", rect: { x: mx, y: 596, width: w, height: 24 }, throwable: false, pinned: true, text: "The Physics of the Page", fontSize: 20, fontWeight: 700, fontFamily: SERIF, lineHeight: 24, color: "#1a1a1a" },
+      { id: "e-r5", type: "divider", rect: { x: mx, y: 628, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ddd" },
 
-      // Throwable orbs / elements
-      { id: "e-orb-1", type: "badge", rect: { x: mx + colW / 2 - 30, y: 280, width: 60, height: 60 }, throwable: true, pinned: false, text: "A", fontSize: 22, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#c0392b", borderRadius: 30, mass: 0.8 },
-      { id: "e-orb-2", type: "badge", rect: { x: mx + colW + 30 + colW / 2 - 25, y: 320, width: 50, height: 50 }, throwable: true, pinned: false, text: "B", fontSize: 18, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#2980b9", borderRadius: 25, mass: 0.6 },
-      { id: "e-orb-3", type: "badge", rect: { x: mx + w / 2 - 35, y: 720, width: 70, height: 70 }, throwable: true, pinned: false, text: "C", fontSize: 24, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#27ae60", borderRadius: 35, mass: 1.0 },
-      { id: "e-orb-4", type: "badge", rect: { x: mx + 80, y: 750, width: 44, height: 44 }, throwable: true, pinned: false, text: "D", fontSize: 16, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#8e44ad", borderRadius: 22, mass: 0.5 },
-      { id: "e-orb-5", type: "badge", rect: { x: mx + w - 120, y: 700, width: 55, height: 55 }, throwable: true, pinned: false, text: "E", fontSize: 20, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#e67e22", borderRadius: 28, mass: 0.7 },
+      // Three-column section
+      { id: "e-t1", type: "paragraph", rect: { x: mx, y: 644, width: col3W, height: 340 }, throwable: false, pinned: true, text: SEC2_1, fontSize: 14, fontWeight: 400, fontFamily: SERIF, lineHeight: 22, color: "#444" },
+      { id: "e-t2", type: "paragraph", rect: { x: mx + col3W + 24, y: 644, width: col3W, height: 340 }, throwable: false, pinned: true, text: SEC2_2, fontSize: 14, fontWeight: 400, fontFamily: SERIF, lineHeight: 22, color: "#444" },
+      { id: "e-t3", type: "paragraph", rect: { x: mx + (col3W + 24) * 2, y: 644, width: col3W, height: 340 }, throwable: false, pinned: true, text: SEC2_3, fontSize: 14, fontWeight: 400, fontFamily: SERIF, lineHeight: 22, color: "#444" },
 
-      // Throwable cards
-      { id: "e-card-1", type: "card", rect: { x: mx + colW - 40, y: 440, width: 110, height: 70 }, throwable: true, pinned: false, text: "Drag me", fontSize: 12, fontWeight: 600, fontFamily: SANS, color: "#1a1a1a", backgroundColor: "#fff", borderRadius: 10, padding: 14, border: "1px solid #ddd", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", mass: 0.6 },
-      { id: "e-card-2", type: "card", rect: { x: mx + colW + 60, y: 440, width: 110, height: 70 }, throwable: true, pinned: false, text: "Throw me", fontSize: 12, fontWeight: 600, fontFamily: SANS, color: "#1a1a1a", backgroundColor: "#fff", borderRadius: 10, padding: 14, border: "1px solid #ddd", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", mass: 0.6 },
+      // Orbs in three-column area
+      { id: "e-o3", type: "badge", rect: { x: mx + col3W + 24 + col3W / 2 - 32, y: 720, width: 64, height: 64 }, throwable: true, pinned: false, text: "C", fontSize: 22, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#27ae60", borderRadius: 32, mass: 0.9 },
+      { id: "e-o4", type: "badge", rect: { x: mx + 60, y: 760, width: 40, height: 40 }, throwable: true, pinned: false, text: "D", fontSize: 14, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#8e44ad", borderRadius: 20, mass: 0.4 },
+      { id: "e-o5", type: "badge", rect: { x: mx + (col3W + 24) * 2 + col3W / 2 - 26, y: 740, width: 52, height: 52 }, throwable: true, pinned: false, text: "E", fontSize: 18, fontWeight: 700, fontFamily: SERIF, color: "#fff", backgroundColor: "#e67e22", borderRadius: 26, mass: 0.6 },
 
-      // Section label
-      { id: "e-section", type: "heading", rect: { x: mx, y: 1080, width: w, height: 20 }, throwable: false, pinned: true, text: "Inspired by chenglou/pretext \u00b7 somnai-dreams/pretext-demos", fontSize: 10, fontWeight: 400, fontFamily: MONO, lineHeight: 16, color: "#bbb" },
+      // Floating cards
+      { id: "e-card-1", type: "card", rect: { x: mx + col2W - 30, y: 440, width: 90, height: 56 }, throwable: true, pinned: false, text: "Drag me", fontSize: 11, fontWeight: 600, fontFamily: SANS, color: "#1a1a1a", backgroundColor: "#fff", borderRadius: 8, padding: 12, border: "1px solid #ddd", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", mass: 0.4 },
+      { id: "e-card-2", type: "card", rect: { x: mx + col2W + 58, y: 440, width: 90, height: 56 }, throwable: true, pinned: false, text: "Throw me", fontSize: 11, fontWeight: 600, fontFamily: SANS, color: "#1a1a1a", backgroundColor: "#fff", borderRadius: 8, padding: 12, border: "1px solid #ddd", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", mass: 0.4 },
+      { id: "e-img", type: "image", rect: { x: mx + w / 2 - 70, y: 900, width: 140, height: 90 }, throwable: true, pinned: false, backgroundColor: "#e0dcd4", borderRadius: 6, boxShadow: "0 2px 8px rgba(0,0,0,0.06)", mass: 1.2 },
+
+      // Footer
+      { id: "e-r6", type: "divider", rect: { x: mx, y: 1020, width: w, height: 1 }, throwable: false, pinned: true, backgroundColor: "#ccc" },
+      { id: "e-foot", type: "heading", rect: { x: mx, y: 1034, width: w, height: 14 }, throwable: false, pinned: true, text: "Powered by @chenglou/pretext \u00b7 Inspired by somnai-dreams/pretext-demos \u00b7 Built with Matter.js", fontSize: 9, fontWeight: 400, fontFamily: MONO, lineHeight: 14, color: "#bbb" },
     ],
   };
 }

@@ -40,6 +40,9 @@ interface ToolbarProps {
 
 type FlyoutPanel = "pages" | "settings" | "stash" | null;
 
+// Survives component remounts (scene key changes)
+let _pendingPanel: FlyoutPanel = null;
+
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const {
     settings, onSettingsChange, onExplode, onReset,
@@ -49,7 +52,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     customPages, activeCustomId, onSelectCustomPage, onResetAll,
   } = props;
 
-  const [openPanel, setOpenPanel] = useState<FlyoutPanel>(null);
+  const [openPanel, setOpenPanel] = useState<FlyoutPanel>(_pendingPanel);
+
+  // Clear the pending panel after consuming it
+  if (_pendingPanel) _pendingPanel = null;
   const [collapsed, setCollapsed] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "html">("url");
   const [urlInput, setUrlInput] = useState("");
@@ -187,6 +193,13 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                     onDragStart={(e) => {
                       e.dataTransfer.setData("application/domino-saved", JSON.stringify(s));
                       e.dataTransfer.effectAllowed = "copy";
+                      // Create a drag preview that looks like the actual component
+                      const preview = document.createElement("div");
+                      preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${Math.min(s.element.rect.width, 200)}px;height:${Math.min(s.element.rect.height, 100)}px;background:${s.element.backgroundColor || "#fff"};border-radius:${s.element.borderRadius ?? 6}px;border:${s.element.border || "1px solid #ddd"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:8px;box-sizing:border-box;overflow:hidden;`;
+                      preview.textContent = s.element.text?.slice(0, 30) || s.element.type;
+                      document.body.appendChild(preview);
+                      e.dataTransfer.setDragImage(preview, preview.offsetWidth / 2, preview.offsetHeight / 2);
+                      requestAnimationFrame(() => document.body.removeChild(preview));
                     }}
                     style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 6px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)", cursor: "grab" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
@@ -199,7 +212,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                      <button onClick={() => onDropSaved(s)} style={{ ...tinyBtnStyle, color: "#a78bfa" }}>Drop</button>
+                      <button onClick={() => { _pendingPanel = "stash"; onDropSaved(s); }} style={{ ...tinyBtnStyle, color: "#a78bfa" }}>Drop</button>
                       <button onClick={() => onRemoveSaved(i)} style={{ ...tinyBtnStyle, color: "#666" }}>&times;</button>
                     </div>
                   </div>

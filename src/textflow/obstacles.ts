@@ -130,16 +130,20 @@ export function getAvailableSegments(
 }
 
 /**
- * Pick the best segment for a text line. Prefers the widest segment
- * to maximize readability, with tie-breaking toward left (natural reading order).
+ * Pick the best segment for a text line. Strongly prefers the leftmost
+ * segment (natural reading order) unless a segment to the right is
+ * dramatically wider (>2x). This ensures text wraps on BOTH sides
+ * of an obstacle when there's usable space on the left.
  */
 export function pickBestSegment(
   segments: AvailableSegment[]
 ): AvailableSegment | null {
   if (segments.length === 0) return null;
+  // Default to leftmost
   let best = segments[0];
   for (let i = 1; i < segments.length; i++) {
-    if (segments[i].width > best.width + 10) {
+    // Only switch to a rightward segment if it's more than 2x wider
+    if (segments[i].width > best.width * 2) {
       best = segments[i];
     }
   }

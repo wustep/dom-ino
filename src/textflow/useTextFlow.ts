@@ -100,7 +100,7 @@ export function computeTextFlow(
       right: b.right + obstaclePadding,
     }));
 
-    const segments = getAvailableSegments(padded, cLeft, cRight, 40);
+    const segments = getAvailableSegments(padded, cLeft, cRight, 20);
     const best = pickBestSegment(segments);
 
     if (!best) {
