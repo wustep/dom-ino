@@ -1,12 +1,16 @@
 import type { ObstacleRect, BlockedInterval, AvailableSegment } from "../scene/types";
 
+type Point = { x: number; y: number };
+const EPSILON = 0.001;
+
 /**
  * Obstacle → row exclusion algorithm:
  *
  * For each text row, check which obstacles overlap vertically.
  * For circular obstacles (borderRadius >= width/2 && width === height),
  * compute the exact horizontal chord intersection — much tighter than
- * the bounding box. For rectangular/rotated obstacles, use the AABB.
+ * the bounding box. For rotated rectangles, clip the polygon against the
+ * current row band and use that slice's x-extent.
  */
 
 function isCircular(obs: ObstacleRect): boolean {
@@ -33,6 +37,106 @@ function circleIntervalForBand(
   if (minDy >= r) return null;
   const halfChord = Math.sqrt(r * r - minDy * minDy);
   return { left: cx - halfChord, right: cx + halfChord };
+}
+
+function getRotatedRectPoints(obs: ObstacleRect): Point[] {
+  if (Math.abs(obs.angle) < EPSILON) {
+    return [
+      { x: obs.x, y: obs.y },
+      { x: obs.x + obs.width, y: obs.y },
+      { x: obs.x + obs.width, y: obs.y + obs.height },
+      { x: obs.x, y: obs.y + obs.height },
+    ];
+  }
+
+  const cx = obs.x + obs.width / 2;
+  const cy = obs.y + obs.height / 2;
+  const hw = obs.width / 2;
+  const hh = obs.height / 2;
+  const cos = Math.cos(obs.angle);
+  const sin = Math.sin(obs.angle);
+
+  return [
+    { x: -hw, y: -hh },
+    { x: hw, y: -hh },
+    { x: hw, y: hh },
+    { x: -hw, y: hh },
+  ].map((p) => ({
+    x: cx + p.x * cos - p.y * sin,
+    y: cy + p.x * sin + p.y * cos,
+  }));
+}
+
+function intersectSegmentWithHorizontalLine(a: Point, b: Point, clipY: number): Point {
+  const dy = b.y - a.y;
+  if (Math.abs(dy) < EPSILON) return { x: b.x, y: clipY };
+  const t = (clipY - a.y) / dy;
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: clipY,
+  };
+}
+
+function clipPolygon(
+  points: Point[],
+  isInside: (p: Point) => boolean,
+  intersect: (a: Point, b: Point) => Point
+): Point[] {
+  if (points.length === 0) return [];
+
+  const clipped: Point[] = [];
+  let prev = points[points.length - 1];
+  let prevInside = isInside(prev);
+
+  for (const curr of points) {
+    const currInside = isInside(curr);
+
+    if (currInside) {
+      if (!prevInside) clipped.push(intersect(prev, curr));
+      clipped.push(curr);
+    } else if (prevInside) {
+      clipped.push(intersect(prev, curr));
+    }
+
+    prev = curr;
+    prevInside = currInside;
+  }
+
+  return clipped;
+}
+
+function rectIntervalForBand(
+  obs: ObstacleRect,
+  bandTop: number,
+  bandBottom: number
+): BlockedInterval | null {
+  if (Math.abs(obs.angle) < EPSILON) {
+    if (obs.y >= bandBottom || obs.y + obs.height <= bandTop) return null;
+    return { left: obs.x, right: obs.x + obs.width };
+  }
+
+  let clipped = getRotatedRectPoints(obs);
+  clipped = clipPolygon(
+    clipped,
+    (p) => p.y >= bandTop - EPSILON,
+    (a, b) => intersectSegmentWithHorizontalLine(a, b, bandTop)
+  );
+  clipped = clipPolygon(
+    clipped,
+    (p) => p.y <= bandBottom + EPSILON,
+    (a, b) => intersectSegmentWithHorizontalLine(a, b, bandBottom)
+  );
+
+  if (clipped.length === 0) return null;
+
+  let left = clipped[0].x;
+  let right = clipped[0].x;
+  for (let i = 1; i < clipped.length; i++) {
+    left = Math.min(left, clipped[i].x);
+    right = Math.max(right, clipped[i].x);
+  }
+
+  return left < right ? { left, right } : null;
 }
 
 export function getObstacleAABB(obs: ObstacleRect): {
@@ -75,10 +179,10 @@ export function getBlockedIntervalsForRow(
         if (left < right) intervals.push({ left, right });
       }
     } else {
-      const aabb = getObstacleAABB(obs);
-      if (aabb.bottom <= rowTop || aabb.top >= rowBottom) continue;
-      const left = Math.max(aabb.left, containerLeft);
-      const right = Math.min(aabb.right, containerRight);
+      const interval = rectIntervalForBand(obs, rowTop, rowBottom);
+      if (!interval) continue;
+      const left = Math.max(interval.left, containerLeft);
+      const right = Math.min(interval.right, containerRight);
       if (left < right) intervals.push({ left, right });
     }
   }
