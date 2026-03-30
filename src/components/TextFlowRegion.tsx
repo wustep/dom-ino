@@ -9,6 +9,9 @@ interface TextFlowRegionProps {
   fontSize: number;
   lineHeight: number;
   color: string;
+  opacity?: number;
+  letterSpacing?: string;
+  textAlign?: string;
   containerX: number;
   containerY: number;
   containerWidth: number;
@@ -21,20 +24,25 @@ interface TextFlowRegionProps {
 }
 
 /**
- * Parse a CSS font shorthand string to extract weight and family.
- * E.g. "700 17px \"Source Serif 4\", Georgia, serif"
- *   -> { weight: 700, family: '"Source Serif 4", Georgia, serif' }
+ * Parse a CSS font shorthand string to extract style, weight, and family.
+ * E.g. "italic 700 17px \"Source Serif 4\", Georgia, serif"
+ *   -> { style: "italic", weight: 700, family: '"Source Serif 4", Georgia, serif' }
  */
-function parseFontShorthand(font: string): { weight: number; family: string } {
-  const weightMatch = font.match(/^(\d+)\s+\d+px\s+(.+)$/);
-  if (weightMatch) {
-    return { weight: parseInt(weightMatch[1]), family: weightMatch[2] };
+function parseFontShorthand(font: string): {
+  style: "normal" | "italic" | "oblique";
+  weight: number;
+  family: string;
+} {
+  const fontMatch = font.match(/^(?:(italic|oblique)\s+)?(?:(\d+)\s+)?(\d+px)\s+(.+)$/);
+  if (fontMatch) {
+    return {
+      style: (fontMatch[1] as "italic" | "oblique" | undefined) ?? "normal",
+      weight: fontMatch[2] ? parseInt(fontMatch[2], 10) : 400,
+      family: fontMatch[4],
+    };
   }
-  const sizeMatch = font.match(/^(\d+px)\s+(.+)$/);
-  if (sizeMatch) {
-    return { weight: 400, family: sizeMatch[2] };
-  }
-  return { weight: 400, family: font };
+
+  return { style: "normal", weight: 400, family: font };
 }
 
 export const TextFlowRegion = memo(function TextFlowRegion({
@@ -43,6 +51,9 @@ export const TextFlowRegion = memo(function TextFlowRegion({
   fontSize,
   lineHeight,
   color,
+  opacity,
+  letterSpacing,
+  textAlign,
   containerX,
   containerY,
   containerWidth,
@@ -73,7 +84,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
     onLineCount?.(flow.lines.length);
   }, [flow, onLineCount]);
 
-  const { weight, family } = useMemo(() => parseFontShorthand(font), [font]);
+  const { style, weight, family } = useMemo(() => parseFontShorthand(font), [font]);
 
   return (
     <>
@@ -88,8 +99,12 @@ export const TextFlowRegion = memo(function TextFlowRegion({
             fontSize,
             lineHeight: `${lineHeight}px`,
             fontFamily: family,
+            fontStyle: style,
             fontWeight: weight,
             color,
+            opacity,
+            letterSpacing,
+            textAlign,
             whiteSpace: "pre",
             overflow: "visible",
             pointerEvents: "none",

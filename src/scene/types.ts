@@ -28,6 +28,7 @@ export interface SceneElement {
   text?: string;
   fontSize?: number;
   fontWeight?: number;
+  fontStyle?: "normal" | "italic" | "oblique";
   fontFamily?: string;
   lineHeight?: number;
   color?: string;

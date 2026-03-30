@@ -3,6 +3,9 @@ import type { CustomPage, SnapshotCustomPage } from "../App";
 import type { SavedElement, SceneElement } from "../scene/types";
 import type { PresetKey } from "../scene/presets";
 import { Toolbar, type DebugSettings } from "./Toolbar";
+import { createPhysicsEngine } from "../physics/engine";
+import type { PhysicsEngine } from "../physics/engine";
+import { PhysicsDomItem } from "./PhysicsDomItem";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -28,6 +31,7 @@ type SnapshotCandidate = {
   borderRadius?: number;
   saved: boolean;
   node: HTMLElement;
+  sceneElement: SceneElement | null;
 };
 
 function textOf(el: HTMLElement): string {
@@ -127,11 +131,18 @@ export function SnapshotPageView({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const nodesRef = useRef<Map<string, HTMLElement>>(new Map());
+  const physicsRef = useRef<PhysicsEngine | null>(null);
+  const rafRef = useRef<number>(0);
+  const fpsFrames = useRef<number[]>([]);
   const [iframeHeight, setIframeHeight] = useState(1600);
   const [pickerMode, setPickerMode] = useState(false);
   const [candidates, setCandidates] = useState<SnapshotCandidate[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [droppedElements, setDroppedElements] = useState<SceneElement[]>([]);
+  const [bodyPositions, setBodyPositions] = useState<Map<string, { x: number; y: number; angle: number; w: number; h: number }>>(new Map());
+  const [fps, setFps] = useState(60);
   const [settings, setSettings] = useState<DebugSettings>({
-    physicsEnabled: false,
+    physicsEnabled: true,
     showObstacleBounds: false,
     showLineBounds: false,
     gravityX: 0,
@@ -192,6 +203,7 @@ export function SnapshotPageView({
 
         const dominoId = `snapshot-node-${counter++}`;
         child.dataset.dominoId = dominoId;
+        const sceneElement = elementToSceneElement(child, rootRect, win);
         nodes.set(dominoId, child);
         next.push({
           id: dominoId,
@@ -202,6 +214,7 @@ export function SnapshotPageView({
           borderRadius: parseFloat(cs.borderRadius) || 0,
           saved: savedIds.has(dominoId),
           node: child,
+          sceneElement,
         });
 
         walk(child, depth + 1);
@@ -215,6 +228,11 @@ export function SnapshotPageView({
     const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, frameRect.height);
     setIframeHeight(Math.max(800, bodyH));
   }, [savedIds]);
+
+  const selectableCandidates = useMemo(
+    () => candidates.filter((c) => c.sceneElement && c.sceneElement.type !== "paragraph" && c.sceneElement.type !== "heading"),
+    [candidates]
+  );
 
   useEffect(() => {
     if (!pickerMode) return;
@@ -234,23 +252,144 @@ export function SnapshotPageView({
   }, [pickerMode, scanCandidates]);
 
   const saveNode = useCallback((id: string) => {
-    const iframe = iframeRef.current;
-    const doc = iframe?.contentDocument;
-    const win = iframe?.contentWindow;
-    if (!doc || !win) return;
-    const node = nodesRef.current.get(id);
-    if (!node) return;
-    const root = pickContentRoot(doc);
-    const sceneEl = elementToSceneElement(node, root.getBoundingClientRect(), win);
+    const candidate = candidates.find((c) => c.id === id);
+    const sceneEl = candidate?.sceneElement;
     if (sceneEl) onSaveElement(sceneEl);
-  }, [onSaveElement]);
+  }, [onSaveElement, candidates]);
 
   const unsaveNode = useCallback((id: string) => {
     onUnsaveElement(id);
   }, [onUnsaveElement]);
 
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Hide originals for selected DOM nodes so overlay clones replace them visually.
+  useEffect(() => {
+    const current = nodesRef.current;
+    current.forEach((node, id) => {
+      if (selectedIds.has(id)) {
+        if (!node.dataset.dominoOriginalVisibility) {
+          node.dataset.dominoOriginalVisibility = node.style.visibility || "";
+        }
+        node.style.visibility = "hidden";
+      } else if (node.dataset.dominoOriginalVisibility !== undefined) {
+        node.style.visibility = node.dataset.dominoOriginalVisibility;
+        delete node.dataset.dominoOriginalVisibility;
+      }
+    });
+    return () => {
+      current.forEach((node) => {
+        if (node.dataset.dominoOriginalVisibility !== undefined) {
+          node.style.visibility = node.dataset.dominoOriginalVisibility;
+          delete node.dataset.dominoOriginalVisibility;
+        }
+      });
+    };
+  }, [selectedIds, candidates]);
+
+  const selectedElements = useMemo(() => {
+    return selectableCandidates
+      .filter((c) => selectedIds.has(c.id) && c.sceneElement)
+      .map((c) => ({
+        ...c.sceneElement!,
+        id: c.id,
+        throwable: true,
+        pinned: false,
+      }));
+  }, [selectableCandidates, selectedIds]);
+
+  const staticObstacleElements = useMemo(() => {
+    return selectableCandidates
+      .filter((c) => !selectedIds.has(c.id) && c.sceneElement)
+      .map((c) => ({
+        ...c.sceneElement!,
+        id: c.id,
+        throwable: false,
+        pinned: true,
+      }));
+  }, [selectableCandidates, selectedIds]);
+
+  const overlayScene = useMemo(() => ({
+    id: `snapshot-overlay-${page.id}`,
+    name: page.name,
+    width: stageRef.current?.clientWidth || window.innerWidth,
+    height: iframeHeight,
+    backgroundColor: "transparent",
+    elements: [...staticObstacleElements, ...selectedElements, ...droppedElements],
+  }), [page.id, page.name, iframeHeight, staticObstacleElements, selectedElements, droppedElements]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const engine = createPhysicsEngine(overlayScene, stage);
+    physicsRef.current = engine;
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      engine.destroy();
+      physicsRef.current = null;
+    };
+  }, [overlayScene]);
+
+  useEffect(() => {
+    let last = 0;
+    let prevSnapshot = "";
+    const loop = () => {
+      rafRef.current = requestAnimationFrame(loop);
+      const engine = physicsRef.current;
+      if (!engine || !settings.physicsEnabled) return;
+      const now = performance.now();
+      fpsFrames.current.push(now);
+      while (fpsFrames.current.length > 0 && fpsFrames.current[0] < now - 1000) fpsFrames.current.shift();
+      if (now - last > 250) { setFps(fpsFrames.current.length); last = now; }
+      const positions = engine.getBodyPositions();
+      let snapshot = "";
+      for (const [id, p] of positions) snapshot += `${id}:${p.x.toFixed(1)},${p.y.toFixed(1)},${p.angle.toFixed(3)};`;
+      if (snapshot !== prevSnapshot) {
+        prevSnapshot = snapshot;
+        setBodyPositions(positions);
+      }
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [settings.physicsEnabled]);
+
+  useEffect(() => { physicsRef.current?.setGravity(settings.gravityX, settings.gravityY); }, [settings.gravityX, settings.gravityY]);
+  useEffect(() => { if (settings.paused) physicsRef.current?.pause(); else physicsRef.current?.resume(); }, [settings.paused]);
+
   return (
-    <div ref={stageRef} style={{ position: "relative", width: "100%", minHeight: iframeHeight, background: "#fff" }}>
+    <div
+      ref={stageRef}
+      style={{ position: "relative", width: "100%", minHeight: iframeHeight, background: "#fff", cursor: settings.physicsEnabled ? "grab" : "default" }}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+      onDrop={(e) => {
+        e.preventDefault();
+        try {
+          const data = JSON.parse(e.dataTransfer.getData("application/domino-saved")) as SavedElement;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const el = {
+            ...data.element,
+            id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            throwable: true,
+            pinned: false,
+            rect: {
+              ...data.element.rect,
+              x: x - data.element.rect.width / 2,
+              y: y - data.element.rect.height / 2,
+            },
+          };
+          setDroppedElements((prev) => [...prev, el]);
+        } catch { /* ignore */ }
+      }}
+    >
       <iframe
         ref={iframeRef}
         srcDoc={page.preparedHtml}
@@ -262,8 +401,9 @@ export function SnapshotPageView({
       {pickerMode && (
         <>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.08)", pointerEvents: "none" }} />
-          {candidates.map((c) => {
+          {selectableCandidates.map((c) => {
             const wide = c.width >= 80;
+            const selected = selectedIds.has(c.id);
             return (
               <div
                 key={c.id}
@@ -274,13 +414,42 @@ export function SnapshotPageView({
                   width: c.width + 4,
                   height: c.height + 4,
                   borderRadius: (c.borderRadius ?? 0) + 2,
-                  border: "2px dashed rgba(59,130,246,0.45)",
-                  background: "rgba(59,130,246,0.04)",
+                  border: selected ? "2px solid rgba(59,130,246,0.8)" : "2px dashed rgba(59,130,246,0.45)",
+                  background: selected ? "rgba(59,130,246,0.08)" : "rgba(59,130,246,0.04)",
                   boxSizing: "border-box",
                   pointerEvents: "none",
                   zIndex: 100,
                 }}
               >
+                <button
+                  onClick={() => toggleSelected(c.id)}
+                  style={{
+                    position: "absolute",
+                    top: -8,
+                    right: -8,
+                    height: 18,
+                    minWidth: 18,
+                    borderRadius: 9,
+                    padding: wide ? "0 7px" : "0 4px",
+                    border: "2px solid #fff",
+                    background: selected ? "#3b82f6" : "#aaa",
+                    color: "#fff",
+                    fontFamily: '"DM Sans", sans-serif',
+                    fontSize: 9,
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 3,
+                    cursor: "pointer",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                    pointerEvents: "auto",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {selected ? "✓" : ""}
+                  {wide && (selected ? " Physics" : "")}
+                </button>
                 <button
                   onClick={() => (c.saved ? unsaveNode(c.id) : saveNode(c.id))}
                   style={{
@@ -316,22 +485,62 @@ export function SnapshotPageView({
         </>
       )}
 
+      {/* Physics overlay for selected/dropped imported-page components */}
+      {settings.physicsEnabled && [...selectedElements, ...droppedElements].map((el) => {
+        const pos = bodyPositions.get(el.id);
+        return (
+          <PhysicsDomItem
+            key={el.id}
+            element={el}
+            x={pos?.x ?? el.rect.x}
+            y={pos?.y ?? el.rect.y}
+            angle={pos?.angle ?? 0}
+            isPhysicsEnabled={true}
+            showDebug={settings.showObstacleBounds}
+            isPinned={false}
+          />
+        );
+      })}
+
       <Toolbar
         settings={settings}
         onSettingsChange={setSettings}
-        onExplode={() => {}}
-        onReset={() => {}}
-        onTogglePicker={() => setPickerMode((p) => !p)}
+        onExplode={() => physicsRef.current?.explode()}
+        onReset={() => physicsRef.current?.reset()}
+        onTogglePicker={() => {
+          setPickerMode((prev) => {
+            if (!prev) {
+              physicsRef.current?.reset();
+              physicsRef.current?.pause();
+            } else if (!settings.paused) {
+              physicsRef.current?.resume();
+            }
+            return !prev;
+          });
+        }}
         pickerMode={pickerMode}
-        fps={0}
-        bodyCount={0}
+        fps={fps}
+        bodyCount={selectedElements.length + droppedElements.length}
         lineCount={0}
         currentPreset={currentPreset}
         onSelectPreset={onSelectPreset}
         onImportHtml={onImportHtml}
         onFetchUrl={onFetchUrl}
         savedElements={savedElements}
-        onDropSaved={() => {}}
+        onDropSaved={(saved, x, y) => {
+          const el = {
+            ...saved.element,
+            id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            throwable: true,
+            pinned: false,
+            rect: {
+              ...saved.element.rect,
+              x: x != null ? x - saved.element.rect.width / 2 : (stageRef.current?.clientWidth || 1000) / 2 - saved.element.rect.width / 2,
+              y: y != null ? y - saved.element.rect.height / 2 : iframeHeight / 2 - saved.element.rect.height / 2,
+            },
+          };
+          setDroppedElements((prev) => [...prev, el]);
+        }}
         onClearSaved={() => {}}
         onRemoveSaved={() => {}}
         customPages={customPages}

@@ -11,6 +11,13 @@ interface PhysicsDomItemProps {
   isPinned: boolean;
 }
 
+function getBackgroundStyle(background?: string): React.CSSProperties {
+  if (!background) return {};
+  return background.includes("gradient")
+    ? { background }
+    : { backgroundColor: background };
+}
+
 export const PhysicsDomItem = memo(function PhysicsDomItem({
   element, x, y, angle, isPhysicsEnabled, showDebug, isPinned,
 }: PhysicsDomItemProps) {
@@ -29,6 +36,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
     pointerEvents: "none", userSelect: "none",
     transition: live ? undefined : "left 0.35s ease, top 0.35s ease, transform 0.35s ease",
     borderRadius: element.borderRadius ?? 0,
+    opacity: element.opacity,
   };
 
   const renderInner = () => {
@@ -37,7 +45,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
         return (
           <div style={{
             width: "100%", height: "100%",
-            backgroundColor: element.backgroundColor ?? "#fff",
+            ...getBackgroundStyle(element.backgroundColor ?? "#fff"),
             borderRadius: element.borderRadius ?? 8,
             padding: element.padding ?? 16,
             border: element.border ?? "1px solid #e5e5e5",
@@ -46,14 +54,15 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
             overflow: "hidden", boxSizing: "border-box",
             position: "relative",
             color: element.color ?? "#1a1a1a", fontFamily: element.fontFamily,
+            textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined,
           }}>
             {element.text && (
-              <div style={{ fontSize: element.fontSize ?? 16, fontWeight: element.fontWeight ?? 600, fontFamily: element.fontFamily, color: element.color ?? "#1a1a1a", lineHeight: "1.3" }}>
+              <div style={{ fontSize: element.fontSize ?? 16, fontWeight: element.fontWeight ?? 600, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#1a1a1a", lineHeight: "1.3", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined }}>
                 {element.text}
               </div>
             )}
             {element.children?.map((child) => (
-              <div key={child.id} style={{ marginTop: child.rect.y > 0 ? child.rect.y : 8, fontSize: child.fontSize ?? 13, fontWeight: child.fontWeight ?? 400, fontFamily: child.fontFamily, color: child.color ?? "#777", lineHeight: child.lineHeight ? `${child.lineHeight}px` : "1.5" }}>
+              <div key={child.id} style={{ marginTop: child.rect.y > 0 ? child.rect.y : 8, fontSize: child.fontSize ?? 13, fontWeight: child.fontWeight ?? 400, fontStyle: child.fontStyle ?? "normal", fontFamily: child.fontFamily, color: child.color ?? "#777", lineHeight: child.lineHeight ? `${child.lineHeight}px` : "1.5", letterSpacing: child.letterSpacing, textAlign: child.textAlign as React.CSSProperties["textAlign"] | undefined, opacity: child.opacity }}>
                 {child.text}
               </div>
             ))}
@@ -61,22 +70,21 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
         );
       case "button": case "link":
         return (
-          <div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#1a1a1a", borderRadius: element.borderRadius ?? 6, border: element.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 14, fontWeight: element.fontWeight ?? 500, fontFamily: element.fontFamily, color: element.color ?? "#fff", boxShadow: element.boxShadow, boxSizing: "border-box" }}>
+          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "#1a1a1a"), borderRadius: element.borderRadius ?? 6, border: element.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 14, fontWeight: element.fontWeight ?? 500, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxShadow: element.boxShadow, boxSizing: "border-box" }}>
             {element.text}
           </div>
         );
       case "badge": {
         const bg = element.backgroundColor ?? "#333";
-        const isGradient = bg.includes("gradient");
         return (
-          <div style={{ width: "100%", height: "100%", ...(isGradient ? { background: bg } : { backgroundColor: bg }), borderRadius: element.borderRadius ?? 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 11, fontWeight: element.fontWeight ?? 700, fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: "0.05em", boxShadow: element.boxShadow }}>
+          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(bg), borderRadius: element.borderRadius ?? 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 11, fontWeight: element.fontWeight ?? 700, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: element.letterSpacing ?? "0.05em", textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxShadow: element.boxShadow }}>
             {element.text}
           </div>
         );
       }
       case "image":
         return (
-          <div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#e5e5e5", borderRadius: element.borderRadius ?? 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: element.boxShadow }}>
+          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "#e5e5e5"), borderRadius: element.borderRadius ?? 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: element.boxShadow }}>
             {element.imageSrc ? (
               <img src={element.imageSrc} alt={element.imageAlt ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} draggable={false} />
             ) : (
@@ -89,13 +97,13 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
           </div>
         );
       case "input":
-        return (<div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#fff", borderRadius: element.borderRadius ?? 6, border: element.border ?? "1px solid #ddd", display: "flex", alignItems: "center", padding: element.padding ?? 8, fontSize: element.fontSize ?? 14, fontFamily: element.fontFamily, color: element.color ?? "#999", boxSizing: "border-box" }}>{element.text ?? "Input..."}</div>);
+        return (<div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "#fff"), borderRadius: element.borderRadius ?? 6, border: element.border ?? "1px solid #ddd", display: "flex", alignItems: "center", padding: element.padding ?? 8, fontSize: element.fontSize ?? 14, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#999", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxSizing: "border-box" }}>{element.text ?? "Input..."}</div>);
       case "container":
-        return (<div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor, borderRadius: element.borderRadius ?? 0, border: element.border, boxShadow: element.boxShadow, overflow: "hidden", boxSizing: "border-box" }} />);
+        return (<div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor), borderRadius: element.borderRadius ?? 0, border: element.border, boxShadow: element.boxShadow, overflow: "hidden", boxSizing: "border-box" }} />);
       case "divider":
         return (<div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#e5e5e5" }} />);
       default:
-        return (<div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "rgba(200,200,200,0.3)", borderRadius: element.borderRadius ?? 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 12, fontFamily: element.fontFamily, color: element.color ?? "#888", boxSizing: "border-box", border: element.border }}>{element.text}</div>);
+        return (<div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "rgba(200,200,200,0.3)"), borderRadius: element.borderRadius ?? 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 12, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#888", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxSizing: "border-box", border: element.border }}>{element.text}</div>);
     }
   };
 

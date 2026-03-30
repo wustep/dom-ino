@@ -165,10 +165,13 @@ export function DominoScene({
           ? textElements.map((el) => {
               const fw = el.fontWeight ?? 400, fs = el.fontSize ?? 16;
               const ff = el.fontFamily ?? '"Source Serif 4", Georgia, serif';
-              const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
+              const stylePrefix = el.fontStyle && el.fontStyle !== "normal" ? `${el.fontStyle} ` : "";
+              const weightPart = fw !== 400 ? `${fw} ` : "";
+              const font = `${stylePrefix}${weightPart}${fs}px ${ff}`;
               const pad = el.padding ?? 0;
               return (<TextFlowRegion key={el.id} text={el.text!} font={font} fontSize={fs}
                 lineHeight={el.lineHeight ?? 28} color={el.color ?? "#333"}
+                opacity={el.opacity} letterSpacing={el.letterSpacing} textAlign={el.textAlign}
                 containerX={el.rect.x + pad} containerY={el.rect.y + pad}
                 containerWidth={el.rect.width - pad * 2}
                 containerMaxHeight={(textMaxHeights.get(el.id) ?? el.rect.height) - pad * 2}
@@ -179,7 +182,7 @@ export function DominoScene({
           : textElements.map((el) => {
               const pad = el.padding ?? 0;
               return (
-                <div key={el.id} style={{ position: "absolute", left: el.rect.x + pad, top: el.rect.y + pad, width: el.rect.width - pad * 2, fontSize: el.fontSize ?? 16, fontWeight: el.fontWeight ?? 400, fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif', lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6", color: el.color ?? "#333", pointerEvents: "none" }}>{el.text}</div>
+                <div key={el.id} style={{ position: "absolute", left: el.rect.x + pad, top: el.rect.y + pad, width: el.rect.width - pad * 2, fontSize: el.fontSize ?? 16, fontWeight: el.fontWeight ?? 400, fontStyle: el.fontStyle ?? "normal", fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif', lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6", color: el.color ?? "#333", opacity: el.opacity, letterSpacing: el.letterSpacing, textAlign: el.textAlign, pointerEvents: "none" }}>{el.text}</div>
               );
             })}
 
