@@ -18,6 +18,11 @@ export interface SceneRect {
   height: number;
 }
 
+export interface ScenePoint {
+  x: number;
+  y: number;
+}
+
 export interface SceneElement {
   id: string;
   type: SceneElementType;
@@ -47,9 +52,11 @@ export interface SceneElement {
   allowWordBreaks?: boolean;
   minSegmentWidth?: number;
   physicsEnabled?: boolean;
+  affectsTextFlow?: boolean;
 
   mass?: number;
-  physicsShape?: "rectangle" | "circle";
+  physicsShape?: "rectangle" | "circle" | "polygon";
+  polygonPoints?: ScenePoint[];
   lockRotation?: boolean;
   initialVelocityX?: number;
   initialVelocityY?: number;
@@ -75,6 +82,8 @@ export interface ObstacleRect {
   height: number;
   angle: number;
   borderRadius?: number;
+  physicsShape?: "rectangle" | "circle" | "polygon";
+  polygonPoints?: ScenePoint[];
 }
 
 export interface BlockedInterval {

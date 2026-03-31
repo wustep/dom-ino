@@ -1,8 +1,16 @@
 import Matter from "matter-js";
-import type { SceneDescription } from "../scene/types";
+import type { SceneDescription, SceneElement } from "../scene/types";
 
 const { Engine, World, Bodies, Body, Mouse, MouseConstraint, Events, Runner } =
   Matter;
+
+function getPolygonVertices(el: SceneElement): Matter.Vector[] | null {
+  if (!el.polygonPoints || el.polygonPoints.length < 3) return null;
+  return el.polygonPoints.map((point) => ({
+    x: el.rect.x + point.x * el.rect.width,
+    y: el.rect.y + point.y * el.rect.height,
+  }));
+}
 
 export interface PhysicsBody {
   elementId: string;
@@ -27,8 +35,6 @@ export interface PhysicsEngine {
   resume: () => void;
   explode: () => void;
   setGravity: (x: number, y: number) => void;
-  togglePin: (id: string) => void;
-  isPinned: (id: string) => boolean;
   getBodyPositions: () => Map<
     string,
     { x: number; y: number; angle: number; w: number; h: number }
@@ -66,13 +72,14 @@ export function createPhysicsEngine(
   walls.push(floor, ceiling, leftWall, rightWall);
   World.add(engine.world, walls);
 
-  for (const el of scene.elements) {
-    if (el.physicsEnabled === false) continue;
-    if (el.type === "paragraph" || el.type === "heading" || el.type === "divider") continue;
+  function createBody(el: SceneElement): PhysicsBody | null {
+    if (el.physicsEnabled === false) return null;
+    if (el.type === "paragraph" || el.type === "heading" || el.type === "divider") return null;
 
     const cx = el.rect.x + el.rect.width / 2;
     const cy = el.rect.y + el.rect.height / 2;
     const physicsShape = el.physicsShape ?? "rectangle";
+    const polygonVertices = physicsShape === "polygon" ? getPolygonVertices(el) : null;
 
     if (el.throwable) {
       const mass = el.mass ?? 1;
@@ -86,10 +93,12 @@ export function createPhysicsEngine(
       };
       const body = physicsShape === "circle"
         ? Bodies.circle(cx, cy, Math.min(el.rect.width, el.rect.height) / 2, bodyOptions)
-        : Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
-            ...bodyOptions,
-            chamfer: { radius: Math.min(el.borderRadius ?? 0, 6) },
-          });
+        : physicsShape === "polygon" && polygonVertices
+          ? Bodies.fromVertices(cx, cy, [polygonVertices], bodyOptions, true)
+          : Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
+              ...bodyOptions,
+              chamfer: { radius: Math.min(el.borderRadius ?? 0, 6) },
+            });
       if (el.lockRotation) {
         Body.setInertia(body, Infinity);
         Body.setAngularVelocity(body, 0);
@@ -101,7 +110,7 @@ export function createPhysicsEngine(
           y: el.initialVelocityY ?? 0,
         });
       }
-      bodies.set(el.id, {
+      return {
         elementId: el.id,
         body,
         originalX: el.rect.x,
@@ -110,35 +119,58 @@ export function createPhysicsEngine(
         originalH: el.rect.height,
         initialVelocityX: el.initialVelocityX ?? 0,
         initialVelocityY: el.initialVelocityY ?? 0,
-      });
-      World.add(engine.world, body);
-    } else {
-      const body = Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
-        isStatic: true,
-        friction: 0.6,
-        restitution: 0.2,
-        label: `static-${el.id}`,
-      });
-      bodies.set(el.id, {
-        elementId: el.id,
-        body,
-        originalX: el.rect.x,
-        originalY: el.rect.y,
-        originalW: el.rect.width,
-        originalH: el.rect.height,
-        initialVelocityX: 0,
-        initialVelocityY: 0,
-      });
-      World.add(engine.world, body);
+      };
     }
+
+    const bodyOptions = {
+      isStatic: true,
+      friction: 0.6,
+      restitution: 0.2,
+      label: `static-${el.id}`,
+    };
+    const body = physicsShape === "circle"
+      ? Bodies.circle(cx, cy, Math.min(el.rect.width, el.rect.height) / 2, bodyOptions)
+      : physicsShape === "polygon" && polygonVertices
+        ? Bodies.fromVertices(cx, cy, [polygonVertices], bodyOptions, true)
+        : Bodies.rectangle(cx, cy, el.rect.width, el.rect.height, {
+            ...bodyOptions,
+            chamfer: { radius: Math.min(el.borderRadius ?? 0, 6) },
+          });
+    return {
+      elementId: el.id,
+      body,
+      originalX: el.rect.x,
+      originalY: el.rect.y,
+      originalW: el.rect.width,
+      originalH: el.rect.height,
+      initialVelocityX: 0,
+      initialVelocityY: 0,
+    };
+  }
+
+  function addElementBody(el: SceneElement) {
+    const physicsBody = createBody(el);
+    if (!physicsBody) return;
+    elementsById.set(el.id, el);
+    bodies.set(el.id, physicsBody);
+    World.add(engine.world, physicsBody.body);
+  }
+
+  for (const el of scene.elements) {
+    addElementBody(el);
   }
 
   const mouse = Mouse.create(container);
   mouse.pixelRatio = 1;
+  const mouseWithWheel = mouse as Matter.Mouse & {
+    mousewheel?: EventListenerOrEventListenerObject;
+  };
 
   // Matter's Mouse adds a non-passive 'wheel' listener that calls preventDefault(),
   // blocking native page scrolling. Remove it since we don't use wheelDelta.
-  container.removeEventListener("wheel", (mouse as any).mousewheel);
+  if (mouseWithWheel.mousewheel) {
+    container.removeEventListener("wheel", mouseWithWheel.mousewheel);
+  }
 
   const mouseConstraint = MouseConstraint.create(engine, {
     mouse,
@@ -170,6 +202,7 @@ export function createPhysicsEngine(
       const pos = b.position;
       const hw = pb.originalW / 2;
       const hh = pb.originalH / 2;
+      const element = elementsById.get(pb.elementId);
       let clamped = false;
       let nx = pos.x, ny = pos.y;
 
@@ -183,7 +216,6 @@ export function createPhysicsEngine(
         Body.setVelocity(b, { x: b.velocity.x * 0.5, y: b.velocity.y * 0.5 });
       }
 
-      const element = elementsById.get(pb.elementId);
       if (element?.lockRotation) {
         if (Math.abs(b.angle) > 0.0001) Body.setAngle(b, 0);
         if (Math.abs(b.angularVelocity) > 0.0001) Body.setAngularVelocity(b, 0);
@@ -230,14 +262,6 @@ export function createPhysicsEngine(
       engine.gravity.x = x;
       engine.gravity.y = y;
     },
-
-    togglePin(id: string) {
-      const pb = bodies.get(id);
-      if (!pb) return;
-      Body.setStatic(pb.body, !pb.body.isStatic);
-    },
-
-    isPinned(id: string) { return bodies.get(id)?.body.isStatic ?? false; },
 
     getBodyPositions() {
       const positions = new Map<string, { x: number; y: number; angle: number; w: number; h: number }>();

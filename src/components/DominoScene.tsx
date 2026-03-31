@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import type { SceneDescription, SceneElement, ObstacleRect, SavedElement } from "../scene/types";
+import type {
+  ObstacleRect,
+  SavedElement,
+  SceneDescription,
+  SceneElement,
+} from "../scene/types";
 import type { PresetKey } from "../scene/presets";
 import type { CustomPage } from "../App";
 import { createPhysicsEngine } from "../physics/engine";
@@ -67,6 +72,7 @@ export function DominoScene({
   const [totalLineCount, setTotalLineCount] = useState(0);
   const [pickerMode, setPickerMode] = useState(false);
   const [savePickerMode, setSavePickerMode] = useState(false);
+  const effectiveElements = scene.elements;
 
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true, showObstacleBounds: false, showLineBounds: false,
@@ -75,18 +81,18 @@ export function DominoScene({
 
   const { textElements, throwableElements, staticElements } = useMemo(() => {
     const text: SceneElement[] = [], throwable: SceneElement[] = [], staticEls: SceneElement[] = [];
-    for (const el of scene.elements) {
+    for (const el of effectiveElements) {
       const isText = (el.type === "paragraph" || el.type === "heading") && el.text && !el.throwable;
       if (isText) text.push(el);
       if (el.throwable) throwable.push(el);
       else if (!isText) staticEls.push(el);
     }
     return { textElements: text, throwableElements: throwable, staticElements: staticEls };
-  }, [scene]);
+  }, [effectiveElements]);
 
   const textMaxHeights = useMemo(
-    () => computeTextMaxHeights(textElements, scene.elements, scene.height),
-    [textElements, scene.elements, scene.height]
+    () => computeTextMaxHeights(textElements, effectiveElements, scene.height),
+    [textElements, effectiveElements, scene.height]
   );
 
   useEffect(() => {
@@ -94,7 +100,12 @@ export function DominoScene({
     if (!container) return;
     const engine = createPhysicsEngine(scene, container);
     physicsRef.current = engine;
-    return () => { cancelAnimationFrame(rafRef.current); engine.destroy(); physicsRef.current = null; };
+    setBodyPositions(new Map());
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      engine.destroy();
+      physicsRef.current = null;
+    };
   }, [scene]);
 
   useEffect(() => {
@@ -121,14 +132,32 @@ export function DominoScene({
 
   const obstacles: ObstacleRect[] = useMemo(() => {
     if (!settings.pretextEnabled) return [];
-    return throwableElements.map((el) => {
+    return effectiveElements
+      .filter((el) => {
+        const participates = el.affectsTextFlow ?? el.throwable;
+        if (!participates) return false;
+        return el.type !== "paragraph" && el.type !== "heading" && el.type !== "divider";
+      })
+      .map((el) => {
       const pos = bodyPositions.get(el.id);
-      return { id: el.id, x: pos?.x ?? el.rect.x, y: pos?.y ?? el.rect.y, width: pos?.w ?? el.rect.width, height: pos?.h ?? el.rect.height, angle: pos?.angle ?? 0, borderRadius: el.borderRadius };
+      return {
+        id: el.id,
+        x: pos?.x ?? el.rect.x,
+        y: pos?.y ?? el.rect.y,
+        width: pos?.w ?? el.rect.width,
+        height: pos?.h ?? el.rect.height,
+        angle: pos?.angle ?? 0,
+        borderRadius: el.borderRadius,
+        physicsShape: el.physicsShape,
+        polygonPoints: el.polygonPoints,
+      };
     });
-  }, [throwableElements, bodyPositions, settings.pretextEnabled]);
+  }, [effectiveElements, bodyPositions, settings.pretextEnabled]);
 
   const handleExplode = useCallback(() => physicsRef.current?.explode(), []);
-  const handleReset = useCallback(() => physicsRef.current?.reset(), []);
+  const handleReset = useCallback(() => {
+    physicsRef.current?.reset();
+  }, []);
   const handleToggleThrowable = useCallback((elementId: string) => {
     if (!onSceneChange) return;
     onSceneChange(
@@ -140,7 +169,7 @@ export function DominoScene({
   const handleSaveElement = useCallback((el: SceneElement) => onSaveElement(el), [onSaveElement]);
 
   const saveCandidates = useMemo(() => {
-    return scene.elements
+    return effectiveElements
       .filter((el) => el.type !== "divider" && !(el.type === "paragraph" && !el.throwable) && !(el.type === "heading" && !el.throwable))
       .map((el) => {
         const pos = bodyPositions.get(el.id);
@@ -155,7 +184,7 @@ export function DominoScene({
           saved: savedElements.some((saved) => saved.element.id === el.id),
         };
       });
-  }, [scene.elements, bodyPositions, savedElements]);
+  }, [effectiveElements, bodyPositions, savedElements]);
 
   const lineCountRef = useRef(0);
   const reportLines = useCallback((count: number) => { lineCountRef.current += count; }, []);
@@ -223,7 +252,7 @@ export function DominoScene({
         })}
 
         {pickerMode && (
-          <ThrowablePicker elements={scene.elements} savedElements={savedElements}
+          <ThrowablePicker elements={effectiveElements} savedElements={savedElements}
             onToggle={handleToggleThrowable} onSave={handleSaveElement} onUnsave={onUnsaveElement}
             onDelete={(id: string) => {
               if (!onSceneChange) return;
@@ -245,6 +274,7 @@ export function DominoScene({
             }}
           />
         )}
+
       </div>
 
       <Toolbar

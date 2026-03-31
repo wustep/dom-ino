@@ -1,6 +1,6 @@
-import type { ObstacleRect, BlockedInterval, AvailableSegment } from "../scene/types";
+import type { ObstacleRect, BlockedInterval, AvailableSegment, ScenePoint } from "../scene/types";
 
-type Point = { x: number; y: number };
+type Point = ScenePoint;
 const EPSILON = 0.001;
 
 /**
@@ -67,6 +67,29 @@ function getRotatedRectPoints(obs: ObstacleRect): Point[] {
   }));
 }
 
+function getPolygonPoints(obs: ObstacleRect): Point[] {
+  if (!obs.polygonPoints || obs.polygonPoints.length < 3) return getRotatedRectPoints(obs);
+
+  const cx = obs.x + obs.width / 2;
+  const cy = obs.y + obs.height / 2;
+  const cos = Math.cos(obs.angle);
+  const sin = Math.sin(obs.angle);
+
+  return obs.polygonPoints.map((point) => {
+    const px = obs.x + point.x * obs.width;
+    const py = obs.y + point.y * obs.height;
+
+    if (Math.abs(obs.angle) < EPSILON) return { x: px, y: py };
+
+    const dx = px - cx;
+    const dy = py - cy;
+    return {
+      x: cx + dx * cos - dy * sin,
+      y: cy + dx * sin + dy * cos,
+    };
+  });
+}
+
 function intersectSegmentWithHorizontalLine(a: Point, b: Point, clipY: number): Point {
   const dy = b.y - a.y;
   if (Math.abs(dy) < EPSILON) return { x: b.x, y: clipY };
@@ -105,17 +128,17 @@ function clipPolygon(
   return clipped;
 }
 
-function rectIntervalForBand(
+function polygonIntervalForBand(
   obs: ObstacleRect,
   bandTop: number,
   bandBottom: number
 ): BlockedInterval | null {
-  if (Math.abs(obs.angle) < EPSILON) {
+  if (obs.physicsShape !== "polygon" && Math.abs(obs.angle) < EPSILON) {
     if (obs.y >= bandBottom || obs.y + obs.height <= bandTop) return null;
     return { left: obs.x, right: obs.x + obs.width };
   }
 
-  let clipped = getRotatedRectPoints(obs);
+  let clipped = getPolygonPoints(obs);
   clipped = clipPolygon(
     clipped,
     (p) => p.y >= bandTop - EPSILON,
@@ -142,18 +165,24 @@ function rectIntervalForBand(
 export function getObstacleAABB(obs: ObstacleRect): {
   left: number; top: number; right: number; bottom: number;
 } {
-  if (Math.abs(obs.angle) < 0.001) {
+  if (obs.physicsShape !== "polygon" && Math.abs(obs.angle) < 0.001) {
     return { left: obs.x, top: obs.y, right: obs.x + obs.width, bottom: obs.y + obs.height };
   }
-  const cx = obs.x + obs.width / 2;
-  const cy = obs.y + obs.height / 2;
-  const hw = obs.width / 2;
-  const hh = obs.height / 2;
-  const cos = Math.abs(Math.cos(obs.angle));
-  const sin = Math.abs(Math.sin(obs.angle));
-  const aabbHW = hw * cos + hh * sin;
-  const aabbHH = hw * sin + hh * cos;
-  return { left: cx - aabbHW, top: cy - aabbHH, right: cx + aabbHW, bottom: cy + aabbHH };
+
+  const points = getPolygonPoints(obs);
+  let left = points[0].x;
+  let right = points[0].x;
+  let top = points[0].y;
+  let bottom = points[0].y;
+
+  for (let i = 1; i < points.length; i++) {
+    left = Math.min(left, points[i].x);
+    right = Math.max(right, points[i].x);
+    top = Math.min(top, points[i].y);
+    bottom = Math.max(bottom, points[i].y);
+  }
+
+  return { left, top, right, bottom };
 }
 
 export function getBlockedIntervalsForRow(
@@ -179,7 +208,7 @@ export function getBlockedIntervalsForRow(
         if (left < right) intervals.push({ left, right });
       }
     } else {
-      const interval = rectIntervalForBand(obs, rowTop, rowBottom);
+      const interval = polygonIntervalForBand(obs, rowTop, rowBottom);
       if (!interval) continue;
       const left = Math.max(interval.left, containerLeft);
       const right = Math.min(interval.right, containerRight);

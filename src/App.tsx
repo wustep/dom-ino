@@ -3,7 +3,7 @@ import { DominoScene } from "./components/DominoScene";
 import { SnapshotPageView } from "./components/SnapshotPageView";
 import type { SceneDescription, SceneElement, SavedElement } from "./scene/types";
 import type { PresetKey } from "./scene/presets";
-import { getPresetScene } from "./scene/presets";
+import { getPresetScene, isPresetKey } from "./scene/presets";
 import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot";
 
 export interface SceneCustomPage {
@@ -34,38 +34,41 @@ interface PersistedState {
 
 function normalizeCustomPages(pages: unknown): CustomPage[] {
   if (!Array.isArray(pages)) return [];
-  return pages.flatMap((page) => {
-    if (!page || typeof page !== "object") return [];
+  return pages.reduce<CustomPage[]>((acc, page) => {
+    if (!page || typeof page !== "object") return acc;
     const p = page as Record<string, unknown>;
-    if (typeof p.id !== "string" || typeof p.name !== "string") return [];
+    if (typeof p.id !== "string" || typeof p.name !== "string") return acc;
     if (p.kind === "snapshot" && typeof p.preparedHtml === "string") {
-      return [{
+      acc.push({
         id: p.id,
         name: p.name,
         kind: "snapshot" as const,
         preparedHtml: p.preparedHtml,
         sourceUrl: typeof p.sourceUrl === "string" ? p.sourceUrl : undefined,
-      }];
+      });
+      return acc;
     }
     if (p.kind === "scene" && p.scene && typeof p.scene === "object") {
-      return [{
+      acc.push({
         id: p.id,
         name: p.name,
         kind: "scene" as const,
         scene: p.scene as SceneDescription,
-      }];
+      });
+      return acc;
     }
     // Back-compat for older persisted shape
     if (p.scene && typeof p.scene === "object") {
-      return [{
+      acc.push({
         id: p.id,
         name: p.name,
         kind: "scene" as const,
         scene: p.scene as SceneDescription,
-      }];
+      });
+      return acc;
     }
-    return [];
-  });
+    return acc;
+  }, []);
 }
 
 function loadState(): Partial<PersistedState> {
@@ -73,9 +76,27 @@ function loadState(): Partial<PersistedState> {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<PersistedState> & { customPages?: unknown };
+      const customPages = normalizeCustomPages(parsed.customPages).filter(
+        (page) => page.kind !== "scene" || page.scene.id !== "breakout"
+      );
+      const activeCustomId =
+        typeof parsed.activeCustomId === "string" && customPages.some((page) => page.id === parsed.activeCustomId)
+          ? parsed.activeCustomId
+          : null;
+      let currentPreset: PresetKey | "custom" | undefined =
+        parsed.currentPreset === "custom"
+          ? "custom"
+          : isPresetKey(parsed.currentPreset)
+            ? parsed.currentPreset
+            : undefined;
+      if (currentPreset === "custom" && !activeCustomId) {
+        currentPreset = undefined;
+      }
       return {
         ...parsed,
-        customPages: normalizeCustomPages(parsed.customPages),
+        activeCustomId,
+        currentPreset,
+        customPages,
       };
     }
   } catch { /* ignore */ }
@@ -204,6 +225,7 @@ export default function App() {
   }, []);
 
   const handleDropSaved = useCallback((saved: SavedElement, dropX?: number, dropY?: number) => {
+    if (!scene) return;
     const el = { ...saved.element };
     el.id = `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     el.throwable = true; el.pinned = false;
