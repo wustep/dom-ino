@@ -45,6 +45,29 @@ type SnapshotTextBlock = {
   node: HTMLElement;
 };
 
+function getStableNodeId(root: HTMLElement, node: HTMLElement): string {
+  const existing = node.dataset.dominoId;
+  if (existing) return existing;
+  if (node.id) return `id:${node.id}`;
+  const parts: string[] = [];
+  let current: HTMLElement | null = node;
+  while (current && current !== root) {
+    const parent: HTMLElement | null = current.parentElement;
+    const tag = current.tagName.toLowerCase();
+    if (!parent) {
+      parts.push(tag);
+      break;
+    }
+    const siblings = (Array.from(parent.children) as HTMLElement[]).filter(
+      (el) => el.tagName === current!.tagName
+    );
+    const index = siblings.indexOf(current);
+    parts.push(`${tag}:${index}`);
+    current = parent;
+  }
+  return `path:${parts.reverse().join("/")}`;
+}
+
 function textOf(el: HTMLElement): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
@@ -228,7 +251,7 @@ export function SnapshotPageView({
           continue;
         }
 
-        const dominoId = `snapshot-node-${counter++}`;
+        const dominoId = getStableNodeId(root, childEl) || `snapshot-node-${counter++}`;
         childEl.dataset.dominoId = dominoId;
         const sceneElement = elementToSceneElement(childEl, viewportRect, win);
         nodes.set(dominoId, childEl);
@@ -341,7 +364,18 @@ export function SnapshotPageView({
     };
   }, [selectedIds, candidates]);
 
-  // Hide original text nodes when Pretext overlay is active
+  const selectedElements = useMemo(() => {
+    return selectableCandidates
+      .filter((c) => selectedIds.has(c.id) && c.sceneElement)
+      .map((c) => ({
+        ...c.sceneElement!,
+        id: c.id,
+        throwable: true,
+        pinned: false,
+      }));
+  }, [selectableCandidates, selectedIds]);
+
+  // Hide original text nodes when Pretext overlay is active.
   const importedTextFlowActive =
     settings.pretextEnabled &&
     textBlocks.length > 0 &&
@@ -368,17 +402,6 @@ export function SnapshotPageView({
       });
     };
   }, [importedTextFlowActive, textBlocks]);
-
-  const selectedElements = useMemo(() => {
-    return selectableCandidates
-      .filter((c) => selectedIds.has(c.id) && c.sceneElement)
-      .map((c) => ({
-        ...c.sceneElement!,
-        id: c.id,
-        throwable: true,
-        pinned: false,
-      }));
-  }, [selectableCandidates, selectedIds]);
 
   const staticObstacleElements = useMemo(() => {
     return selectableCandidates
