@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from "react";
+import { memo, useState, useCallback, useLayoutEffect, useRef } from "react";
 import type { PresetKey } from "../scene/presets";
 import { PRESET_LIST } from "../scene/presets";
 import type { SavedElement } from "../scene/types";
@@ -42,6 +42,12 @@ interface ToolbarProps {
 }
 
 type FlyoutPanel = "pages" | "settings" | "stash" | null;
+type TooltipAnchor = {
+  label: string;
+  left: number;
+  top: number;
+  width: number;
+};
 
 // Survives component remounts (scene key changes)
 let _pendingPanel: FlyoutPanel = null;
@@ -66,11 +72,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const [importName, setImportName] = useState("Custom Page");
   const [fetchStatus, setFetchStatus] = useState<"idle" | "loading" | "error">("idle");
   const [fetchError, setFetchError] = useState("");
+  const [activeTooltip, setActiveTooltip] = useState<TooltipAnchor | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; bottom: number } | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
 
   const update = useCallback(
     (partial: Partial<DebugSettings>) => onSettingsChange({ ...settings, ...partial }),
     [settings, onSettingsChange]
   );
+  const showDebugBounds = settings.showObstacleBounds || settings.showLineBounds;
 
   const toggle = (panel: FlyoutPanel) => setOpenPanel((p) => (p === panel ? null : panel));
 
@@ -93,14 +103,46 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     onImportHtml(htmlInput, importName);
     setHtmlInput(""); setOpenPanel(null);
   }, [htmlInput, importName, onImportHtml]);
-  const handleExpandToolbar = useCallback(() => {
-    setCollapsed(false);
+  const clearTooltip = useCallback(() => {
+    setActiveTooltip(null);
+    setTooltipPosition(null);
   }, []);
+  const showTooltip = useCallback((label: string | undefined, target: HTMLButtonElement) => {
+    if (!label) return;
+    const rect = target.getBoundingClientRect();
+    setTooltipPosition(null);
+    setActiveTooltip({
+      label,
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+    });
+  }, []);
+  const handleExpandToolbar = useCallback(() => {
+    clearTooltip();
+    setCollapsed(false);
+  }, [clearTooltip]);
 
   const handleCollapseToolbar = useCallback(() => {
+    clearTooltip();
     setOpenPanel(null);
     setCollapsed(true);
-  }, []);
+  }, [clearTooltip]);
+
+  useLayoutEffect(() => {
+    if (!activeTooltip || !tooltipRef.current) return;
+
+    const tooltipWidth = tooltipRef.current.offsetWidth;
+    const viewportPadding = 12;
+    const anchorCenter = activeTooltip.left + activeTooltip.width / 2;
+    const clampedLeft = Math.min(
+      Math.max(anchorCenter - tooltipWidth / 2, viewportPadding),
+      window.innerWidth - viewportPadding - tooltipWidth
+    );
+    const bottom = window.innerHeight - activeTooltip.top + 8;
+
+    setTooltipPosition({ left: clampedLeft, bottom });
+  }, [activeTooltip]);
 
   return (
     <>
@@ -235,8 +277,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             <Slider label="X" value={settings.gravityX} min={-3} max={3} onValue={(v) => update({ gravityX: v })} onReset={() => update({ gravityX: 0 })} />
             <Slider label="Y" value={settings.gravityY} min={-3} max={3} onValue={(v) => update({ gravityY: v })} onReset={() => update({ gravityY: 0 })} />
             <Lbl text="Debug" />
-            <Toggle label="Obstacles" checked={settings.showObstacleBounds} onChange={(v) => update({ showObstacleBounds: v })} />
-            <Toggle label="Lines" checked={settings.showLineBounds} onChange={(v) => update({ showLineBounds: v })} />
+            <Toggle
+              label="Bounds"
+              checked={showDebugBounds}
+              onChange={(v) => update({ showObstacleBounds: v, showLineBounds: v })}
+            />
             <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
               <button onClick={() => { onResetAll(); setOpenPanel(null); }} style={{
                 width: "100%", padding: "5px 0", borderRadius: 5,
@@ -257,6 +302,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             type="button"
             onClick={handleExpandToolbar}
             aria-label="Show toolbar"
+            onMouseEnter={(e) => showTooltip("Show toolbar", e.currentTarget)}
+            onMouseLeave={clearTooltip}
+            onFocus={(e) => showTooltip("Show toolbar", e.currentTarget)}
+            onBlur={clearTooltip}
             style={{
               ...collapsedBtnStyle,
               opacity: collapsed ? 0.86 : 0,
@@ -265,7 +314,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           >
             <ChevronUpIcon />
           </button>
-          <span className="domino-toolbar-tooltip">Show toolbar</span>
         </div>
 
         {/* ─── Compact pill ─── */}
@@ -277,28 +325,42 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             pointerEvents: collapsed ? "none" : "auto",
           }}
         >
-          <Btn active={openPanel === "pages"} onClick={() => toggle("pages")} tip="Pages"><PageIcon /></Btn>
+          <Btn active={openPanel === "pages"} onClick={() => toggle("pages")} tip="Pages" onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><PageIcon /></Btn>
           <Sep />
-          <Btn onClick={() => update({ paused: !settings.paused })} tip={settings.paused ? "Resume physics" : "Pause physics"} accent={settings.paused ? "#fbbf24" : undefined}>
+          <Btn onClick={() => update({ paused: !settings.paused })} tip={settings.paused ? "Resume physics" : "Pause physics"} accent={settings.paused ? "#fbbf24" : undefined} onShowTooltip={showTooltip} onHideTooltip={clearTooltip}>
             {settings.paused ? <PlayIcon /> : <PauseIcon />}
           </Btn>
-          <Btn onClick={onExplode} tip="Explode scene"><ExplodeIcon /></Btn>
-          <Btn onClick={onReset} tip="Reset scene"><ResetIcon /></Btn>
+          <Btn onClick={onExplode} tip="Explode scene" onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><ExplodeIcon /></Btn>
+          <Btn onClick={onReset} tip="Reset scene" onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><ResetIcon /></Btn>
           <Sep />
           {/* Components mode: combined picker + stash entry point */}
-          <Btn active={pickerMode} onClick={onTogglePicker} tip={pickerMode ? "Exit component mode" : "Enter component mode"} accent={pickerMode ? "#3b82f6" : undefined}><PickerIcon /></Btn>
-          <Btn active={openPanel === "stash" || savePickerMode} onClick={() => toggle("stash")} tip="Saved components" accent={savePickerMode ? "#c4b5fd" : savedElements.length > 0 ? "#a78bfa" : undefined} dataAttrs={{ "data-domino-stash-trigger": "true" }}>
+          <Btn active={pickerMode} onClick={onTogglePicker} tip={pickerMode ? "Exit component mode" : "Enter component mode"} accent={pickerMode ? "#3b82f6" : undefined} onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><PickerIcon /></Btn>
+          <Btn active={openPanel === "stash" || savePickerMode} onClick={() => toggle("stash")} tip="Saved components" accent={savePickerMode ? "#c4b5fd" : savedElements.length > 0 ? "#a78bfa" : undefined} dataAttrs={{ "data-domino-stash-trigger": "true" }} onShowTooltip={showTooltip} onHideTooltip={clearTooltip}>
             <StashIcon />
             {savedElements.length > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "#a78bfa", marginLeft: -2 }}>{savedElements.length}</span>}
           </Btn>
           <Sep />
-          <Btn active={openPanel === "settings"} onClick={() => toggle("settings")} tip="Settings"><SettingsIcon /></Btn>
-          <Btn onClick={handleCollapseToolbar} tip="Hide toolbar" compact><ChevronDownIcon /></Btn>
+          <Btn active={openPanel === "settings"} onClick={() => toggle("settings")} tip="Settings" onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><SettingsIcon /></Btn>
+          <Btn onClick={handleCollapseToolbar} tip="Hide toolbar" compact onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><ChevronDownIcon /></Btn>
         </div>
       </div>
 
+      {activeTooltip && (
+        <div
+          ref={tooltipRef}
+          style={{
+            ...toolbarTooltipStyle,
+            left: tooltipPosition?.left ?? -9999,
+            bottom: tooltipPosition?.bottom ?? 0,
+            opacity: tooltipPosition ? 1 : 0,
+          }}
+        >
+          {activeTooltip.label}
+        </div>
+      )}
+
       {openPanel && !collapsed && <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onPointerDown={() => setOpenPanel(null)} />}
-      <style>{`${toolbarTooltipCss}
+      <style>{`
         @keyframes flyUp { from { opacity:0; transform:translateY(10px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
         .domino-toolbar-reveal:hover,
         .domino-toolbar-reveal:focus-visible {
@@ -313,46 +375,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 });
 
 // ─── Styles ───
-const toolbarTooltipCss = `
-  .domino-toolbar-tooltip-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .domino-toolbar-tooltip {
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 8px);
-    transform: translate(-50%, 4px);
-    opacity: 0;
-    pointer-events: none;
-    white-space: nowrap;
-    padding: 5px 8px;
-    border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: rgba(10,10,14,0.94);
-    color: #f3f4f6;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-    font-family: "DM Sans", sans-serif;
-    font-size: 10px;
-    line-height: 1;
-    letter-spacing: 0.01em;
-    transition: opacity 0.14s ease, transform 0.14s ease;
-  }
-
-  .domino-toolbar-tooltip-wrap:hover .domino-toolbar-tooltip,
-  .domino-toolbar-tooltip-wrap:focus-within .domino-toolbar-tooltip {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-`;
-
 const flyoutBase: React.CSSProperties = { position: "fixed", zIndex: 9998, maxHeight: "calc(100vh - 80px)", overflowY: "auto", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(20,20,24,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 12px 48px rgba(0,0,0,0.45)", fontFamily: '"DM Sans", sans-serif', color: "#ccc", animation: "flyUp 0.22s cubic-bezier(0.22, 1, 0.36, 1)" };
 const toolbarDockStyle: React.CSSProperties = { position: "fixed", bottom: 16, right: 16, zIndex: 9999, display: "grid", alignItems: "end", justifyItems: "end" };
-const toolbarOverlayItemStyle: React.CSSProperties = { gridArea: "1 / 1" };
+const toolbarOverlayItemStyle: React.CSSProperties = { gridArea: "1 / 1", position: "relative", display: "flex", alignItems: "center" };
 const toolbarPillStyle: React.CSSProperties = { gridArea: "1 / 1", display: "flex", alignItems: "center", gap: 1, height: 36, padding: "0 2px", borderRadius: 10, backgroundColor: "rgba(20,20,24,0.92)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", transformOrigin: "bottom right", willChange: "opacity, transform", transition: "opacity 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 260ms cubic-bezier(0.22, 1, 0.36, 1)" };
 const collapsedBtnStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", backgroundColor: "rgba(20,20,24,0.88)", backdropFilter: "blur(16px)", color: "#9ca3af", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 24px rgba(0,0,0,0.28)", transformOrigin: "bottom right", willChange: "opacity, transform", transition: "opacity 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 260ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms ease, border-color 160ms ease" };
+const toolbarTooltipStyle: React.CSSProperties = { position: "fixed", zIndex: 10001, pointerEvents: "none", whiteSpace: "nowrap", maxWidth: "calc(100vw - 24px)", overflow: "hidden", textOverflow: "ellipsis", padding: "5px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(10,10,14,0.94)", color: "#f3f4f6", boxShadow: "0 8px 24px rgba(0,0,0,0.35)", fontFamily: '"DM Sans", sans-serif', fontSize: 10, lineHeight: 1, letterSpacing: "0.01em", transition: "opacity 0.12s ease" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)", color: "#ddd", fontSize: 11, fontFamily: '"DM Sans", sans-serif', outline: "none", boxSizing: "border-box" };
 const primaryBtnStyle: React.CSSProperties = { padding: "6px 0", borderRadius: 6, border: "none", backgroundColor: "#7c3aed", color: "#fff", fontSize: 11, fontWeight: 600, fontFamily: '"DM Sans", sans-serif', transition: "opacity 0.12s" };
 const chipStyle: React.CSSProperties = { padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", backgroundColor: "transparent", color: "#999", fontSize: 11, fontWeight: 400, fontFamily: '"DM Sans", sans-serif', cursor: "pointer" };
@@ -370,6 +398,8 @@ function Btn({
   accent,
   compact,
   dataAttrs,
+  onShowTooltip,
+  onHideTooltip,
 }: {
   children: React.ReactNode;
   onClick: () => void;
@@ -378,11 +408,27 @@ function Btn({
   accent?: string;
   compact?: boolean;
   dataAttrs?: Record<string, string>;
+  onShowTooltip: (label: string | undefined, target: HTMLButtonElement) => void;
+  onHideTooltip: () => void;
 }) {
   return (
     <div className="domino-toolbar-tooltip-wrap">
-      <button {...dataAttrs} type="button" onClick={onClick} aria-label={tip} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 7px", borderRadius: 7, border: "none", backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent", color: accent ?? (active ? "#fff" : "#777"), cursor: "pointer", transition: "all 0.12s", height: 30, minWidth: compact ? 24 : 30 }}>{children}</button>
-      {tip ? <span className="domino-toolbar-tooltip">{tip}</span> : null}
+      <button
+        {...dataAttrs}
+        type="button"
+        onClick={() => {
+          onHideTooltip();
+          onClick();
+        }}
+        onMouseEnter={(e) => onShowTooltip(tip, e.currentTarget)}
+        onMouseLeave={onHideTooltip}
+        onFocus={(e) => onShowTooltip(tip, e.currentTarget)}
+        onBlur={onHideTooltip}
+        aria-label={tip}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 7px", borderRadius: 7, border: "none", backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent", color: accent ?? (active ? "#fff" : "#777"), cursor: "pointer", transition: "all 0.12s", height: 30, minWidth: compact ? 24 : 30 }}
+      >
+        {children}
+      </button>
     </div>
   );
 }
