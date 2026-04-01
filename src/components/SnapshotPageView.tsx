@@ -441,17 +441,6 @@ export function SnapshotPageView({
     };
   }, [importedTextFlowActive, textBlocks]);
 
-  const staticObstacleElements = useMemo(() => {
-    return selectableCandidates
-      .filter((c) => !selectedIds.has(c.id) && c.sceneElement)
-      .map((c) => ({
-        ...c.sceneElement!,
-        id: c.id,
-        throwable: false,
-        pinned: true,
-      }));
-  }, [selectableCandidates, selectedIds]);
-
   const importedObstacles: ObstacleRect[] = useMemo(() => {
     // Only include elements that have actually moved from their original
     // position (by more than a small threshold). Elements at rest at their
