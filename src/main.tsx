@@ -19,7 +19,26 @@ function getResetRedirectPath(pathname: string) {
   return null;
 }
 
+function decodeQueryValue(raw: string) {
+  try {
+    return decodeURIComponent(raw.replace(/\+/g, "%20"));
+  } catch {
+    return raw;
+  }
+}
+
+function getBootstrapFetchUrl(search: string) {
+  if (search.startsWith("?fetch=")) {
+    const rawFetchUrl = search.slice("?fetch=".length).trim();
+    return rawFetchUrl ? decodeQueryValue(rawFetchUrl) : null;
+  }
+
+  const fetchUrl = new URLSearchParams(search).get("fetch")?.trim();
+  return fetchUrl || null;
+}
+
 const resetRedirectPath = getResetRedirectPath(window.location.pathname);
+const bootstrapFetchUrl = getBootstrapFetchUrl(window.location.search);
 
 if (resetRedirectPath) {
   try {
@@ -27,12 +46,15 @@ if (resetRedirectPath) {
   } catch {
     // Ignore storage access failures and still navigate home.
   }
+}
 
-  window.history.replaceState(null, "", resetRedirectPath);
+if (resetRedirectPath || bootstrapFetchUrl) {
+  const nextPathname = resetRedirectPath ?? window.location.pathname;
+  window.history.replaceState(null, "", `${nextPathname}${window.location.hash}`);
 }
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <App initialFetchUrl={bootstrapFetchUrl} />
   </StrictMode>
 );
