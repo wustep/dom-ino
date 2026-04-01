@@ -17,34 +17,56 @@ Open http://localhost:5173 to see the demo.
 - **Article** — A typographic article layout with sidebar cards and badges
 - **Dashboard** — An analytics dashboard with KPI cards, charts, and action buttons
 - **Landing Page** — A dark-themed product landing page with feature cards and CTAs
-- **Import HTML** — Paste any HTML snippet to create a custom scene
+- **Editorial** — A magazine-style editorial layout with pull quotes
+- **Engine** — A minimal physics sandbox for experimentation
+- **Playground** — A playful scene with varied shapes and physics properties
 
-### Throwable Picker
-Click "Select Throwables" in the control panel to enter picker mode. Click any element to toggle it as throwable. The engine will auto-detect good candidates when importing HTML, but you can customize which elements participate in physics.
+### Fetch URL
+Fetch any public webpage by URL and interact with it as a physics scene. The fetched page is rendered in a sandboxed iframe with external CSS inlined for fidelity. Images, badges, and other visual elements are auto-selected as throwable physics bodies. Enter component mode to customize which elements participate in physics.
+
+### Import HTML
+Paste any HTML snippet to create a custom scene. The snapshot engine analyzes the markup, infers element types, and builds a physics-ready layout.
+
+### Component Mode
+Click the component mode button (grid icon) in the toolbar to enter picker mode. Click any element to toggle it as throwable. Save elements to the stash for reuse across scenes. The engine auto-detects good throwable candidates (images, badges) when fetching URLs.
+
+### Saved Components (Stash)
+Save elements from any scene to a persistent stash. Drag saved components onto any page — preset or fetched — to drop them as new throwable bodies. The stash persists across page switches via localStorage.
 
 ### Controls
-The debug panel (top-right gear icon) provides:
-- **Physics** — Toggle physics simulation
-- **Pretext reflow** — Toggle between Pretext layout and browser text rendering
-- **Obstacle bounds** — Visualize obstacle AABBs
-- **Line boxes** — Visualize individual line bounding boxes
-- **Pause** — Freeze physics
-- **Gravity Y** — Adjust gravity strength (-3 to 5)
-- **Select Throwables** — Enter picker mode to toggle elements
+The toolbar (bottom-right) provides:
+- **Pages** — Switch presets, fetch URLs, or paste HTML
+- **Pause/Resume** — Freeze or resume physics simulation
 - **Explode** — Apply random velocity to all throwable bodies
 - **Reset** — Return all bodies to original positions
-
-### Scene Picker
-Use the bottom toolbar to switch between preset scenes or import custom HTML.
+- **Component mode** — Toggle element selection for physics
+- **Saved components** — Access the stash, pick from page, drop onto scene
+- **Settings** — Physics, Pretext reflow, gravity, debug bounds, reset all
 
 ## Architecture
 
-### DOM Snapshotting (`src/scene/domSnapshot.ts`)
+### Fetch & Import Pipeline (`src/scene/domSnapshot.ts`)
+
+1. **Fetch** — `fetchPageHtml(url)` proxies the request through a Vite dev middleware (`/api/fetch-page`) to bypass CORS, falling back to direct fetch
+2. **Prepare** — `prepareHtmlForViewer(html, sourceUrl)` inlines external CSS via the proxy, rewrites relative URLs to absolute, strips scripts, fixes JS-dependent visibility classes, and injects a `<base>` tag
+3. **Persist** — The prepared HTML is stored as a `SnapshotCustomPage` in localStorage alongside the source URL
+
+### Snapshot Page Viewer (`src/components/SnapshotPageView.tsx`)
+
+Renders fetched/imported pages in a sandboxed `<iframe srcDoc>` with physics overlays:
+
+1. **Scan** — Walks the iframe DOM to find selectable candidates and text blocks
+2. **Auto-select** — Picks images and badges as initial throwable elements
+3. **Clone** — Selected elements are hidden in the iframe and replaced with `ImportedPhysicsClone` overlays that clone the original DOM with inline styles
+4. **Physics** — Matter.js bodies drive clone positions via RAF loop
+5. **Pretext** — When enabled, text blocks are replaced with `TextFlowRegion` overlays that reflow around moved obstacles
+
+### DOM Snapshotting (preset scenes)
 
 The snapshot engine takes an HTML string and converts it to a `SceneDescription`:
 
 1. Renders the HTML in a hidden offscreen container
-2. Walks the DOM tree recursively (up to 12 levels deep)
+2. Walks the DOM tree recursively (up to 20 levels deep)
 3. For each element, reads computed styles and bounding rect
 4. Maps HTML tags to scene element types using heuristics:
    - `<h1>`-`<h6>` → heading
@@ -59,8 +81,8 @@ The snapshot engine takes an HTML string and converts it to a `SceneDescription`
 ### Physics (`src/physics/engine.ts`)
 
 Matter.js world management:
-- Fixed timestep runner with gravity and sleeping enabled
-- Rectangular bodies for each throwable element
+- Fixed timestep runner with configurable gravity
+- Rectangular, circular, and polygon bodies
 - Boundary walls (floor, ceiling, left, right) to contain bodies
 - `MouseConstraint` for drag interaction with tuned stiffness/damping
 - Mouse offset synced with scroll and resize
@@ -79,34 +101,17 @@ The core algorithm using Pretext's `layoutNextLine`:
 6. **Line layout** — `layoutNextLine(prepared, cursor, width)` fits text into the chosen segment.
 7. **Positioning** — Line placed at `(segment.left, rowY)`.
 
-### Text Overlap Prevention
-
-Each text region's max render height is computed as the distance to the nearest element below it, preventing paragraphs from bleeding into each other when obstacles push text down.
-
-### Obstacle → Row Exclusion (`src/textflow/obstacles.ts`)
-
-```
-Row y=200, lineHeight=28 → row spans [200, 228]
-
-Obstacle AABB: {left: 100, right: 260, top: 190, bottom: 240}
-  → overlaps row → blocked interval [100, 260]
-
-Container: [40, 700]
-After 8px padding: blocked = [92, 268]
-Available: [40, 92] (52px), [268, 700] (432px)
-Best: [268, 700] at 432px wide
-```
-
-Rotated obstacles use their axis-aligned bounding box for simplicity.
+For snapshot pages, obstacles only include elements that have moved from their original position, preventing false text displacement.
 
 ### Rendering Layer
 
 - **`TextFlowRegion`** — Absolutely positioned line divs from `computeTextFlow()`
-- **`PhysicsDomItem`** — Throwable DOM elements driven by Matter.js body positions
-- **`DominoScene`** — Orchestrator: physics init, RAF sync, obstacle building, layers
-- **`ThrowablePicker`** — Overlay for toggling element throwability
-- **`ScenePicker`** — Toolbar for scene switching and HTML import
-- **`DebugPanel`** — Control panel with all settings
+- **`PhysicsDomItem`** — Throwable DOM elements driven by Matter.js body positions (preset scenes)
+- **`ImportedPhysicsClone`** — Cloned live DOM nodes from iframe for fetched pages
+- **`DominoScene`** — Orchestrator for preset scenes: physics init, RAF sync, obstacle building
+- **`SnapshotPageView`** — Orchestrator for fetched/imported pages: iframe, scanning, physics overlay
+- **`ThrowablePicker`** / **`QuickSavePicker`** — Overlays for toggling elements and saving to stash
+- **`Toolbar`** — Compact pill toolbar with flyout panels for pages, stash, and settings
 
 ### Performance
 
@@ -114,10 +119,11 @@ Rotated obstacles use their axis-aligned bounding box for simplicity.
 - `layoutNextLine()` is pure arithmetic — sub-ms per paragraph
 - Position changes compared as string snapshots; React state only updates on meaningful change
 - Text reflow triggers only when `generation` counter increments
+- Snapshot page physics uses only dynamic bodies (no static obstacle bodies) for efficiency
 
 ## Tech Stack
 
-- **React + TypeScript** — UI framework
-- **Vite** — Build tooling
+- **React 19 + TypeScript** — UI framework
+- **Vite** — Build tooling with dev proxy for CORS-free page fetching
 - **Matter.js** — 2D physics engine
 - **@chenglou/pretext** — Text measurement and line-by-line layout
