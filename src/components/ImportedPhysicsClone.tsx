@@ -54,10 +54,10 @@ function cloneWithInlineStyles(
     .join("");
   clone.setAttribute("style", styleText);
 
-  // Normalize a few properties for overlay rendering
   clone.style.margin = "0";
   clone.style.boxSizing = "border-box";
   clone.style.pointerEvents = "none";
+  clone.style.visibility = "visible";
 
   if (tagName === "img") {
     const imageNode = htmlNode as HTMLImageElement;
@@ -104,7 +104,26 @@ export function ImportedPhysicsClone({
     const mount = mountRef.current;
     if (!mount) return;
     mount.innerHTML = "";
+
+    // Temporarily restore visibility on the source node (and ancestors)
+    // so getComputedStyle returns the real visual styles, not 'hidden'.
+    const hiddenNodes: { node: HTMLElement; original: string }[] = [];
+    let walk: HTMLElement | null = sourceNode;
+    while (walk) {
+      if (walk.style.visibility === "hidden") {
+        hiddenNodes.push({ node: walk, original: walk.style.visibility });
+        walk.style.visibility = "visible";
+      }
+      walk = walk.parentElement;
+    }
+
     const clone = cloneWithInlineStyles(sourceNode, sourceWindow, mount.ownerDocument);
+
+    // Restore hidden state on originals
+    for (const { node, original } of hiddenNodes) {
+      node.style.visibility = original;
+    }
+
     if (clone.nodeType === Node.ELEMENT_NODE) {
       const cloneEl = clone as HTMLElement;
       cloneEl.style.width = "100%";
@@ -129,8 +148,6 @@ export function ImportedPhysicsClone({
           transform: angle !== 0 ? `rotate(${angle}rad)` : undefined,
           transformOrigin: "center center",
           zIndex: 20,
-          // Let pointer events pass through to the parent Matter container,
-          // matching the behavior used by preset PhysicsDomItem overlays.
           pointerEvents: "none",
           overflow: "hidden",
           cursor: "grab",
