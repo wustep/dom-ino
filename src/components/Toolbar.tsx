@@ -169,7 +169,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                   }
                 }}
                 disabled={fetchStatus === "loading"}
-                style={{ ...chipStyle, color: fetchStatus === "loading" ? "#555" : "#8b9cf7", borderColor: "rgba(139,156,247,0.18)" }}
+                style={{ ...chipStyle }}
               >Wikipedia</button>
               {customPages.map((cp) => (
                 <button key={cp.id} onClick={() => { onSelectCustomPage(cp.id); setOpenPanel(null); }}
