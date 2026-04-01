@@ -156,6 +156,21 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                 <button key={key} onClick={() => { onSelectPreset(key); setOpenPanel(null); }}
                   style={{ ...chipStyle, ...(currentPreset === key && !activeCustomId ? chipActiveStyle : {}) }}>{label}</button>
               ))}
+              <button
+                onClick={async () => {
+                  setFetchStatus("loading"); setFetchError("");
+                  try {
+                    await onFetchUrl("https://en.wikipedia.org/wiki/History_of_art");
+                    setFetchStatus("idle");
+                    setOpenPanel(null);
+                  } catch (e) {
+                    setFetchStatus("error");
+                    setFetchError(e instanceof Error ? e.message : "Could not fetch.");
+                  }
+                }}
+                disabled={fetchStatus === "loading"}
+                style={{ ...chipStyle, color: fetchStatus === "loading" ? "#555" : "#8b9cf7", borderColor: "rgba(139,156,247,0.18)" }}
+              >Wikipedia</button>
               {customPages.map((cp) => (
                 <button key={cp.id} onClick={() => { onSelectCustomPage(cp.id); setOpenPanel(null); }}
                   style={{ ...chipStyle, ...(activeCustomId === cp.id ? chipActiveStyle : {}), maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{cp.name}</button>
