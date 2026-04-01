@@ -32,6 +32,12 @@ interface PersistedState {
   customPages: CustomPage[];
 }
 
+interface AppProps {
+  initialFetchUrl?: string | null;
+}
+
+let consumedInitialFetchUrl: string | null = null;
+
 function normalizeCustomPages(pages: unknown): CustomPage[] {
   if (!Array.isArray(pages)) return [];
   return pages.reduce<CustomPage[]>((acc, page) => {
@@ -109,7 +115,7 @@ function saveState(s: PersistedState) {
   } catch { /* quota exceeded etc */ }
 }
 
-export default function App() {
+export default function App({ initialFetchUrl = null }: AppProps) {
   const persisted = useRef(loadState());
 
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -193,6 +199,14 @@ export default function App() {
     await handleImportHtml(result.html, name, result.url);
   }, [handleImportHtml]);
 
+  useEffect(() => {
+    if (!initialFetchUrl || consumedInitialFetchUrl === initialFetchUrl) return;
+    consumedInitialFetchUrl = initialFetchUrl;
+    void handleFetchUrl(initialFetchUrl).catch((error) => {
+      console.error("Failed to import bootstrap fetch URL.", error);
+    });
+  }, [initialFetchUrl, handleFetchUrl]);
+
   // Ensures modifying a preset creates exactly one scene-backed custom page fork
   const ensureCustomScenePage = useCallback((newScene: SceneDescription): string => {
     if (activeCustomPage?.kind === "scene") {
@@ -266,6 +280,8 @@ export default function App() {
           savedElements={savedElements}
           onSaveElement={handleSaveElement}
           onUnsaveElement={handleUnsaveElement}
+          onClearSaved={handleClearSaved}
+          onRemoveSaved={handleRemoveSaved}
           customPages={customPages}
           activeCustomId={activeCustomId}
           onSelectCustomPage={handleSelectCustomPage}
