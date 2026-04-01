@@ -189,7 +189,7 @@ export function SnapshotPageView({
     gravityX: 0,
     gravityY: 0,
     paused: false,
-    pretextEnabled: false,
+    pretextEnabled: true,
     allowWordBreaks: true,
   });
 
