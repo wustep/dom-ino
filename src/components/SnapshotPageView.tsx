@@ -318,13 +318,13 @@ export function SnapshotPageView({
 
   // Auto-select throwable candidates after first scan.
   // Selects images, badges, buttons, cards, and links that look like
-  // standalone interactive/visual elements. Skips nav/header, very large
-  // containers, and extremely small elements.
+  // standalone interactive/visual elements. Skips elements that are
+  // descendants of already-selected elements to avoid duplication.
   useEffect(() => {
     if (autoSelectedRef.current || selectableCandidates.length === 0) return;
     autoSelectedRef.current = true;
     const throwableTypes = new Set(["image", "badge", "button", "card", "link", "input"]);
-    const autoIds = new Set<string>();
+    const picked: SnapshotCandidate[] = [];
     for (const c of selectableCandidates) {
       if (!c.sceneElement) continue;
       const t = c.sceneElement.type;
@@ -332,10 +332,14 @@ export function SnapshotPageView({
       if (c.width > 500 || c.height > 400) continue;
       if (c.width < 30 || c.height < 16) continue;
       if (c.y < 40) continue;
-      autoIds.add(c.id);
-      if (autoIds.size >= 30) break;
+      // Skip if this element is inside an already-picked element
+      if (picked.some((p) => p.node.contains(c.node))) continue;
+      picked.push(c);
+      if (picked.length >= 30) break;
     }
-    if (autoIds.size > 0) setSelectedIds(autoIds);
+    if (picked.length > 0) {
+      setSelectedIds(new Set(picked.map((c) => c.id)));
+    }
   }, [selectableCandidates]);
 
   const handleIframeLoad = useCallback(() => {
@@ -391,9 +395,16 @@ export function SnapshotPageView({
     };
   }, [selectedIds, candidates, pickerMode]);
 
+  // Filter out selected elements whose DOM nodes are descendants of another
+  // selected element — the parent clone already includes them visually.
   const selectedElements = useMemo(() => {
-    return selectableCandidates
-      .filter((c) => selectedIds.has(c.id) && c.sceneElement)
+    const selected = selectableCandidates.filter(
+      (c) => selectedIds.has(c.id) && c.sceneElement
+    );
+    return selected
+      .filter((c) => !selected.some(
+        (other) => other.id !== c.id && other.node.contains(c.node)
+      ))
       .map((c) => ({
         ...c.sceneElement!,
         id: c.id,
