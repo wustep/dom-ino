@@ -98,26 +98,6 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     },
   ];
 
-  if (!narrow) {
-    elements.push({
-      id: "de-hint-pill",
-      type: "button",
-      rect: { x: vw / 2 - 176, y: 16, width: 352, height: 30 },
-      throwable: false,
-      pinned: true,
-      physicsEnabled: false,
-      text: "Drag the orbs · Click to pause · Zero DOM reads",
-      fontSize: 13,
-      fontWeight: 400,
-      fontFamily: UI_SANS,
-      color: "rgba(255,255,255,0.26)",
-      backgroundColor: "rgba(0,0,0,0.46)",
-      border: "1px solid rgba(255,255,255,0.05)",
-      borderRadius: 999,
-      letterSpacing: "0.01em",
-    });
-  }
-
   if (colCount === 1) {
     const quoteW = Math.min(colW * 0.88, 420);
 
