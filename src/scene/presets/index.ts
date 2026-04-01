@@ -5,8 +5,9 @@ import { createLandingScene } from "./landing";
 import { createEditorialScene } from "./editorial";
 import { createEngineScene } from "./engine";
 import { createPlaygroundScene } from "./playground";
+import { createStormScene } from "./storm";
 
-export type PresetKey = "article" | "dashboard" | "landing" | "editorial" | "engine" | "playground";
+export type PresetKey = "article" | "dashboard" | "landing" | "editorial" | "engine" | "storm" | "playground";
 
 export const PRESET_LIST: { key: PresetKey; label: string }[] = [
   { key: "article", label: "Article" },
@@ -14,6 +15,7 @@ export const PRESET_LIST: { key: PresetKey; label: string }[] = [
   { key: "landing", label: "Landing" },
   { key: "editorial", label: "Editorial" },
   { key: "engine", label: "Engine" },
+  { key: "storm", label: "Storm Desk" },
   { key: "playground", label: "Playground" },
 ];
 
@@ -28,6 +30,7 @@ export function getPresetScene(key: PresetKey, vw: number, vh: number): SceneDes
     case "landing": return createLandingScene(vw, vh);
     case "editorial": return createEditorialScene(vw, vh);
     case "engine": return createEngineScene(vw, vh);
+    case "storm": return createStormScene(vw, vh);
     case "playground": return createPlaygroundScene(vw, vh);
   }
 }
