@@ -20,6 +20,8 @@ interface SnapshotPageViewProps {
   savedElements: SavedElement[];
   onSaveElement: (el: SceneElement) => void;
   onUnsaveElement: (id: string) => void;
+  onClearSaved: () => void;
+  onRemoveSaved: (index: number) => void;
   customPages: CustomPage[];
   activeCustomId: string | null;
   onSelectCustomPage: (id: string) => void;
@@ -157,6 +159,8 @@ export function SnapshotPageView({
   savedElements,
   onSaveElement,
   onUnsaveElement,
+  onClearSaved,
+  onRemoveSaved,
   customPages,
   activeCustomId,
   onSelectCustomPage,
@@ -303,14 +307,36 @@ export function SnapshotPageView({
     [candidates]
   );
 
+  const autoSelectedRef = useRef(false);
+
   useEffect(() => {
-    // Keep snapshot candidates/text blocks current for imported-page overlays.
-    // Pretext and physics overlays depend on this data even when picker mode is closed.
     scanCandidates();
     const onResize = () => scanCandidates();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [scanCandidates, page.preparedHtml]);
+
+  // Auto-select throwable candidates after first scan.
+  // Selects images, badges, buttons, cards, and links that look like
+  // standalone interactive/visual elements. Skips nav/header, very large
+  // containers, and extremely small elements.
+  useEffect(() => {
+    if (autoSelectedRef.current || selectableCandidates.length === 0) return;
+    autoSelectedRef.current = true;
+    const throwableTypes = new Set(["image", "badge", "button", "card", "link", "input"]);
+    const autoIds = new Set<string>();
+    for (const c of selectableCandidates) {
+      if (!c.sceneElement) continue;
+      const t = c.sceneElement.type;
+      if (!throwableTypes.has(t)) continue;
+      if (c.width > 500 || c.height > 400) continue;
+      if (c.width < 30 || c.height < 16) continue;
+      if (c.y < 40) continue;
+      autoIds.add(c.id);
+      if (autoIds.size >= 30) break;
+    }
+    if (autoIds.size > 0) setSelectedIds(autoIds);
+  }, [selectableCandidates]);
 
   const handleIframeLoad = useCallback(() => {
     const iframe = iframeRef.current;
@@ -341,10 +367,11 @@ export function SnapshotPageView({
   }, []);
 
   // Hide originals for selected DOM nodes so overlay clones replace them visually.
+  // In picker mode, show originals so the user sees what they're selecting.
   useEffect(() => {
     const current = nodesRef.current;
     current.forEach((node, id) => {
-      if (selectedIds.has(id)) {
+      if (selectedIds.has(id) && !pickerMode) {
         if (!node.dataset.dominoOriginalVisibility) {
           node.dataset.dominoOriginalVisibility = node.style.visibility || "";
         }
@@ -362,7 +389,7 @@ export function SnapshotPageView({
         }
       });
     };
-  }, [selectedIds, candidates]);
+  }, [selectedIds, candidates, pickerMode]);
 
   const selectedElements = useMemo(() => {
     return selectableCandidates
@@ -415,48 +442,89 @@ export function SnapshotPageView({
   }, [selectableCandidates, selectedIds]);
 
   const importedObstacles: ObstacleRect[] = useMemo(() => {
-    const moving: ObstacleRect[] = [...selectedElements, ...droppedElements].map((el) => {
+    // Only include elements that have actually moved from their original
+    // position (by more than a small threshold). Elements at rest at their
+    // original position don't need to be Pretext obstacles because the
+    // browser already laid out text around them.
+    const movedThreshold = 5;
+    const obstacles: ObstacleRect[] = [];
+
+    for (const el of [...selectedElements, ...droppedElements]) {
       const pos = bodyPositions.get(el.id);
-      return {
-        id: el.id,
-        x: pos?.x ?? el.rect.x,
-        y: pos?.y ?? el.rect.y,
-        width: pos?.w ?? el.rect.width,
-        height: pos?.h ?? el.rect.height,
-        angle: pos?.angle ?? 0,
-        borderRadius: el.borderRadius,
-      };
-    });
+      const curX = pos?.x ?? el.rect.x;
+      const curY = pos?.y ?? el.rect.y;
+      const dx = Math.abs(curX - el.rect.x);
+      const dy = Math.abs(curY - el.rect.y);
+      const angle = pos?.angle ?? 0;
+      if (dx > movedThreshold || dy > movedThreshold || Math.abs(angle) > 0.05) {
+        obstacles.push({
+          id: el.id,
+          x: curX,
+          y: curY,
+          width: pos?.w ?? el.rect.width,
+          height: pos?.h ?? el.rect.height,
+          angle,
+          borderRadius: el.borderRadius,
+        });
+      }
+    }
 
-    const staticRects: ObstacleRect[] = staticObstacleElements.map((el) => ({
-      id: el.id,
-      x: el.rect.x,
-      y: el.rect.y,
-      width: el.rect.width,
-      height: el.rect.height,
-      angle: 0,
-      borderRadius: el.borderRadius,
-    }));
+    // Dropped elements (from stash) are always obstacles
+    for (const el of droppedElements) {
+      if (!obstacles.some((o) => o.id === el.id)) {
+        const pos = bodyPositions.get(el.id);
+        obstacles.push({
+          id: el.id,
+          x: pos?.x ?? el.rect.x,
+          y: pos?.y ?? el.rect.y,
+          width: pos?.w ?? el.rect.width,
+          height: pos?.h ?? el.rect.height,
+          angle: pos?.angle ?? 0,
+          borderRadius: el.borderRadius,
+        });
+      }
+    }
 
-    return [...staticRects, ...moving];
-  }, [selectedElements, droppedElements, bodyPositions, staticObstacleElements]);
+    return obstacles;
+  }, [selectedElements, droppedElements, bodyPositions]);
+
+  // Only include dynamic (throwable) elements in the physics scene to avoid
+  // recreating the engine when static obstacle lists change. Static obstacles
+  // are still tracked for Pretext reflow but don't need physics bodies.
+  const physicsElements = useMemo(
+    () => [...selectedElements, ...droppedElements],
+    [selectedElements, droppedElements]
+  );
+  const physicsSceneRef = useRef<{ id: string; width: number; height: number }>({
+    id: page.id,
+    width: stageRef.current?.clientWidth || window.innerWidth,
+    height: iframeHeight,
+  });
+  physicsSceneRef.current = { id: page.id, width: stageRef.current?.clientWidth || window.innerWidth, height: iframeHeight };
 
   const overlayScene = useMemo(() => ({
     id: `snapshot-overlay-${page.id}`,
     name: page.name,
-    width: stageRef.current?.clientWidth || window.innerWidth,
-    height: iframeHeight,
+    width: physicsSceneRef.current.width,
+    height: physicsSceneRef.current.height,
     backgroundColor: "transparent",
-    elements: [...staticObstacleElements, ...selectedElements, ...droppedElements],
-  }), [page.id, page.name, iframeHeight, staticObstacleElements, selectedElements, droppedElements]);
+    elements: physicsElements,
+  }), [page.id, page.name, physicsElements]);
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const engine = createPhysicsEngine(overlayScene, stage);
     physicsRef.current = engine;
+    engine.setGravity(settings.gravityX, settings.gravityY);
+    if (pickerMode || savePickerMode || settings.paused || !settings.physicsEnabled) {
+      engine.pause();
+    }
     return () => {
-      cancelAnimationFrame(rafRef.current);
+      // Don't cancel the RAF loop here — it's managed by a separate effect
+      // and checks physicsRef.current on each frame. Cancelling it here would
+      // kill the animation loop permanently since the RAF effect's deps don't
+      // include overlayScene.
       engine.destroy();
       physicsRef.current = null;
     };
@@ -699,8 +767,9 @@ export function SnapshotPageView({
         );
       })}
 
-      {/* Physics overlay for selected/dropped imported-page components */}
-      {selectedElements.map((el) => {
+      {/* Physics overlay for selected/dropped imported-page components.
+          Hidden during picker mode so originals are visible for selection. */}
+      {!pickerMode && selectedElements.map((el) => {
         const pos = bodyPositions.get(el.id);
         const candidate = selectableCandidates.find((c) => c.id === el.id);
         if (!candidate) return null;
@@ -718,7 +787,7 @@ export function SnapshotPageView({
           />
         );
       })}
-      {droppedElements.map((el) => {
+      {!pickerMode && droppedElements.map((el) => {
         const pos = bodyPositions.get(el.id);
         return (
           <PhysicsDomItem
@@ -786,8 +855,8 @@ export function SnapshotPageView({
           };
           setDroppedElements((prev) => [...prev, el]);
         }}
-        onClearSaved={() => {}}
-        onRemoveSaved={() => {}}
+        onClearSaved={onClearSaved}
+        onRemoveSaved={onRemoveSaved}
         customPages={customPages}
         activeCustomId={activeCustomId}
         onSelectCustomPage={onSelectCustomPage}
