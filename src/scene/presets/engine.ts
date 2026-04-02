@@ -3,13 +3,14 @@ import type { SceneDescription } from "../types";
 const PAL_SERIF = '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif';
 const UI_SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
 
-const LEDE = `he web renders text through a pipeline that was designed thirty years ago for static documents. A browser loads a font, shapes the text into glyphs, measures their combined width, determines where lines break, and positions each line vertically.`;
-const BODY_1 = `For a paragraph in a blog post, this pipeline is invisible. But the web is no longer a collection of static documents. It is a platform for applications, and those applications need to know about text in ways the original pipeline never anticipated. A messaging application needs exact bubble heights. A masonry layout needs card heights. An editorial page needs text flowing around images, advertisements, and interactive elements.`;
-const BODY_2 = `Every one of these operations requires text measurement. And every text measurement on the web today requires a synchronous layout reflow. The cost is devastating. Measuring the height of a single text block forces the browser to recalculate the position of every element on the page. When you measure five hundred text blocks in sequence, you trigger five hundred full layout passes.`;
-const BODY_3 = `The CSS Shapes specification, finalized in 2014, was supposed to bring magazine-style text wrap to the web. On paper, it was the answer. In practice, it is remarkably limited. Text can only wrap on one side of the shape, the shape must be defined statically in CSS, and you have no access to the resulting line geometry.`;
-const BODY_4 = `What if text measurement did not require the DOM at all? What if you could compute exactly where every line of text would break, exactly how wide each line would be, and exactly how tall the entire text block would be, using nothing but arithmetic? This is the core insight of pretext.`;
-const BODY_5 = `With DOM-free text measurement, an entire class of previously impractical interfaces becomes trivial. Text can flow around arbitrary shapes, not because the browser's layout engine supports it, but because you control the line widths directly. Obstacles can move, animate, or be dragged by the user, and the text reflows instantly because the layout computation takes less than a millisecond.`;
-const BODY_6 = `The glowing orbs drifting across this page are not decorative - they are the demonstration. Each orb is a circular obstacle. For every line of text, the engine checks whether the line's vertical band intersects each orb, computes the blocked horizontal interval, and fills every viable slot, flowing text on both sides of the obstacle simultaneously.`;
+const COL1_TEXT = `he web renders text through a pipeline that was designed thirty years ago for static documents. A browser loads a font, shapes the text into glyphs, measures their combined width, determines where lines break, and positions each line vertically. Every step depends on the previous one. Every step requires the rendering engine to consult its internal layout tree \u2014 a structure so expensive to maintain that browsers guard access behind synchronous barriers that can freeze the main thread for tens of milliseconds at a time. For a paragraph in a blog post, this pipeline is invisible. The browser loads, lays out, and paints before the reader\u2019s eye has traveled from the address bar to the first word. But the web is no longer a collection of static documents. It is a platform for applications, and those applications need to know about text in ways the original pipeline never anticipated. A messaging application needs to know the exact height of every message bubble before rendering a virtualized list. A masonry layout needs the height of every card to position them without overlap. An editorial page needs text to flow around images, advertisements, and interactive elements. A responsive dashboard needs to resize and reflow text in real time as the user drags a panel divider. Every one of these operations requires text measurement. And every text measurement on the web today requires a synchronous layout reflow. The cost is devastating. Measuring the height of a single text block forces the browser to recalculate the position of every element on the page. When you measure five hundred text blocks in sequence, you trigger five hundred full layout passes. This pattern, known as layout thrashing, is the single largest source of jank on the modern web. Chrome DevTools will flag it with angry red bars.`;
+
+const COL2_TEXT = `Lighthouse will dock your performance score. But the developer has no alternative \u2014 CSS provides no API for computing text height without rendering it. The information is locked behind the DOM, and the DOM makes you pay for every answer. Developers have invented increasingly desperate workarounds. Estimated heights replace real measurements with guesses, causing content to visibly jump when the guess is wrong. ResizeObserver watches elements for size changes, but it fires asynchronously and always at least one frame too late. IntersectionObserver tracks visibility but says nothing about dimensions. Content-visibility allows the browser to skip rendering off-screen elements, but it breaks scroll position and accessibility. Each workaround addresses one symptom while introducing new problems. The CSS Shapes specification, finalized in 2014, was supposed to bring magazine-style text wrap to the web. It allows text to flow around a defined shape \u2014 a circle, an ellipse, a polygon, even an image alpha channel. On paper, it was the answer. In practice, it is remarkably limited. CSS Shapes only works with floated elements. Text can only wrap on one side of the shape. The shape must be defined statically in CSS \u2014 you cannot animate it or change it dynamically without triggering a full layout reflow. And because it operates within the browser\u2019s layout engine, you have no access to the resulting line geometry. You cannot determine where each line of text starts and ends, how many lines were generated, or what the total height of the shaped text block is. The editorial layouts we see in print magazines \u2014 text flowing around photographs, pull quotes interrupting the column, multiple columns with seamless text handoff \u2014 have remained out of reach for the web.`;
+
+const COL3_TEXT = `Not because they are conceptually difficult, but because the performance cost of implementing them with DOM measurement makes them impractical. A two-column editorial layout that reflows text around three obstacle shapes requires measuring and positioning hundreds of text lines. At thirty milliseconds per measurement, this would take seconds \u2014 an eternity for a render frame. What if text measurement did not require the DOM at all? What if you could compute exactly where every line of text would break, exactly how wide each line would be, and exactly how tall the entire text block would be, using nothing but arithmetic? This is the core insight of pretext. The browser\u2019s canvas API includes a measureText method that returns the width of any string in any font without triggering a layout reflow. Canvas measurement uses the same font engine as DOM rendering \u2014 the results are identical. But because it operates outside the layout tree, it carries no reflow penalty. Pretext exploits this asymmetry. When text first appears, pretext measures every word once via canvas and caches the widths. After this preparation phase, layout is pure arithmetic: walk the cached widths, track the running line width, insert line breaks when the width exceeds the maximum, and sum the line heights. No DOM. No reflow. No layout tree access. The performance improvement is not incremental. Measuring five hundred text blocks with DOM methods costs fifteen to thirty milliseconds and triggers five hundred layout reflows. With pretext, the same operation costs 0.05 milliseconds and triggers zero reflows. This is a three hundred to six hundred times improvement. But even that number understates the impact, because pretext\u2019s cost does not scale with page complexity \u2014 it is independent of how many other elements exist on the page. With DOM-free text measurement, an entire class of previously impractical interfaces becomes trivial.`;
+
+const QUOTE_1 = "\u201CThe performance improvement is not incremental \u2014 it is categorical. 0.05ms versus 30ms. Zero reflows versus five hundred.\u201D";
+const QUOTE_2 = "\u201CText becomes a first-class participant in the visual composition \u2014 not a static block, but a fluid material that adapts in real time.\u201D";
 
 type OrbDefinition = {
   id: string;
@@ -41,25 +42,27 @@ function orbShadow(color: [number, number, number]): string {
 }
 
 export function createEngineScene(vw: number, vh: number): SceneDescription {
-  const narrow = vw < 760;
+  const narrow = vw < 900;
   const gutter = narrow ? 20 : 48;
   const contentW = Math.min(vw - gutter * 2, narrow ? 680 : 1160);
   const mx = Math.max(gutter, (vw - contentW) / 2);
-  const colGap = narrow ? 20 : 40;
-  const colCount = narrow ? 1 : 2;
-  const colW = colCount === 1 ? contentW : (contentW - colGap) / 2;
+  const colGap = narrow ? 20 : 30;
+  const colCount = narrow ? 1 : 3;
+  const colW = colCount === 1 ? contentW : (contentW - colGap * (colCount - 1)) / colCount;
   const col2X = mx + colW + colGap;
+  const col3X = mx + (colW + colGap) * 2;
 
   const headlineY = narrow ? 42 : 44;
   const headlineSize = narrow ? 36 : vw > 1200 ? 54 : 48;
   const headlineLineHeight = narrow ? 38 : Math.round(headlineSize * 0.93);
   const headlineH = narrow ? headlineLineHeight * 2 + 6 : headlineLineHeight + 8;
   const bodyY = narrow ? 176 : 210;
+  const bodyFontSize = narrow ? 16 : 15;
+  const bodyLH = narrow ? 26 : 24;
 
-  const wideContentBottom = bodyY + 1110;
-  const narrowContentBottom = bodyY + 1940;
-  const H = Math.max(vh, narrow ? narrowContentBottom : wideContentBottom);
-  const orbFieldH = Math.min(H - 80, Math.max(vh, bodyY + (narrow ? 1100 : 760)));
+  const bodyH = narrow ? 1300 : 950;
+  const H = Math.max(vh, bodyY + bodyH + 50);
+  const orbFieldH = Math.min(H - 80, Math.max(vh, bodyY + (narrow ? 1000 : 700)));
   const orbScale = narrow ? 0.72 : 1;
 
   const elements: SceneDescription["elements"] = [
@@ -98,302 +101,174 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     },
   ];
 
+  const dropCapSize = narrow ? 78 : 88;
+  const dropCapW = narrow ? 42 : 48;
+  const dropCapH = narrow ? 86 : 96;
+  elements.push({
+    id: "de-dropcap",
+    type: "card",
+    rect: { x: mx - 2, y: bodyY - 8, width: dropCapW, height: dropCapH },
+    throwable: false,
+    pinned: true,
+    text: "T",
+    fontSize: dropCapSize,
+    fontWeight: 700,
+    fontFamily: PAL_SERIF,
+    lineHeight: dropCapSize,
+    color: "#c4a35a",
+    backgroundColor: "transparent",
+    border: "none",
+    boxShadow: "none",
+    borderRadius: 0,
+    padding: 0,
+    affectsTextFlow: true,
+  });
+
   if (colCount === 1) {
-    const quoteW = Math.min(colW * 0.88, 420);
+    const narrowText = COL1_TEXT + " " + COL2_TEXT;
+    const q1W = Math.min(colW * 0.65, 320);
+    const q1Y = bodyY + 480;
 
     elements.push(
       {
-        id: "de-dropcap",
-        type: "heading",
-        rect: { x: mx - 2, y: bodyY - 10, width: 40, height: 96 },
-        throwable: false,
-        pinned: true,
-        text: "T",
-        fontSize: 86,
-        fontWeight: 700,
-        fontFamily: PAL_SERIF,
-        lineHeight: 82,
-        color: "#c4a35a",
-      },
-      {
-        id: "de-lede",
-        type: "paragraph",
-        rect: { x: mx + 38, y: bodyY + 8, width: colW - 38, height: 120 },
-        throwable: false,
-        pinned: true,
-        text: LEDE,
-        fontSize: 17,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 28,
-        color: "#e8e4dc",
-      },
-      {
-        id: "de-p1",
-        type: "paragraph",
-        rect: { x: mx, y: bodyY + 148, width: colW, height: 250 },
-        throwable: false,
-        pinned: true,
-        text: BODY_1,
-        fontSize: 17,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 28,
-        color: "#e8e4dc",
-      },
-      {
-        id: "de-p2",
-        type: "paragraph",
-        rect: { x: mx, y: bodyY + 434, width: colW, height: 250 },
-        throwable: false,
-        pinned: true,
-        text: BODY_2,
-        fontSize: 17,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 28,
-        color: "#e8e4dc",
-      },
-      { id: "de-pq1-rule", type: "divider", rect: { x: mx, y: bodyY + 716, width: 3, height: 96 }, throwable: false, pinned: true, backgroundColor: "#6b5a3d" },
-      {
         id: "de-pq1",
-        type: "paragraph",
-        rect: { x: mx + 18, y: bodyY + 708, width: quoteW, height: 108 },
+        type: "card",
+        rect: { x: mx, y: q1Y, width: q1W, height: 155 },
         throwable: false,
         pinned: true,
-        text: "“The performance improvement is not incremental — it is categorical. 0.05ms versus 30ms. Zero reflows versus five hundred.”",
-        fontSize: 18,
+        text: QUOTE_1,
+        fontSize: 17,
         fontWeight: 400,
         fontStyle: "italic",
         fontFamily: PAL_SERIF,
-        lineHeight: 27,
+        lineHeight: 25,
         color: "#b8a070",
+        backgroundColor: "transparent",
+        border: "none",
+        boxShadow: "inset 3px 0 0 0 #6b5a3d",
+        borderRadius: 0,
+        padding: 14,
+        affectsTextFlow: true,
       },
       {
-        id: "de-p3",
+        id: "de-col1",
         type: "paragraph",
-        rect: { x: mx, y: bodyY + 860, width: colW, height: 250 },
+        rect: { x: mx, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: BODY_3,
-        fontSize: 17,
+        text: narrowText,
+        fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,
-        lineHeight: 28,
-        color: "#e8e4dc",
-      },
-      {
-        id: "de-p4",
-        type: "paragraph",
-        rect: { x: mx, y: bodyY + 1140, width: colW, height: 250 },
-        throwable: false,
-        pinned: true,
-        text: BODY_4,
-        fontSize: 17,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 28,
-        color: "#e8e4dc",
-      },
-      { id: "de-pq2-rule", type: "divider", rect: { x: mx, y: bodyY + 1426, width: 3, height: 96 }, throwable: false, pinned: true, backgroundColor: "#6b5a3d" },
-      {
-        id: "de-pq2",
-        type: "paragraph",
-        rect: { x: mx + 18, y: bodyY + 1418, width: quoteW, height: 112 },
-        throwable: false,
-        pinned: true,
-        text: "“Text becomes a first-class participant in the visual composition — not a static block, but a fluid material that adapts in real time.”",
-        fontSize: 18,
-        fontWeight: 400,
-        fontStyle: "italic",
-        fontFamily: PAL_SERIF,
-        lineHeight: 27,
-        color: "#b8a070",
-      },
-      {
-        id: "de-p5",
-        type: "paragraph",
-        rect: { x: mx, y: bodyY + 1572, width: colW, height: 250 },
-        throwable: false,
-        pinned: true,
-        text: BODY_5,
-        fontSize: 17,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 28,
-        color: "#e8e4dc",
-      },
-      {
-        id: "de-p6",
-        type: "paragraph",
-        rect: { x: mx, y: bodyY + 1864, width: colW, height: 240 },
-        throwable: false,
-        pinned: true,
-        text: BODY_6,
-        fontSize: 17,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 28,
+        lineHeight: bodyLH,
         color: "#e8e4dc",
       },
     );
   } else {
-    const quote1X = col2X;
-    const quote1W = colW * 0.5;
-    const quote2W = colW * 0.46;
-    const quote2X = mx + colW - quote2W;
+    const q1W = Math.round(colW * 0.62);
+    const q1Y = bodyY + 440;
+    const q2W = Math.round(colW * 0.58);
+    const q2Y = bodyY + 280;
 
     elements.push(
       {
-        id: "de-dropcap",
-        type: "heading",
-        rect: { x: mx - 3, y: bodyY - 10, width: 44, height: 102 },
+        id: "de-pq1",
+        type: "card",
+        rect: { x: mx, y: q1Y, width: q1W, height: 165 },
         throwable: false,
         pinned: true,
-        text: "T",
-        fontSize: 92,
-        fontWeight: 700,
-        fontFamily: PAL_SERIF,
-        lineHeight: 88,
-        color: "#c4a35a",
-      },
-      {
-        id: "de-lede",
-        type: "paragraph",
-        rect: { x: mx + 42, y: bodyY + 6, width: colW - 42, height: 112 },
-        throwable: false,
-        pinned: true,
-        text: LEDE,
-        fontSize: 18,
+        text: QUOTE_1,
+        fontSize: 17,
         fontWeight: 400,
+        fontStyle: "italic",
         fontFamily: PAL_SERIF,
-        lineHeight: 30,
-        color: "#e8e4dc",
+        lineHeight: 25,
+        color: "#b8a070",
+        backgroundColor: "transparent",
+        border: "none",
+        boxShadow: "inset 3px 0 0 0 #6b5a3d",
+        borderRadius: 0,
+        padding: 14,
+        affectsTextFlow: true,
       },
-      {
-        id: "de-p1",
-        type: "paragraph",
-        rect: { x: mx, y: bodyY + 136, width: colW, height: 228 },
-        throwable: false,
-        pinned: true,
-        text: BODY_1,
-        fontSize: 18,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 30,
-        color: "#e8e4dc",
-      },
-      {
-        id: "de-p2",
-        type: "paragraph",
-        rect: { x: mx, y: bodyY + 388, width: colW, height: 236 },
-        throwable: false,
-        pinned: true,
-        text: BODY_2,
-        fontSize: 18,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 30,
-        color: "#e8e4dc",
-      },
-      { id: "de-pq2-rule", type: "divider", rect: { x: quote2X, y: bodyY + 652, width: 3, height: 98 }, throwable: false, pinned: true, backgroundColor: "#6b5a3d" },
       {
         id: "de-pq2",
-        type: "paragraph",
-        rect: { x: quote2X + 18, y: bodyY + 644, width: quote2W - 18, height: 110 },
+        type: "card",
+        rect: { x: col2X, y: q2Y, width: q2W, height: 175 },
         throwable: false,
         pinned: true,
-        text: "“The performance improvement is not incremental — it is categorical. 0.05ms versus 30ms. Zero reflows versus five hundred.”",
-        fontSize: 19,
+        text: QUOTE_2,
+        fontSize: 17,
         fontWeight: 400,
         fontStyle: "italic",
         fontFamily: PAL_SERIF,
-        lineHeight: 27,
+        lineHeight: 25,
         color: "#b8a070",
+        backgroundColor: "transparent",
+        border: "none",
+        boxShadow: "inset 3px 0 0 0 #6b5a3d",
+        borderRadius: 0,
+        padding: 14,
+        affectsTextFlow: true,
       },
       {
-        id: "de-p5",
+        id: "de-col1",
         type: "paragraph",
-        rect: { x: mx, y: bodyY + 796, width: colW, height: 250 },
+        rect: { x: mx, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: BODY_5,
-        fontSize: 18,
+        text: COL1_TEXT,
+        fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,
-        lineHeight: 30,
+        lineHeight: bodyLH,
         color: "#e8e4dc",
       },
       {
-        id: "de-p3",
+        id: "de-col2",
         type: "paragraph",
-        rect: { x: col2X, y: bodyY + 24, width: colW, height: 270 },
+        rect: { x: col2X, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: BODY_3,
-        fontSize: 18,
+        text: COL2_TEXT,
+        fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,
-        lineHeight: 30,
-        color: "#e8e4dc",
-      },
-      { id: "de-pq1-rule", type: "divider", rect: { x: quote1X, y: bodyY + 332, width: 3, height: 104 }, throwable: false, pinned: true, backgroundColor: "#6b5a3d" },
-      {
-        id: "de-pq1",
-        type: "paragraph",
-        rect: { x: quote1X + 18, y: bodyY + 326, width: quote1W - 18, height: 116 },
-        throwable: false,
-        pinned: true,
-        text: "“Text becomes a first-class participant in the visual composition — not a static block, but a fluid material that adapts in real time.”",
-        fontSize: 19,
-        fontWeight: 400,
-        fontStyle: "italic",
-        fontFamily: PAL_SERIF,
-        lineHeight: 27,
-        color: "#b8a070",
-      },
-      {
-        id: "de-p4",
-        type: "paragraph",
-        rect: { x: col2X, y: bodyY + 490, width: colW, height: 250 },
-        throwable: false,
-        pinned: true,
-        text: BODY_4,
-        fontSize: 18,
-        fontWeight: 400,
-        fontFamily: PAL_SERIF,
-        lineHeight: 30,
+        lineHeight: bodyLH,
         color: "#e8e4dc",
       },
       {
-        id: "de-p6",
+        id: "de-col3",
         type: "paragraph",
-        rect: { x: col2X, y: bodyY + 812, width: colW, height: 264 },
+        rect: { x: col3X, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: BODY_6,
-        fontSize: 18,
+        text: COL3_TEXT,
+        fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,
-        lineHeight: 30,
+        lineHeight: bodyLH,
         color: "#e8e4dc",
-      },
-      {
-        id: "de-credit",
-        type: "heading",
-        rect: { x: vw - 256, y: H - 30, width: 240, height: 14 },
-        throwable: false,
-        pinned: true,
-        text: "Made by @somnai_dreams · Powered by @chenglou/pretext",
-        fontSize: 11,
-        fontWeight: 400,
-        fontFamily: UI_SANS,
-        lineHeight: 14,
-        color: "rgba(255,255,255,0.28)",
-        textAlign: "right",
       },
     );
   }
+
+  elements.push({
+    id: "de-credit",
+    type: "link",
+    rect: { x: (vw - 240) / 2, y: H - 30, width: 240, height: 14 },
+    throwable: false,
+    pinned: true,
+    text: "Original by @somnai_dreams",
+    fontSize: 11,
+    fontWeight: 400,
+    fontFamily: UI_SANS,
+    color: "rgba(255,255,255,0.28)",
+    backgroundColor: "transparent",
+    borderRadius: 0,
+    textAlign: "center",
+    href: "https://x.com/somnai_dreams",
+  });
 
   for (const orb of ORBS) {
     const size = orb.size * orbScale;
@@ -434,13 +309,6 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     backgroundColor: "#0a0a0c",
     elements: elements.map((element) => {
       if (element.type !== "paragraph" && element.type !== "heading") return element;
-      if (element.id === "de-dropcap") {
-        return {
-          ...element,
-          allowWordBreaks: false,
-          minSegmentWidth: 1,
-        };
-      }
       return {
         ...element,
         allowWordBreaks: false,
