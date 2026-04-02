@@ -91,10 +91,26 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
       return `srcset="${fixed}"`;
     });
 
-  // 4. Remove scripts to prevent foreign JS execution
+  // 4. Unwrap <noscript> blocks — since we strip scripts, noscript content should render.
+  // Recovers lazy-loaded images with noscript fallbacks (e.g. NYTimes <picture> pattern).
+  modified = modified.replace(/<noscript>([\s\S]*?)<\/noscript>/gi, "$1");
+
+  // Promote data-src/data-srcset to src/srcset for lazy-loaded images
+  modified = modified.replace(/<img\b([^>]*?)\sdata-src=(["'])([^"']*)\2([^>]*)>/gi,
+    (full, before: string, _q: string, dataSrc: string, after: string) =>
+      /\ssrc\s*=/i.test(before + after) ? full : `<img${before} src="${dataSrc}"${after}>`);
+  modified = modified.replace(/\bdata-srcset=/gi, "srcset=");
+
+  // Remove <img> tags that still have no src (JS-dependent placeholders)
+  modified = modified.replace(/<img\b(?![^>]*\ssrc\s*=)[^>]*\/?>/gi, "");
+
+  // Convert loading="lazy" to loading="eager" (iframe may be off-screen)
+  modified = modified.replace(/\bloading=["']lazy["']/gi, 'loading="eager"');
+
+  // 5. Remove scripts to prevent foreign JS execution
   modified = modified.replace(/<script[\s\S]*?<\/script>/gi, "");
 
-  // 5. Fix JS-dependent visibility classes
+  // 6. Fix JS-dependent visibility classes
   // Many sites (Wikipedia, etc.) use client-nojs/no-js classes to hide content
   // when JavaScript hasn't loaded. Since we strip scripts, simulate JS-ready state.
   modified = modified
@@ -102,11 +118,11 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
     .replace(/\bno-js\b/g, "js")
     .replace(/\bnojs\b/g, "js");
 
-  // 6. Fix fixed/sticky positioning so headers flow naturally in the iframe
+  // 7. Fix fixed/sticky positioning so headers flow naturally in the iframe
   modified = modified.replace(/position\s*:\s*fixed/gi, 'position: relative');
   modified = modified.replace(/position\s*:\s*sticky/gi, 'position: relative');
 
-  // 7. Add base tag for remaining relative URLs + header positioning fix + site-specific CSS
+  // 8. Add base tag for remaining relative URLs + header positioning fix + site-specific CSS
   const siteCSS = getSiteCSS(sourceUrl);
   const removeSelectors = getSiteRemoveSelectors(sourceUrl);
   const removeCSS = removeSelectors.length > 0

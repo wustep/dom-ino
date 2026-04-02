@@ -14,7 +14,25 @@ interface SiteRule {
   css?: string;
 }
 
-export const SITE_RULES: SiteRule[] = [];
+export const SITE_RULES: SiteRule[] = [
+  {
+    match: "nytimes.com",
+    removeSelectors: [
+      '[data-testid="StandardAd"]',
+      '[data-testid="site-index"]',
+      '#gateway-content',
+      '.ad',
+      '[class*="expanded-dock"]',
+    ],
+    css: `
+      /* Collapse empty JS-dependent nav containers in the masthead */
+      [data-testid="floating-desktop-nested-nav"],
+      [data-testid="masthead-nested-nav"] { display: none !important; }
+      /* Remove empty source elements (JS fills srcset at runtime) */
+      source:not([srcset]) { display: none !important; }
+    `,
+  },
+];
 
 /**
  * Returns selectors for elements to remove from the DOM for the given URL.
