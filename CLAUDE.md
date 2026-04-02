@@ -111,6 +111,15 @@ setLocale(locale?) // Configure locale for text segmentation
 - `iframe.sandbox` is not a DOMTokenList in jsdom — tests mock it via `document.createElement` spy
 - `fetchPageHtml` tests need `vi.stubGlobal("fetch", ...)` and response bodies >100 chars (the function rejects short proxy responses)
 
+## Validation & Debugging
+
+- **Always validate visually** after changes to SnapshotPageView, domSnapshot, or siteStyles. Use Chrome DevTools MCP to take screenshots and evaluate JS in the running app at `http://localhost:5173`.
+- **Use `evaluate_script`** to inspect iframe state: count candidates (`[data-domino-id]`), check physics clones, verify CSS rules, measure element depths, and trace auto-selection logic.
+- **Test with multiple sites**: NYTimes and Wikipedia are the two built-in WEBSITE_PRESETS. Always check both after changes to the snapshot pipeline or element selection — fixes for one site frequently regress the other.
+- **Auto-selection pitfalls**: The `autoSelectedRef` does not reset when switching between snapshot pages unless explicitly handled (reset on `page.id` change). The auto-selection has several filters (inline skip, float-anchor skip, gallery/thumb skip, size limits, parent containment, cap) — trace through each when elements aren't being picked.
+- **JS-loaded CSS**: Some sites (e.g., craigslist) load ALL CSS via JavaScript. Use the `cssLinks` field in site rules (`siteStyles.ts`) to inject CSS files that would normally be loaded by scripts.
+- **Loading-state classes**: Classes like `show-curtain`, `opaque`, `loading` are stripped via `replaceClassTokens` in `domSnapshot.ts` since they're set by JS that we remove.
+
 ## Snapshot Pipeline Pitfalls
 
 When debugging fetched page rendering issues, check these in order:
