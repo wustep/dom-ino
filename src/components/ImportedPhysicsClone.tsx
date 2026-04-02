@@ -9,6 +9,7 @@ interface ImportedPhysicsCloneProps {
   width: number;
   height: number;
   showDebug: boolean;
+  renderVersion?: number | string | boolean;
 }
 
 const URL_ATTRS = new Set(["href", "src", "poster", "xlink:href"]);
@@ -145,6 +146,7 @@ export function ImportedPhysicsClone({
   width,
   height,
   showDebug,
+  renderVersion,
 }: ImportedPhysicsCloneProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
 
@@ -179,7 +181,7 @@ export function ImportedPhysicsClone({
       cloneEl.style.overflow = "hidden";
     }
     mount.appendChild(clone);
-  }, [sourceNode, sourceWindow]);
+  }, [sourceNode, sourceWindow, renderVersion]);
 
   return (
     <>

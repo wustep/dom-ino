@@ -27,6 +27,89 @@ export async function prepareHtmlForViewer(
   return sourceUrl ? prepareHtml(html, sourceUrl) : html;
 }
 
+function replaceClassTokens(className: string): string {
+  const tokens = className
+    .split(/\s+/)
+    .map((token) => {
+      if (token === "client-nojs") return "client-js";
+      if (token === "no-js" || token === "nojs") return "js";
+      return token;
+    })
+    .filter(Boolean);
+  return Array.from(new Set(tokens)).join(" ");
+}
+
+function rewriteFetchedDocumentMarkup(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  for (const root of [doc.documentElement, doc.body]) {
+    if (!root) continue;
+    const className = root.getAttribute("class");
+    if (!className) continue;
+    root.setAttribute("class", replaceClassTokens(className));
+  }
+
+  // Unwrap <noscript> only when it is the sole media source for that slot.
+  // If a sibling media element already exists, keeping both commonly duplicates
+  // the same image after lazy-src promotion.
+  for (const noscript of Array.from(doc.querySelectorAll("noscript"))) {
+    const parent = noscript.parentElement;
+    const raw = noscript.textContent?.trim() ?? "";
+    if (!parent || !raw) {
+      noscript.remove();
+      continue;
+    }
+
+    const hasMediaFallback = /<(img|picture|video|source)\b/i.test(raw);
+    const hasSiblingMedia = Array.from(parent.children).some((child) => {
+      if (child === noscript) return false;
+      return /^(IMG|PICTURE|VIDEO|SOURCE)$/.test(child.tagName);
+    });
+
+    if (hasMediaFallback && hasSiblingMedia) {
+      noscript.remove();
+      continue;
+    }
+
+    const fragmentDoc = parser.parseFromString(`<body>${raw}</body>`, "text/html");
+    const fragment = doc.createDocumentFragment();
+    for (const child of Array.from(fragmentDoc.body.childNodes)) {
+      fragment.appendChild(child.cloneNode(true));
+    }
+    noscript.replaceWith(fragment);
+  }
+
+  for (const img of Array.from(doc.querySelectorAll("img"))) {
+    const dataSrc = img.getAttribute("data-src")?.trim();
+    if (dataSrc && !img.getAttribute("src")) {
+      img.setAttribute("src", dataSrc);
+    }
+    if (!img.getAttribute("src")?.trim()) {
+      img.remove();
+      continue;
+    }
+    if (img.getAttribute("loading") === "lazy") {
+      img.setAttribute("loading", "eager");
+    }
+  }
+
+  for (const source of Array.from(doc.querySelectorAll("source"))) {
+    const dataSrcset = source.getAttribute("data-srcset")?.trim();
+    if (dataSrcset && !source.getAttribute("srcset")) {
+      source.setAttribute("srcset", dataSrcset);
+    }
+  }
+
+  for (const el of Array.from(doc.querySelectorAll("[data-srcset]"))) {
+    if (el.getAttribute("srcset")) continue;
+    const dataSrcset = el.getAttribute("data-srcset")?.trim();
+    if (dataSrcset) el.setAttribute("srcset", dataSrcset);
+  }
+
+  return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+}
+
 // ─── HTML preparation: inline CSS + fix URLs ───
 
 async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
@@ -91,22 +174,18 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
       return `srcset="${fixed}"`;
     });
 
-  // 4. Remove scripts to prevent foreign JS execution
+  modified = rewriteFetchedDocumentMarkup(modified);
+
+  // 5. Remove scripts to prevent foreign JS execution
   modified = modified.replace(/<script[\s\S]*?<\/script>/gi, "");
 
-  // 5. Fix JS-dependent visibility classes
-  // Many sites (Wikipedia, etc.) use client-nojs/no-js classes to hide content
-  // when JavaScript hasn't loaded. Since we strip scripts, simulate JS-ready state.
-  modified = modified
-    .replace(/\bclient-nojs\b/g, "client-js")
-    .replace(/\bno-js\b/g, "js")
-    .replace(/\bnojs\b/g, "js");
+  // 6. JS-dependent root classes are normalized inside rewriteFetchedDocumentMarkup().
 
-  // 6. Fix fixed/sticky positioning so headers flow naturally in the iframe
+  // 7. Fix fixed/sticky positioning so headers flow naturally in the iframe
   modified = modified.replace(/position\s*:\s*fixed/gi, 'position: relative');
   modified = modified.replace(/position\s*:\s*sticky/gi, 'position: relative');
 
-  // 7. Add base tag for remaining relative URLs + header positioning fix + site-specific CSS
+  // 8. Add base tag for remaining relative URLs + header positioning fix + site-specific CSS
   const siteCSS = getSiteCSS(sourceUrl);
   const removeSelectors = getSiteRemoveSelectors(sourceUrl);
   const removeCSS = removeSelectors.length > 0

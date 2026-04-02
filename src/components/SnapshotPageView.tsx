@@ -10,6 +10,7 @@ import { TextFlowRegion } from "./TextFlowRegion";
 import type { ObstacleRect } from "../scene/types";
 import { QuickSavePicker } from "./QuickSavePicker";
 import { ImportedPhysicsClone } from "./ImportedPhysicsClone";
+import { computeTextFlow } from "../textflow/useTextFlow";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -46,6 +47,23 @@ type SnapshotTextBlock = {
   sceneElement: SceneElement;
   node: HTMLElement;
 };
+
+type ImportedTextLayout = {
+  id: string;
+  sceneElement: SceneElement;
+  containerX: number;
+  containerY: number;
+  containerWidth: number;
+  containerMaxHeight: number;
+};
+
+function isTextSceneElement(
+  sceneElement: SceneElement | null
+): sceneElement is SceneElement & { type: "paragraph" | "heading" } {
+  return (
+    sceneElement?.type === "paragraph" || sceneElement?.type === "heading"
+  );
+}
 
 function getStableNodeId(root: HTMLElement, node: HTMLElement): string {
   const existing = node.dataset.dominoId;
@@ -161,6 +179,49 @@ function elementToSceneElement(el: HTMLElement, rootRect: DOMRect, win: Window):
   };
 }
 
+function isStaticTextFlowObstacleCandidate(
+  candidate: SnapshotCandidate,
+  sourceWindow: Window | null
+): boolean {
+  if (!candidate.sceneElement || isTextSceneElement(candidate.sceneElement)) {
+    return false;
+  }
+  if (candidate.display === "inline" || candidate.display === "contents") {
+    return false;
+  }
+  if (candidate.width < 60 || candidate.height < 24) {
+    return false;
+  }
+
+  const cls = (candidate.node.className || "").toString().toLowerCase();
+  const id = (candidate.node.id || "").toLowerCase();
+  const tag = candidate.node.tagName;
+  const looksLikeMediaAnchor =
+    candidate.sceneElement.type === "image" ||
+    tag === "FIGURE" ||
+    tag === "TABLE" ||
+    tag === "TBODY" ||
+    tag === "THEAD";
+  const looksLikeLayoutAnchor =
+    cls.includes("infobox") ||
+    cls.includes("thumb") ||
+    cls.includes("gallery") ||
+    cls.includes("trow") ||
+    id.includes("infobox");
+
+  let isFloatAnchor = false;
+  try {
+    if (sourceWindow) {
+      const cs = sourceWindow.getComputedStyle(candidate.node);
+      isFloatAnchor = cs.float === "left" || cs.float === "right";
+    }
+  } catch {
+    // Ignore style lookup failures inside the sandboxed iframe.
+  }
+
+  return looksLikeMediaAnchor || looksLikeLayoutAnchor || isFloatAnchor;
+}
+
 function pickContentRoot(doc: Document): HTMLElement {
   const selectors = [
     "main article",
@@ -249,7 +310,7 @@ export function SnapshotPageView({
     const nextTextBlocks: SnapshotTextBlock[] = [];
 
     let counter = 0;
-    const walk = (el: HTMLElement, depth: number) => {
+    const walk = (el: HTMLElement, depth: number, insideTextBlock: boolean) => {
       if (depth > 20) return;
       for (const child of Array.from(el.children)) {
         if (child.nodeType !== Node.ELEMENT_NODE) continue;
@@ -268,8 +329,8 @@ export function SnapshotPageView({
         if (cs.position === "fixed" || cs.position === "sticky") continue;
 
         const rect = childEl.getBoundingClientRect();
-        if (rect.width < 12 || rect.height < 12) { walk(childEl, depth + 1); continue; }
-        if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) { walk(childEl, depth + 1); continue; }
+        if (rect.width < 12 || rect.height < 12) { walk(childEl, depth + 1, insideTextBlock); continue; }
+        if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) { walk(childEl, depth + 1, insideTextBlock); continue; }
 
         const text = textOf(childEl);
         const display = cs.display || "";
@@ -281,11 +342,11 @@ export function SnapshotPageView({
         const semantic = /^(BUTTON|A|IMG|PICTURE|VIDEO|SVG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION|TABLE|FIGURE)$/.test(tag);
         const sizableBlock = rect.width >= 48 && rect.height >= 24;
         if (inlineish && !hasBg && !hasBorder && !hasShadow) {
-          walk(childEl, depth + 1);
+          walk(childEl, depth + 1, insideTextBlock);
           continue;
         }
         if (!semantic && !hasBg && !hasBorder && !hasShadow && text.length < 12 && !sizableBlock) {
-          walk(childEl, depth + 1);
+          walk(childEl, depth + 1, insideTextBlock);
           continue;
         }
 
@@ -293,11 +354,8 @@ export function SnapshotPageView({
         childEl.dataset.dominoId = dominoId;
         const sceneElement = elementToSceneElement(childEl, viewportRect, win);
         nodes.set(dominoId, childEl);
-        if (
-          sceneElement &&
-          (sceneElement.type === "paragraph" || sceneElement.type === "heading") &&
-          text.length > 0
-        ) {
+        const isTextBlock = isTextSceneElement(sceneElement) && text.length > 0;
+        if (isTextBlock && !insideTextBlock) {
           textNodes.set(dominoId, childEl);
           nextTextBlocks.push({ id: dominoId, sceneElement, node: childEl });
         }
@@ -314,11 +372,11 @@ export function SnapshotPageView({
           display,
         });
 
-        walk(childEl, depth + 1);
+        walk(childEl, depth + 1, insideTextBlock || isTextBlock);
       }
     };
 
-    walk(root, 0);
+    walk(root, 0, false);
     nodesRef.current = nodes;
     textNodesRef.current = textNodes;
     setCandidates(next);
@@ -453,21 +511,43 @@ export function SnapshotPageView({
 
   // Filter out selected elements whose DOM nodes are descendants of another
   // selected element — the parent clone already includes them visually.
-  const selectedElements = useMemo(() => {
+  const selectedCandidates = useMemo(() => {
     const selected = selectableCandidates.filter(
       (c) => selectedIds.has(c.id) && c.sceneElement
     );
     return selected
       .filter((c) => !selected.some(
         (other) => other.id !== c.id && other.node.contains(c.node)
-      ))
+      ));
+  }, [selectableCandidates, selectedIds]);
+
+  const selectedElements = useMemo(() => {
+    return selectedCandidates
       .map((c) => ({
         ...c.sceneElement!,
         id: c.id,
         throwable: true,
         pinned: false,
       }));
-  }, [selectableCandidates, selectedIds]);
+  }, [selectedCandidates]);
+
+  const staticObstacleCandidates = useMemo(() => {
+    const sourceWindow = iframeRef.current?.contentWindow ?? null;
+    const obstacleCandidates: SnapshotCandidate[] = [];
+
+    for (const candidate of candidates) {
+      if (!isStaticTextFlowObstacleCandidate(candidate, sourceWindow)) continue;
+      if (selectedCandidates.some((selected) => selected.node.contains(candidate.node))) {
+        continue;
+      }
+      if (obstacleCandidates.some((existing) => existing.node.contains(candidate.node))) {
+        continue;
+      }
+      obstacleCandidates.push(candidate);
+    }
+
+    return obstacleCandidates;
+  }, [candidates, selectedCandidates]);
 
   // Hide original text nodes when Pretext overlay is active.
   const importedTextFlowActive =
@@ -518,8 +598,91 @@ export function SnapshotPageView({
       });
     }
 
+    for (const candidate of staticObstacleCandidates) {
+      const el = candidate.sceneElement;
+      if (!el || obstacles.some((o) => o.id === candidate.id)) continue;
+      obstacles.push({
+        id: candidate.id,
+        x: el.rect.x,
+        y: el.rect.y,
+        width: el.rect.width,
+        height: el.rect.height,
+        angle: 0,
+        borderRadius: el.borderRadius,
+      });
+    }
+
     return obstacles;
-  }, [selectedElements, droppedElements, bodyPositions]);
+  }, [selectedElements, droppedElements, staticObstacleCandidates, bodyPositions]);
+
+  const importedTextLayouts = useMemo(() => {
+    if (!importedTextFlowActive) return [];
+
+    const sortedBlocks = [...textBlocks].sort((a, b) => {
+      const ay = a.sceneElement.rect.y;
+      const by = b.sceneElement.rect.y;
+      if (Math.abs(ay - by) > 1) return ay - by;
+      return a.sceneElement.rect.x - b.sceneElement.rect.x;
+    });
+
+    const placed: Array<ImportedTextLayout & { textBottom: number; contentLeft: number; contentRight: number }> = [];
+    const layouts: ImportedTextLayout[] = [];
+
+    for (const block of sortedBlocks) {
+      const el = block.sceneElement;
+      const padding = el.padding ?? 0;
+      const fw = el.fontWeight ?? 400;
+      const fs = el.fontSize ?? 16;
+      const ff = el.fontFamily ?? '"DM Sans", sans-serif';
+      const font = `${fw !== 400 ? `${fw} ` : ""}${fs}px ${ff}`;
+      const contentLeft = el.rect.x + padding;
+      const contentRight = el.rect.x + el.rect.width - padding;
+      const originalTextTop = el.rect.y + padding;
+
+      let shiftedTextTop = originalTextTop;
+      for (const prev of placed) {
+        const overlapsHorizontally =
+          Math.min(contentRight, prev.contentRight) - Math.max(contentLeft, prev.contentLeft) > 12;
+        if (!overlapsHorizontally) continue;
+        if (prev.textBottom + 4 > shiftedTextTop) {
+          shiftedTextTop = prev.textBottom + 4;
+        }
+      }
+
+      const remainingHeight = Math.max(0, iframeHeight - shiftedTextTop - 24);
+      if (remainingHeight < fs) continue;
+
+      const flow = computeTextFlow(
+        el.text ?? "",
+        font,
+        el.lineHeight ?? Math.round(fs * 1.5),
+        contentLeft,
+        shiftedTextTop,
+        Math.max(0, el.rect.width - padding * 2),
+        remainingHeight,
+        importedObstacles
+      );
+
+      const containerWidth = Math.max(0, el.rect.width - padding * 2);
+      const layout: ImportedTextLayout = {
+        id: block.id,
+        sceneElement: el,
+        containerX: contentLeft,
+        containerY: shiftedTextTop,
+        containerWidth,
+        containerMaxHeight: remainingHeight,
+      };
+      layouts.push(layout);
+      placed.push({
+        ...layout,
+        textBottom: shiftedTextTop + flow.totalHeight,
+        contentLeft,
+        contentRight,
+      });
+    }
+
+    return layouts;
+  }, [iframeHeight, importedObstacles, importedTextFlowActive, textBlocks]);
 
   // Only include dynamic (throwable) elements in the physics scene to avoid
   // recreating the engine when static obstacle lists change. Static obstacles
@@ -699,7 +862,11 @@ export function SnapshotPageView({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    c.saved ? unsaveNode(c.id) : saveNode(c.id);
+                    if (c.saved) {
+                      unsaveNode(c.id);
+                    } else {
+                      saveNode(c.id);
+                    }
                   }}
                   style={{
                     position: "absolute",
@@ -775,24 +942,24 @@ export function SnapshotPageView({
       )}
 
       {/* Pretext text overlay for imported pages */}
-      {importedTextFlowActive && textBlocks.map((t) => {
-        const el = t.sceneElement;
+      {importedTextFlowActive && importedTextLayouts.map((layout) => {
+        const el = layout.sceneElement;
         const fw = el.fontWeight ?? 400;
         const fs = el.fontSize ?? 16;
         const ff = el.fontFamily ?? '"DM Sans", sans-serif';
         const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
         return (
           <TextFlowRegion
-            key={`imported-text-${t.id}`}
+            key={`imported-text-${layout.id}`}
             text={el.text ?? ""}
             font={font}
             fontSize={fs}
             lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
             color={el.color ?? "#333"}
-            containerX={el.rect.x + (el.padding ?? 0)}
-            containerY={el.rect.y + (el.padding ?? 0)}
-            containerWidth={el.rect.width - (el.padding ?? 0) * 2}
-            containerMaxHeight={Math.max(el.rect.height + 200, 300)}
+            containerX={layout.containerX}
+            containerY={layout.containerY}
+            containerWidth={layout.containerWidth}
+            containerMaxHeight={layout.containerMaxHeight}
             obstacles={importedObstacles}
             showDebug={settings.showLineBounds}
             generation={bodyPositions.size + selectedIds.size + droppedElements.length}
@@ -817,6 +984,7 @@ export function SnapshotPageView({
             width={pos?.w ?? el.rect.width}
             height={pos?.h ?? el.rect.height}
             showDebug={settings.showObstacleBounds}
+            renderVersion={importedTextFlowActive}
           />
         );
       })}
