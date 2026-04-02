@@ -11,6 +11,51 @@ interface ImportedPhysicsCloneProps {
   showDebug: boolean;
 }
 
+const URL_ATTRS = new Set(["href", "src", "poster", "xlink:href"]);
+
+function toAbsoluteUrl(raw: string, baseUrl: string): string {
+  const value = raw.trim();
+  if (!value || value.startsWith("#") || /^[a-z][a-z\d+\-.]*:/i.test(value)) {
+    return value;
+  }
+  try {
+    return new URL(value, baseUrl).href;
+  } catch {
+    return value;
+  }
+}
+
+function toAbsoluteSrcset(raw: string, baseUrl: string): string {
+  if (!raw || raw.includes("data:")) return raw;
+  return raw
+    .split(",")
+    .map((entry) => {
+      const trimmed = entry.trim();
+      if (!trimmed) return "";
+      const firstSpace = trimmed.search(/\s/);
+      const urlPart = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
+      const descriptor = firstSpace === -1 ? "" : trimmed.slice(firstSpace);
+      return `${toAbsoluteUrl(urlPart, baseUrl)}${descriptor}`;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function copyMediaAttributes(sourceEl: Element, cloneEl: Element, baseUrl: string) {
+  for (const attr of Array.from(sourceEl.attributes)) {
+    if (attr.name === "style" || /^on/i.test(attr.name)) continue;
+    if (attr.name === "srcset") {
+      cloneEl.setAttribute(attr.name, toAbsoluteSrcset(attr.value, baseUrl));
+      continue;
+    }
+    if (URL_ATTRS.has(attr.name)) {
+      cloneEl.setAttribute(attr.name, toAbsoluteUrl(attr.value, baseUrl));
+      continue;
+    }
+    cloneEl.setAttribute(attr.name, attr.value);
+  }
+}
+
 function cloneWithInlineStyles(
   node: Node,
   sourceWindow: Window,
@@ -29,9 +74,7 @@ function cloneWithInlineStyles(
   // Preserve SVG and other non-HTML element subtrees instead of dropping them.
   if (sourceEl.namespaceURI && sourceEl.namespaceURI !== "http://www.w3.org/1999/xhtml") {
     const cloneEl = targetDocument.createElementNS(sourceEl.namespaceURI, sourceEl.tagName);
-    for (const attr of Array.from(sourceEl.attributes)) {
-      cloneEl.setAttribute(attr.name, attr.value);
-    }
+    copyMediaAttributes(sourceEl, cloneEl, sourceEl.baseURI || sourceWindow.location.href);
     const computed = sourceWindow.getComputedStyle(sourceEl);
     const styleText = Array.from(computed)
       .map((prop) => `${prop}:${computed.getPropertyValue(prop)};`)
@@ -46,7 +89,9 @@ function cloneWithInlineStyles(
   const htmlNode = sourceEl as HTMLElement;
   const tagName = htmlNode.tagName.toLowerCase();
   const clone = targetDocument.createElement(tagName);
+  const baseUrl = sourceEl.baseURI || sourceWindow.location.href;
   const computed = sourceWindow.getComputedStyle(htmlNode);
+  copyMediaAttributes(sourceEl, clone, baseUrl);
   // Build an explicit inline style string from computed properties.
   // computed.cssText is unreliable/empty for getComputedStyle() on some elements.
   const styleText = Array.from(computed)
@@ -61,7 +106,10 @@ function cloneWithInlineStyles(
 
   if (tagName === "img") {
     const imageNode = htmlNode as HTMLImageElement;
-    (clone as HTMLImageElement).src = imageNode.currentSrc || imageNode.src;
+    (clone as HTMLImageElement).src = toAbsoluteUrl(
+      imageNode.currentSrc || imageNode.getAttribute("src") || imageNode.src,
+      baseUrl
+    );
     (clone as HTMLImageElement).alt = imageNode.alt;
   }
   if (tagName === "input") {

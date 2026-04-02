@@ -93,6 +93,16 @@ function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): Sce
   return "container";
 }
 
+function getResolvedImageSrc(el: HTMLImageElement): string | undefined {
+  const raw = el.currentSrc || el.getAttribute("src") || el.src;
+  if (!raw) return undefined;
+  try {
+    return new URL(raw, el.baseURI).href;
+  } catch {
+    return raw;
+  }
+}
+
 function elementToSceneElement(el: HTMLElement, rootRect: DOMRect, win: Window): SceneElement | null {
   const cs = win.getComputedStyle(el);
   const rect = el.getBoundingClientRect();
@@ -121,7 +131,7 @@ function elementToSceneElement(el: HTMLElement, rootRect: DOMRect, win: Window):
     padding: parseFloat(cs.paddingLeft) || 0,
     border: parseFloat(cs.borderWidth) > 0 ? cs.border : undefined,
     boxShadow: cs.boxShadow !== "none" ? cs.boxShadow : undefined,
-    imageSrc: el.tagName === "IMG" ? (el as HTMLImageElement).src : undefined,
+    imageSrc: el.tagName === "IMG" ? getResolvedImageSrc(el as HTMLImageElement) : undefined,
     imageAlt: el.tagName === "IMG" ? (el as HTMLImageElement).alt : undefined,
     mass: 1,
   };
