@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useLayoutEffect, useRef } from "react";
+import { memo, useState, useCallback, useLayoutEffect, useRef, useEffect } from "react";
 import type { PresetKey } from "../scene/presets";
 import { PRESET_LIST } from "../scene/presets";
 import type { SavedElement } from "../scene/types";
@@ -149,11 +149,36 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     setTooltipPosition({ left: clampedLeft, bottom });
   }, [activeTooltip]);
 
+  useEffect(() => {
+    if (!openPanel || collapsed) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-domino-toolbar-root="true"]')) {
+        return;
+      }
+      setOpenPanel(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenPanel(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openPanel, collapsed]);
+
   return (
     <>
       {/* Pages flyout */}
       {openPanel === "pages" && (
-        <div style={{ ...flyoutBase, bottom: 56, right: 16, width: 340 }}>
+        <div data-domino-toolbar-root="true" style={{ ...flyoutBase, bottom: 56, right: 16, width: 340 }}>
           <div style={{ padding: "12px 14px 8px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#fff", marginBottom: 8 }}>Pages</div>
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
@@ -232,7 +257,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
       {/* Stash flyout — shows saved components for dropping */}
       {openPanel === "stash" && (
-        <div style={{ ...flyoutBase, bottom: 56, right: 16, width: 300 }}>
+        <div data-domino-toolbar-root="true" style={{ ...flyoutBase, bottom: 56, right: 16, width: 300 }}>
           <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>Saved Components</div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -294,7 +319,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
       {/* Settings flyout */}
       {openPanel === "settings" && (
-        <div style={{ ...flyoutBase, bottom: 56, right: 16, width: 240 }}>
+        <div data-domino-toolbar-root="true" style={{ ...flyoutBase, bottom: 56, right: 16, width: 240 }}>
           <div style={{ padding: "8px 12px", display: "flex", gap: 10, borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 9, color: "#888", fontFamily: '"JetBrains Mono", monospace' }}>
             <span><span style={{ color: fps > 50 ? "#4ade80" : fps > 30 ? "#fbbf24" : "#f87171" }}>{fps}</span> fps</span>
             <span>{bodyCount} bodies</span>
@@ -326,7 +351,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         </div>
       )}
 
-      <div style={toolbarDockStyle}>
+      <div data-domino-toolbar-root="true" style={toolbarDockStyle}>
         <div className="domino-toolbar-tooltip-wrap" style={{ ...toolbarOverlayItemStyle, pointerEvents: collapsed ? "auto" : "none" }}>
           <button
             className="domino-toolbar-reveal"
@@ -390,7 +415,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         </div>
       )}
 
-      {openPanel && !collapsed && <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onPointerDown={() => setOpenPanel(null)} />}
       <style>{`
         @keyframes flyUp { from { opacity:0; transform:translateY(10px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
         .domino-toolbar-reveal:hover,

@@ -305,14 +305,11 @@ describe("Toolbar", () => {
       expect(screen.getByText("Physics")).toBeInTheDocument();
     });
 
-    it("closes panel when backdrop clicked", async () => {
-      const { container } = render(<Toolbar {...defaultProps()} />);
+    it("closes panel on outside pointerdown", async () => {
+      render(<Toolbar {...defaultProps()} />);
       await userEvent.click(screen.getByLabelText("Pages"));
       expect(screen.getByText("Editorial")).toBeInTheDocument();
-      // The backdrop is the fixed overlay div
-      const backdrop = container.querySelector('[style*="inset: 0"]');
-      expect(backdrop).toBeInTheDocument();
-      fireEvent.pointerDown(backdrop!);
+      fireEvent.pointerDown(document.body);
       expect(screen.queryByText("Editorial")).not.toBeInTheDocument();
     });
   });
