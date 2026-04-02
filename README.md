@@ -19,7 +19,7 @@ Open http://localhost:5173 to see the demo.
 - **Landing Page** — A dark-themed product landing page with feature cards and CTAs
 - **Editorial** — A magazine-style editorial layout with pull quotes
 - **Engine** — A minimal physics sandbox for experimentation
-- **Playground** — A playful scene with varied shapes and physics properties
+- **Alice** — Alice in Wonderland Chapter I with themed illustrations and interactive elements
 
 ### Fetch URL
 Fetch any public webpage by URL and interact with it as a physics scene. The fetched page is rendered in a sandboxed iframe with external CSS inlined for fidelity. Images, badges, and other visual elements are auto-selected as throwable physics bodies. Enter component mode to customize which elements participate in physics.
