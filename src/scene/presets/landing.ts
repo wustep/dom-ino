@@ -5,23 +5,35 @@ const svgUri = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(sv
 
 const LANDING_UI = svgUri(`
 <svg xmlns="http://www.w3.org/2000/svg" width="420" height="360" viewBox="0 0 420 360" fill="none">
-  <rect width="420" height="360" rx="22" fill="#080d14"/>
-  <rect x="18" y="18" width="384" height="324" rx="18" fill="#0c1424" stroke="rgba(148,163,184,0.12)"/>
-  <rect x="38" y="38" width="112" height="12" rx="6" fill="rgba(148,163,184,0.35)"/>
-  <rect x="38" y="68" width="344" height="166" rx="16" fill="#0e1a2e"/>
-  <path d="M60 184C88 164 118 152 144 156C176 160 192 116 226 116C258 116 274 146 306 146C330 146 348 136 364 122" stroke="#a78bfa" stroke-width="3.5" stroke-linecap="round" opacity="0.95"/>
-  <path d="M60 198C94 192 122 182 154 186C186 190 212 170 236 170C274 170 304 192 364 172" stroke="#67e8f9" stroke-width="3.5" stroke-linecap="round" opacity="0.9"/>
-  <circle cx="226" cy="116" r="6" fill="#a78bfa"/>
-  <circle cx="306" cy="146" r="6" fill="#22d3ee"/>
-  <rect x="38" y="254" width="112" height="66" rx="14" fill="#111f33" stroke="rgba(124,58,237,0.15)"/>
-  <rect x="164" y="254" width="106" height="66" rx="14" fill="#111f33" stroke="rgba(56,189,248,0.12)"/>
-  <rect x="284" y="254" width="98" height="66" rx="14" fill="#111f33" stroke="rgba(148,163,184,0.1)"/>
-  <text x="56" y="282" fill="#94a3b8" font-size="11" font-family="Arial, sans-serif" letter-spacing="0.02em">Layouts synced</text>
-  <text x="56" y="304" fill="#f8fafc" font-size="22" font-family="Arial, sans-serif" font-weight="700">94</text>
-  <text x="182" y="282" fill="#94a3b8" font-size="11" font-family="Arial, sans-serif" letter-spacing="0.02em">Live scenes</text>
-  <text x="182" y="304" fill="#f8fafc" font-size="22" font-family="Arial, sans-serif" font-weight="700">12</text>
-  <text x="302" y="282" fill="#94a3b8" font-size="11" font-family="Arial, sans-serif" letter-spacing="0.02em">Avg refresh</text>
-  <text x="302" y="304" fill="#f8fafc" font-size="22" font-family="Arial, sans-serif" font-weight="700">0.08ms</text>
+  <defs>
+    <linearGradient id="luFrame" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1220"/>
+      <stop offset="100%" stop-color="#060a12"/>
+    </linearGradient>
+    <linearGradient id="luChart" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#152038"/>
+      <stop offset="100%" stop-color="#0c1628"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="360" rx="22" fill="url(#luFrame)"/>
+  <rect x="18" y="18" width="384" height="324" rx="18" fill="#0a1222" stroke="rgba(148,163,184,0.14)"/>
+  <rect x="38" y="38" width="120" height="10" rx="5" fill="rgba(148,163,184,0.28)"/>
+  <rect x="38" y="58" width="72" height="10" rx="5" fill="rgba(124,58,237,0.35)"/>
+  <rect x="38" y="80" width="344" height="154" rx="14" fill="url(#luChart)"/>
+  <path d="M56 198C84 178 120 168 148 174C182 182 198 128 232 128C268 128 286 162 318 162C338 162 356 148 372 132" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" opacity="0.92"/>
+  <path d="M56 214C92 206 124 194 158 200C192 206 214 182 244 182C278 182 302 208 368 186" stroke="#5eead4" stroke-width="2.75" stroke-linecap="round" opacity="0.88"/>
+  <circle cx="232" cy="128" r="5.5" fill="#c4b5fd"/>
+  <circle cx="318" cy="162" r="5.5" fill="#2dd4bf"/>
+  <line x1="48" y1="248" x2="372" y2="248" stroke="rgba(148,163,184,0.12)" stroke-width="1"/>
+  <rect x="38" y="262" width="112" height="62" rx="12" fill="#0f1a2e" stroke="rgba(124,58,237,0.18)"/>
+  <rect x="164" y="262" width="106" height="62" rx="12" fill="#0f1a2e" stroke="rgba(45,212,191,0.14)"/>
+  <rect x="284" y="262" width="98" height="62" rx="12" fill="#0f1a2e" stroke="rgba(148,163,184,0.1)"/>
+  <text x="56" y="288" fill="#8899ae" font-size="10" font-family="Arial, sans-serif" letter-spacing="0.04em">LAYOUT PASSES</text>
+  <text x="56" y="308" fill="#f8fafc" font-size="21" font-family="Arial, sans-serif" font-weight="700">0.08ms</text>
+  <text x="182" y="288" fill="#8899ae" font-size="10" font-family="Arial, sans-serif" letter-spacing="0.04em">LIVE REGIONS</text>
+  <text x="182" y="308" fill="#f8fafc" font-size="21" font-family="Arial, sans-serif" font-weight="700">94</text>
+  <text x="302" y="288" fill="#8899ae" font-size="10" font-family="Arial, sans-serif" letter-spacing="0.04em">PRESETS</text>
+  <text x="302" y="308" fill="#f8fafc" font-size="21" font-family="Arial, sans-serif" font-weight="700">28</text>
 </svg>
 `);
 
@@ -34,20 +46,20 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
   const heroX = narrow ? mx + (w - heroImageW) / 2 : mx + w - heroImageW;
   const heroTextW = narrow ? w : heroX - mx - 40;
 
-  const heroImageY = narrow ? 540 : 138;
-  const metricsY = narrow ? heroImageY + 360 : 514;
-  const sectionY = narrow ? metricsY + 156 : 766;
-  const featureY = sectionY + 180;
-  const wordsY = featureY + 180;
-  const quoteY = wordsY + 140;
-  const pricingY = quoteY + 220;
-  const bottomY = pricingY + 280;
-  const footerY = bottomY + 140;
-  const H = Math.max(vh, footerY + (narrow ? 272 : 192) + 40);
+  const heroImageY = narrow ? 548 : 144;
+  const metricsY = narrow ? heroImageY + 368 : 528;
+  const sectionY = narrow ? metricsY + 168 : 792;
+  const featureY = sectionY + 196;
+  const wordsY = featureY + 148;
+  const quoteY = wordsY + 152;
+  const pricingY = quoteY + 232;
+  const bottomY = pricingY + 292;
+  const footerY = bottomY + 148;
+  const H = Math.max(vh, footerY + (narrow ? 280 : 200) + 40);
 
   return {
     id: "landing", name: "Landing Page", width: vw, height: H,
-    backgroundColor: "radial-gradient(ellipse 120% 80% at 50% -20%, rgba(124,58,237,0.14) 0%, transparent 50%), linear-gradient(180deg, #050a12 0%, #07111d 45%, #0a1624 100%)",
+    backgroundColor: "radial-gradient(ellipse 110% 70% at 18% -10%, rgba(124,58,237,0.12) 0%, transparent 42%), radial-gradient(ellipse 90% 50% at 88% 20%, rgba(45,212,191,0.06) 0%, transparent 45%), linear-gradient(180deg, #040810 0%, #07111d 48%, #0c1828 100%)",
     elements: [
       // ── Nav ──
       {
@@ -70,7 +82,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-brand-sub", type: "heading",
         rect: { x: mx + 66, y: 54, width: 200, height: 16 },
         throwable: false, pinned: true,
-        text: "Interactive page systems", fontSize: 11, fontWeight: 600, fontFamily: MONO, lineHeight: 16, color: "#7c8ea3",
+        text: "Physics-native page prototypes", fontSize: 11, fontWeight: 600, fontFamily: MONO, lineHeight: 16, color: "#7a8fa5",
         backgroundColor: "transparent",
       },
       {
@@ -124,7 +136,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-eyebrow", type: "badge",
         rect: { x: mx, y: 114, width: 214, height: 28 },
         throwable: true, pinned: false,
-        text: "NEW: richer preset library", fontSize: 11, fontWeight: 700, fontFamily: MONO,
+        text: "New: four polished scene presets", fontSize: 11, fontWeight: 700, fontFamily: MONO,
         color: "#ddd6fe", backgroundColor: "rgba(124,58,237,0.18)", borderRadius: 14, padding: 6,
         border: "1px solid rgba(167,139,250,0.22)",
         mass: 0.12,
@@ -133,22 +145,22 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-hero", type: "heading",
         rect: { x: mx, y: 162, width: heroTextW, height: 220 },
         throwable: false, pinned: true,
-        text: "Design pages\nthat react like\nliving systems.",
-        fontSize: narrow ? 44 : 68, fontWeight: 800, fontFamily: SANS,
-        lineHeight: narrow ? 50 : 74, color: "#fafbfc",
+        text: "Pages that stay\ncomposed when\neverything moves.",
+        fontSize: narrow ? 44 : 66, fontWeight: 800, fontFamily: SANS,
+        lineHeight: narrow ? 50 : 72, letterSpacing: "-0.02em", color: "#fafbfc",
         backgroundColor: "transparent",
       },
       {
         id: "l-sub", type: "paragraph",
-        rect: { x: mx, y: narrow ? 360 : 394, width: heroTextW, height: 98 },
+        rect: { x: mx, y: narrow ? 368 : 402, width: heroTextW, height: 104 },
         throwable: false, pinned: true,
-        text: "Prototype editorial layouts, launch pages, and dense operational views where every element responds to interaction — without sacrificing the craft that makes a page feel intentional.",
-        fontSize: 18, fontWeight: 400, fontFamily: SANS, lineHeight: 29, color: "#8ba3b8",
+        text: "Editorial spreads, marketing shells, and dense dashboards — all with real typographic rhythm and text that reflows around whatever you throw, in real time.",
+        fontSize: 18, fontWeight: 400, fontFamily: SANS, lineHeight: 30, color: "#8aa2b8",
         backgroundColor: "transparent",
       },
       {
         id: "l-cta1", type: "button",
-        rect: { x: mx, y: narrow ? 476 : 516, width: 174, height: 50 },
+        rect: { x: mx, y: narrow ? 488 : 528, width: 174, height: 50 },
         throwable: true, pinned: false,
         text: "Get started", fontSize: 15, fontWeight: 700, fontFamily: SANS,
         color: "#fff", backgroundColor: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)", borderRadius: 14,
@@ -157,7 +169,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
       },
       {
         id: "l-cta2", type: "button",
-        rect: { x: mx + 188, y: narrow ? 476 : 516, width: 150, height: 50 },
+        rect: { x: mx + 188, y: narrow ? 488 : 528, width: 150, height: 50 },
         throwable: true, pinned: false,
         text: "Watch demo", fontSize: 15, fontWeight: 500, fontFamily: SANS,
         color: "#e2e8f0", backgroundColor: "rgba(15,23,42,0.35)", borderRadius: 14,
@@ -170,8 +182,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-proof", type: "heading",
         rect: { x: mx, y: narrow ? 538 : 594, width: heroTextW, height: 20 },
         throwable: false, pinned: true,
-        text: "Trusted by 2,000+ teams building production pages",
-        fontSize: 12, fontWeight: 500, fontFamily: SANS, lineHeight: 20, color: "#5D728A",
+        text: "Trusted by teams who ship pages that still feel designed after the first throw",
+        fontSize: 12, fontWeight: 500, fontFamily: SANS, lineHeight: 20, color: "#5a6f85",
         backgroundColor: "transparent",
       },
       // Row 1
@@ -190,8 +202,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
           { id: "l-logo-9", text: "Relay", w: 82 },
           { id: "l-logo-10", text: "Masthead", w: 114 },
         ];
-        const logoY1 = narrow ? 568 : 628;
-        const logoY2 = logoY1 + 40;
+        const logoY1 = narrow ? 582 : 642;
+        const logoY2 = logoY1 + 42;
         const gap = 14;
         const makeLogo = (logo: { id: string; text: string; w: number }, xOff: number, y: number): SceneElement => ({
           id: logo.id, type: "badge",
@@ -214,7 +226,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
       // ── Hero UI image ──
       {
         id: "l-hero-ui", type: "image",
-        rect: { x: heroX, y: heroImageY, width: heroImageW, height: 346 },
+        rect: { x: heroX, y: heroImageY, width: heroImageW, height: 352 },
         throwable: true, pinned: false,
         backgroundColor: "#0F172A", borderRadius: 22,
         imageAlt: "DOMino Studio product interface", imageSrc: LANDING_UI,
@@ -225,7 +237,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
       // ── Metrics — throwable card ──
       {
         id: "l-metrics", type: "card",
-        rect: { x: heroX, y: metricsY, width: heroImageW, height: 108 },
+        rect: { x: heroX, y: metricsY, width: heroImageW, height: 112 },
         throwable: true, pinned: false,
         text: "Studio metrics", fontSize: 11, fontWeight: 700, fontFamily: MONO,
         color: "#8CA0B8",
@@ -239,7 +251,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
             id: "l-metrics-row", type: "paragraph",
             rect: { x: 0, y: 14, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "28 scene presets   ·   94 live text regions   ·   0.08ms avg layout pass",
+            text: "28 presets   ·   94 flowing regions   ·   sub-millisecond layout pass",
             fontSize: 14, fontWeight: 600, fontFamily: SANS, lineHeight: 22, color: "#E8ECF2",
           },
         ],
@@ -250,31 +262,32 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-section-k", type: "badge",
         rect: { x: mx, y: sectionY, width: 180, height: 24 },
         throwable: true, pinned: false,
-        text: "Why it feels better", fontSize: 11, fontWeight: 700, fontFamily: MONO,
-        color: "#8CA0B8", backgroundColor: "rgba(15,23,42,0.5)", borderRadius: 6,
+        text: "Why teams stay", fontSize: 11, fontWeight: 700, fontFamily: MONO,
+        color: "#94a3b8", backgroundColor: "rgba(15,23,42,0.45)", borderRadius: 8,
+        border: "1px solid rgba(148,163,184,0.1)",
         mass: 0.1,
       },
       {
         id: "l-section-h", type: "heading",
-        rect: { x: mx, y: sectionY + 34, width: w, height: 34 },
+        rect: { x: mx, y: sectionY + 38, width: w, height: 38 },
         throwable: false, pinned: true,
-        text: "Built for real page systems",
-        fontSize: 32, fontWeight: 700, fontFamily: SANS, lineHeight: 34, color: "#F8FAFC",
+        text: "Built like real products, not toy layouts",
+        fontSize: 32, fontWeight: 700, fontFamily: SANS, lineHeight: 38, color: "#f8fafc",
         backgroundColor: "transparent",
       },
       {
         id: "l-section-p", type: "paragraph",
-        rect: { x: mx, y: sectionY + 76, width: Math.min(w * 0.78, 760), height: 78 },
+        rect: { x: mx, y: sectionY + 84, width: Math.min(w * 0.78, 760), height: 84 },
         throwable: false, pinned: true,
-        text: "Every preset is designed to look like a finished page before anyone touches it. Real typographic rhythm, deliberate whitespace, and content that carries its own weight.",
-        fontSize: 16, fontWeight: 400, fontFamily: SANS, lineHeight: 26, color: "#8599B0",
+        text: "Each preset reads as a shippable surface first: hierarchy you can feel, margins that breathe, and copy that does more than fill space.",
+        fontSize: 16, fontWeight: 400, fontFamily: SANS, lineHeight: 27, color: "#8299b0",
         backgroundColor: "transparent",
       },
 
       // ── Feature cards ──
       {
         id: "l-f1", type: "card",
-        rect: { x: mx, y: featureY, width: fW, height: 124 },
+        rect: { x: mx, y: featureY, width: fW, height: 132 },
         throwable: true, pinned: false,
         text: "Launch surfaces", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.88)", borderRadius: 20, padding: 22,
@@ -286,13 +299,13 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
           id: "l-f1-d", type: "paragraph",
           rect: { x: 0, y: 12, width: 0, height: 0 },
           throwable: false, pinned: true,
-          text: "Pricing, changelogs, and proof points in one frame that holds together under interaction.",
+          text: "Pricing, changelogs, and proof in one frame that still reads clean mid-throw.",
           fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#7B93AB",
         }],
       },
       {
         id: "l-f2", type: "card",
-        rect: { x: mx + fW + 12, y: featureY, width: fW, height: 124 },
+        rect: { x: mx + fW + 12, y: featureY, width: fW, height: 132 },
         throwable: true, pinned: false,
         text: "Editorial packages", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.88)", borderRadius: 20, padding: 22,
@@ -304,13 +317,13 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
           id: "l-f2-d", type: "paragraph",
           rect: { x: 0, y: 12, width: 0, height: 0 },
           throwable: false, pinned: true,
-          text: "Covers, pull quotes, and sidebars that still feel edited when readers drag them.",
+          text: "Covers, pull quotes, and sidebars that keep their editorial voice when they slide.",
           fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#7B93AB",
         }],
       },
       {
         id: "l-f3", type: "card",
-        rect: { x: mx + (fW + 12) * 2, y: featureY, width: fW, height: 124 },
+        rect: { x: mx + (fW + 12) * 2, y: featureY, width: fW, height: 132 },
         throwable: true, pinned: false,
         text: "Operational pages", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.88)", borderRadius: 20, padding: 22,
@@ -322,7 +335,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
           id: "l-f3-d", type: "paragraph",
           rect: { x: 0, y: 12, width: 0, height: 0 },
           throwable: false, pinned: true,
-          text: "Status boards and dashboards with real data density and room to breathe.",
+          text: "Status and ops views with real density — legible before and after the widgets scatter.",
           fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#7B93AB",
         }],
       },
@@ -364,15 +377,15 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-words-p", type: "paragraph",
         rect: { x: mx, y: wordsY + 50, width: w, height: 52 },
         throwable: false, pinned: true,
-        text: "Every page type gets its own voice. Not a feature grid — a system of distinct, publishable surfaces.",
-        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#8599B0",
+        text: "Each page type keeps its own tone. You get a system of surfaces, not a grid of same-y cards.",
+        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 25, color: "#8299b0",
         backgroundColor: "transparent",
       },
 
       // ── Quote card ──
       {
         id: "l-quote-card", type: "card",
-        rect: { x: mx, y: quoteY, width: w, height: 154 },
+        rect: { x: mx, y: quoteY, width: w, height: 160 },
         throwable: true, pinned: false,
         text: "From the teams using it", fontSize: 11, fontWeight: 700, fontFamily: MONO,
         color: "#94a3b8", backgroundColor: "rgba(13,26,42,0.9)", borderRadius: 20, padding: 24,
@@ -385,8 +398,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
             id: "l-quote-a", type: "paragraph",
             rect: { x: 0, y: 16, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "\u201CWe prototyped a magazine cover and an analytics dashboard in the same afternoon. First time our pages felt authored, not generated.\u201D",
-            fontSize: 18, fontWeight: 400, fontFamily: SERIF, lineHeight: 28, color: "#D0DBE6",
+            text: "\u201CWe mocked a magazine cover and a metrics wall the same afternoon. For once the comps felt authored — not like a template had sneezed.\u201D",
+            fontSize: 18, fontWeight: 400, fontFamily: SERIF, lineHeight: 29, color: "#d2dce6",
           },
           {
             id: "l-quote-b", type: "paragraph",
@@ -531,7 +544,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-footer-tagline", type: "paragraph",
         rect: { x: mx + 58, y: footerY + 64, width: 240, height: 18 },
         throwable: false, pinned: true,
-        text: "Layout tooling for pages with weight.",
+        text: "Layout that keeps its nerve when physics shows up.",
         fontSize: 12, fontWeight: 400, fontFamily: SANS, lineHeight: 18, color: "#3D5269",
         backgroundColor: "transparent",
       },

@@ -14,37 +14,48 @@ const SEC2_2 = `Brendan Eich wrote JavaScript in ten days in May 1995, a languag
 
 const SEC2_3 = `Pretext, by Cheng Lou, measures and lays out text without triggering browser reflows. It reads glyph widths via Canvas, then performs layout in pure arithmetic — no DOM reads, no jank. Matter.js, by Liam Brummitt, is a rigid-body physics engine running entirely in the browser at sixty frames per second. DOMino combines these two into something neither was built for: a page where thrown objects displace text in real time, and the words reflow around them as naturally as water around a stone.`
 
-const DISPATCH = `The path from Bush's Memex to a page that reflows around thrown objects spans eighty years. HTML provides structure. CSS provides the visual language. JavaScript provides behavior. The DOM bridges document and program. Pretext provides measurement fast enough for a physics loop. Matter.js provides the simulation. DOMino is a proof of concept: the web's document model, so often treated as a constraint, can become a medium for motion, play, and surprise. Pick something up and throw it.`
+const DISPATCH = `From Bush's Memex to a page whose lines reroute around whatever you throw at them is a long arc. HTML holds structure. CSS holds the look. JavaScript holds behavior. The DOM sits between document and program. Pretext keeps measurement off the layout hot path. Matter.js keeps bodies honest at frame rate. DOMino is one answer to a stubborn question: what if the page were allowed to move? Pick something up and find out.`
 
 const EDITORIAL_PLATE = svgUri(`
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="340" viewBox="0 0 300 340" fill="none">
-  <rect width="300" height="340" rx="14" fill="#F7F1E7"/>
-  <rect x="16" y="16" width="268" height="308" rx="10" fill="#FFFDF9" stroke="#D8CFC0" stroke-width="0.75"/>
+  <defs>
+    <linearGradient id="platePaper" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFCF7"/>
+      <stop offset="100%" stop-color="#F5EFE4"/>
+    </linearGradient>
+    <linearGradient id="plateDiagram" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#252018"/>
+      <stop offset="100%" stop-color="#14110e"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="340" rx="14" fill="#EDE6DA"/>
+  <rect x="16" y="16" width="268" height="308" rx="10" fill="url(#platePaper)" stroke="#D4C9B8" stroke-width="0.85"/>
 
   <!-- Plate label -->
-  <rect x="32" y="28" width="72" height="20" rx="10" fill="#EDE7DA"/>
-  <text x="48" y="42" fill="#8A7A5E" font-size="10" font-family="Georgia, serif" font-weight="700" letter-spacing="0.5">Plate I</text>
-  <text x="112" y="42" fill="#8F8578" font-size="10" font-family="Georgia, serif" font-style="italic">The Document Object Model</text>
+  <rect x="32" y="28" width="72" height="20" rx="10" fill="#E8E0D2"/>
+  <text x="48" y="42" fill="#6B5C48" font-size="10" font-family="Georgia, serif" font-weight="700" letter-spacing="0.08em">PLATE I</text>
+  <text x="112" y="42" fill="#7A6F62" font-size="10" font-family="Georgia, serif" font-style="italic">The Document Object Model</text>
 
   <!-- Diagram area -->
-  <rect x="32" y="58" width="236" height="156" rx="8" fill="#1A1612"/>
+  <rect x="32" y="58" width="236" height="156" rx="8" fill="url(#plateDiagram)"/>
+  <rect x="32" y="58" width="236" height="156" rx="8" fill="none" stroke="#000" stroke-opacity="0.15"/>
 
   <!-- Tree: document root -->
-  <text x="134" y="82" fill="#D4A373" font-size="8" font-family="monospace" opacity="0.5">document</text>
-  <circle cx="150" cy="92" r="7" fill="none" stroke="#7C3AED" stroke-width="1.5"/>
-  <circle cx="150" cy="92" r="3" fill="#7C3AED" opacity="0.6"/>
+  <text x="132" y="82" fill="#C4A574" font-size="8" font-family="ui-monospace, monospace" opacity="0.55">document</text>
+  <circle cx="150" cy="92" r="7" fill="none" stroke="#8B5CF6" stroke-width="1.5"/>
+  <circle cx="150" cy="92" r="3.2" fill="#8B5CF6" opacity="0.55"/>
 
   <!-- Branches to head/body -->
-  <line x1="150" y1="99" x2="100" y2="127" stroke="#D4A373" stroke-width="1" stroke-dasharray="3 2" opacity="0.7"/>
-  <line x1="150" y1="99" x2="200" y2="127" stroke="#D4A373" stroke-width="1" stroke-dasharray="3 2" opacity="0.7"/>
+  <line x1="150" y1="99" x2="100" y2="127" stroke="#B8956A" stroke-width="1" stroke-dasharray="3 2" opacity="0.75"/>
+  <line x1="150" y1="99" x2="200" y2="127" stroke="#B8956A" stroke-width="1" stroke-dasharray="3 2" opacity="0.75"/>
 
   <!-- head node -->
-  <rect x="82" y="124" width="36" height="14" rx="3" fill="none" stroke="#B45309" stroke-width="1" opacity="0.8"/>
-  <text x="88" y="134" fill="#D4A373" font-size="7" font-family="monospace">&lt;head&gt;</text>
+  <rect x="82" y="124" width="36" height="14" rx="3" fill="none" stroke="#C2410C" stroke-width="1" opacity="0.85"/>
+  <text x="88" y="134" fill="#D4C4A8" font-size="7" font-family="ui-monospace, monospace">&lt;head&gt;</text>
 
   <!-- body node -->
-  <rect x="182" y="124" width="36" height="14" rx="3" fill="none" stroke="#B45309" stroke-width="1" opacity="0.8"/>
-  <text x="188" y="134" fill="#D4A373" font-size="7" font-family="monospace">&lt;body&gt;</text>
+  <rect x="182" y="124" width="36" height="14" rx="3" fill="none" stroke="#C2410C" stroke-width="1" opacity="0.85"/>
+  <text x="188" y="134" fill="#D4C4A8" font-size="7" font-family="ui-monospace, monospace">&lt;body&gt;</text>
 
   <!-- Leaf branches from head -->
   <line x1="100" y1="138" x2="72" y2="160" stroke="#8F8578" stroke-width="0.75" opacity="0.5"/>
@@ -56,18 +67,18 @@ const EDITORIAL_PLATE = svgUri(`
   <line x1="200" y1="138" x2="228" y2="160" stroke="#8F8578" stroke-width="0.75" opacity="0.5"/>
 
   <!-- Leaf nodes from head -->
-  <rect x="58" y="160" width="28" height="12" rx="2" fill="#0F766E" opacity="0.7"/>
-  <text x="62" y="169" fill="#fff" font-size="6" font-family="monospace">&lt;meta&gt;</text>
-  <rect x="114" y="160" width="28" height="12" rx="2" fill="#0F766E" opacity="0.7"/>
-  <text x="118" y="169" fill="#fff" font-size="6" font-family="monospace">&lt;title&gt;</text>
+  <rect x="58" y="160" width="28" height="12" rx="2" fill="#0D9488" opacity="0.82"/>
+  <text x="62" y="169" fill="#ECFEFF" font-size="6" font-family="ui-monospace, monospace">&lt;meta&gt;</text>
+  <rect x="114" y="160" width="28" height="12" rx="2" fill="#0D9488" opacity="0.82"/>
+  <text x="118" y="169" fill="#ECFEFF" font-size="6" font-family="ui-monospace, monospace">&lt;title&gt;</text>
 
   <!-- Leaf nodes from body -->
-  <rect x="158" y="160" width="28" height="12" rx="2" fill="#0F766E" opacity="0.7"/>
-  <text x="164" y="169" fill="#fff" font-size="6" font-family="monospace">&lt;h1&gt;</text>
-  <rect x="191" y="160" width="18" height="12" rx="2" fill="#0F766E" opacity="0.7"/>
-  <text x="195" y="169" fill="#fff" font-size="6" font-family="monospace">&lt;p&gt;</text>
-  <rect x="214" y="160" width="28" height="12" rx="2" fill="#0F766E" opacity="0.7"/>
-  <text x="218" y="169" fill="#fff" font-size="6" font-family="monospace">&lt;div&gt;</text>
+  <rect x="158" y="160" width="28" height="12" rx="2" fill="#0D9488" opacity="0.82"/>
+  <text x="164" y="169" fill="#ECFEFF" font-size="6" font-family="ui-monospace, monospace">&lt;h1&gt;</text>
+  <rect x="191" y="160" width="18" height="12" rx="2" fill="#0D9488" opacity="0.82"/>
+  <text x="195" y="169" fill="#ECFEFF" font-size="6" font-family="ui-monospace, monospace">&lt;p&gt;</text>
+  <rect x="214" y="160" width="28" height="12" rx="2" fill="#0D9488" opacity="0.82"/>
+  <text x="218" y="169" fill="#ECFEFF" font-size="6" font-family="ui-monospace, monospace">&lt;div&gt;</text>
 
   <!-- Sub-branches from div -->
   <line x1="228" y1="172" x2="218" y2="186" stroke="#8F8578" stroke-width="0.5" opacity="0.4"/>
@@ -81,26 +92,26 @@ const EDITORIAL_PLATE = svgUri(`
   <circle cx="84" cy="196" r="1" fill="#8F8578" opacity="0.2"/>
 
   <!-- Caption area -->
-  <text x="32" y="234" fill="#2C241F" font-size="11" font-family="Georgia, serif" font-weight="700">The DOM tree</text>
-  <line x1="32" y1="242" x2="160" y2="242" stroke="#D8CFC0" stroke-width="0.5"/>
-  <text x="32" y="256" fill="#8F8578" font-size="9" font-family="Georgia, serif">A browser parses HTML into a tree of</text>
-  <text x="32" y="268" fill="#8F8578" font-size="9" font-family="Georgia, serif">nodes. Each node is an object with</text>
-  <text x="32" y="280" fill="#8F8578" font-size="9" font-family="Georgia, serif">properties, children, and methods.</text>
+  <text x="32" y="234" fill="#2C241F" font-size="11" font-family="Georgia, serif" font-weight="700" letter-spacing="0.02em">The DOM tree</text>
+  <line x1="32" y1="242" x2="168" y2="242" stroke="#C9BFB0" stroke-width="0.75"/>
+  <text x="32" y="256" fill="#6B6258" font-size="9" font-family="Georgia, serif">The browser parses markup into a tree:</text>
+  <text x="32" y="268" fill="#6B6258" font-size="9" font-family="Georgia, serif">each node is an object with children,</text>
+  <text x="32" y="280" fill="#6B6258" font-size="9" font-family="Georgia, serif">properties, and methods you can call.</text>
 
   <!-- Legend -->
-  <circle cx="40" cy="302" r="4" fill="none" stroke="#7C3AED" stroke-width="1"/>
-  <text x="50" y="305" fill="#8F8578" font-size="8" font-family="Georgia, serif">Root</text>
-  <rect x="76" y="298" width="8" height="8" rx="1.5" fill="none" stroke="#B45309" stroke-width="0.75"/>
-  <text x="90" y="305" fill="#8F8578" font-size="8" font-family="Georgia, serif">Branch</text>
-  <rect x="128" y="298" width="8" height="8" rx="1.5" fill="#0F766E" opacity="0.7"/>
-  <text x="142" y="305" fill="#8F8578" font-size="8" font-family="Georgia, serif">Leaf</text>
+  <circle cx="40" cy="302" r="4" fill="none" stroke="#8B5CF6" stroke-width="1"/>
+  <text x="50" y="305" fill="#6B6258" font-size="8" font-family="Georgia, serif">Root</text>
+  <rect x="76" y="298" width="8" height="8" rx="1.5" fill="none" stroke="#C2410C" stroke-width="0.75"/>
+  <text x="90" y="305" fill="#6B6258" font-size="8" font-family="Georgia, serif">Branch</text>
+  <rect x="128" y="298" width="8" height="8" rx="1.5" fill="#0D9488" opacity="0.85"/>
+  <text x="142" y="305" fill="#6B6258" font-size="8" font-family="Georgia, serif">Leaf</text>
 </svg>
 `)
 
 export function createEditorialScene(vw: number, vh: number): SceneDescription {
 	const w = Math.min(vw - 40, 940)
 	const mx = Math.max(20, (vw - w) / 2)
-	const H = Math.max(vh, 1710)
+	const H = Math.max(vh, 1760)
 	const col2W = (w - 28) / 2
 	const col3W = (w - 48) / 3
 
@@ -250,30 +261,30 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 				rect: { x: mx, y: 142, width: w, height: 42 },
 				throwable: false,
 				pinned: true,
-				text: "How The Web Learned To Breathe",
-				fontSize: 32,
+				text: "How The Web Learned To Move",
+				fontSize: 34,
 				fontWeight: 700,
 				fontFamily: SERIF,
-				lineHeight: 38,
+				lineHeight: 40,
 				color: "#12100d",
 			},
 			{
 				id: "e-deck",
 				type: "paragraph",
-				rect: { x: mx, y: 194, width: w, height: 80 },
+				rect: { x: mx, y: 200, width: w, height: 92 },
 				throwable: false,
 				pinned: true,
-				text: "From Vannevar Bush's Memex to a page whose text reflows around thrown objects in real time, the story of the web is a story of documents learning to move. This is how HTML, CSS, JavaScript, the DOM, and two small libraries called Pretext and Matter.js made it possible.",
-				fontSize: 16,
+				text: "From Vannevar Bush's Memex to a page whose lines reroute around whatever you throw at them: how HTML, CSS, JavaScript, the DOM, Pretext, and Matter.js rewrote what a document can be.",
+				fontSize: 17,
 				fontWeight: 400,
 				fontFamily: SERIF,
-				lineHeight: 24,
-				color: "#5E574F",
+				lineHeight: 26,
+				color: "#534d45",
 			},
 			{
 				id: "e-by",
 				type: "heading",
-				rect: { x: mx, y: 282, width: w, height: 16 },
+				rect: { x: mx, y: 302, width: w, height: 18 },
 				throwable: false,
 				pinned: true,
 				text: "By the DOMino editorial desk  |  From vacuum tubes to physics engines  |  Text reflows in real time",
@@ -286,7 +297,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r3",
 				type: "divider",
-				rect: { x: mx, y: 310, width: w, height: 1 },
+				rect: { x: mx, y: 332, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#D8CEC0",
@@ -296,33 +307,33 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-c1",
 				type: "paragraph",
-				rect: { x: mx, y: 330, width: col2W, height: 440 },
+				rect: { x: mx, y: 354, width: col2W, height: 452 },
 				throwable: false,
 				pinned: true,
 				text: LEAD_L,
 				fontSize: 15,
 				fontWeight: 400,
 				fontFamily: SERIF,
-				lineHeight: 24,
-				color: "#2D2925",
+				lineHeight: 25,
+				color: "#2a2622",
 			},
 			{
 				id: "e-c2",
 				type: "paragraph",
-				rect: { x: mx + col2W + 28, y: 330, width: col2W, height: 440 },
+				rect: { x: mx + col2W + 28, y: 354, width: col2W, height: 452 },
 				throwable: false,
 				pinned: true,
 				text: LEAD_R,
 				fontSize: 15,
 				fontWeight: 400,
 				fontFamily: SERIF,
-				lineHeight: 24,
-				color: "#2D2925",
+				lineHeight: 25,
+				color: "#2a2622",
 			},
 			{
 				id: "e-plate",
 				type: "image",
-				rect: { x: mx + col2W - 78, y: 426, width: 184, height: 208 },
+				rect: { x: mx + col2W - 78, y: 452, width: 184, height: 208 },
 				throwable: true,
 				pinned: false,
 				backgroundColor: "#ECE5D8",
@@ -335,7 +346,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-note",
 				type: "card",
-				rect: { x: mx + w - 148, y: 586, width: 148, height: 110 },
+				rect: { x: mx + w - 148, y: 612, width: 148, height: 110 },
 				throwable: true,
 				pinned: false,
 				text: "Technical note",
@@ -357,7 +368,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 						rect: { x: 0, y: 8, width: 0, height: 0 },
 						throwable: false,
 						pinned: true,
-						text: "Pretext measures 500 texts in ~0.09ms — fast enough for a 60fps physics loop.",
+						text: "Pretext lays out hundreds of prepared strings in well under a millisecond — room to spare at 60fps.",
 						fontSize: 11,
 						fontWeight: 400,
 						fontFamily: SANS,
@@ -371,7 +382,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r4",
 				type: "divider",
-				rect: { x: mx, y: 800, width: w, height: 1 },
+				rect: { x: mx, y: 836, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#CDBFAF",
@@ -379,20 +390,20 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-mid-h",
 				type: "heading",
-				rect: { x: mx, y: 818, width: w, height: 24 },
+				rect: { x: mx, y: 856, width: w, height: 28 },
 				throwable: false,
 				pinned: true,
 				text: "The languages that shaped the page",
-				fontSize: 22,
+				fontSize: 23,
 				fontWeight: 700,
 				fontFamily: SERIF,
-				lineHeight: 24,
+				lineHeight: 28,
 				color: "#12100d",
 			},
 			{
 				id: "e-r5",
 				type: "divider",
-				rect: { x: mx, y: 852, width: w, height: 1 },
+				rect: { x: mx, y: 892, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#D8CEC0",
@@ -402,48 +413,48 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-t1",
 				type: "paragraph",
-				rect: { x: mx, y: 870, width: col3W, height: 350 },
+				rect: { x: mx, y: 910, width: col3W, height: 362 },
 				throwable: false,
 				pinned: true,
 				text: SEC2_1,
 				fontSize: 13,
 				fontWeight: 400,
 				fontFamily: SERIF,
-				lineHeight: 21,
-				color: "#3A352F",
+				lineHeight: 22,
+				color: "#38332e",
 			},
 			{
 				id: "e-t2",
 				type: "paragraph",
-				rect: { x: mx + col3W + 24, y: 870, width: col3W, height: 350 },
+				rect: { x: mx + col3W + 24, y: 910, width: col3W, height: 362 },
 				throwable: false,
 				pinned: true,
 				text: SEC2_2,
 				fontSize: 13,
 				fontWeight: 400,
 				fontFamily: SERIF,
-				lineHeight: 21,
-				color: "#3A352F",
+				lineHeight: 22,
+				color: "#38332e",
 			},
 			{
 				id: "e-t3",
 				type: "paragraph",
-				rect: { x: mx + (col3W + 24) * 2, y: 870, width: col3W, height: 350 },
+				rect: { x: mx + (col3W + 24) * 2, y: 910, width: col3W, height: 362 },
 				throwable: false,
 				pinned: true,
 				text: SEC2_3,
 				fontSize: 13,
 				fontWeight: 400,
 				fontFamily: SERIF,
-				lineHeight: 21,
-				color: "#3A352F",
+				lineHeight: 22,
+				color: "#38332e",
 			},
 
 			// ── Gap throwables ────────────────────────────────────
 			{
 				id: "e-seal",
 				type: "badge",
-				rect: { x: mx + 24, y: 1228, width: 54, height: 54 },
+				rect: { x: mx + 24, y: 1288, width: 54, height: 54 },
 				throwable: true,
 				pinned: false,
 				text: "DOM",
@@ -458,7 +469,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-pq",
 				type: "card",
-				rect: { x: mx + col3W + 48, y: 1224, width: 210, height: 128 },
+				rect: { x: mx + col3W + 48, y: 1284, width: 210, height: 128 },
 				throwable: true,
 				pinned: false,
 				text: '"The document was meant to be read, not touched."',
@@ -494,7 +505,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r6",
 				type: "divider",
-				rect: { x: mx, y: 1340, width: w, height: 1 },
+				rect: { x: mx, y: 1400, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#CDBFAF",
@@ -502,20 +513,20 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-disp-h",
 				type: "heading",
-				rect: { x: mx, y: 1358, width: w, height: 24 },
+				rect: { x: mx, y: 1420, width: w, height: 28 },
 				throwable: false,
 				pinned: true,
 				text: "The physics of reading",
-				fontSize: 22,
+				fontSize: 23,
 				fontWeight: 700,
 				fontFamily: SERIF,
-				lineHeight: 24,
+				lineHeight: 28,
 				color: "#12100d",
 			},
 			{
 				id: "e-r7",
 				type: "divider",
-				rect: { x: mx, y: 1392, width: w, height: 1 },
+				rect: { x: mx, y: 1456, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#D8CEC0",
@@ -523,20 +534,20 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-dispatch",
 				type: "paragraph",
-				rect: { x: mx, y: 1410, width: w, height: 200 },
+				rect: { x: mx, y: 1474, width: w, height: 210 },
 				throwable: false,
 				pinned: true,
 				text: DISPATCH,
 				fontSize: 16,
 				fontWeight: 400,
 				fontFamily: SERIF,
-				lineHeight: 26,
-				color: "#2D2925",
+				lineHeight: 27,
+				color: "#2a2622",
 			},
 			{
 				id: "e-briefs",
 				type: "card",
-				rect: { x: mx + w - 196, y: 1444, width: 196, height: 180 },
+				rect: { x: mx + w - 196, y: 1508, width: 196, height: 180 },
 				throwable: true,
 				pinned: false,
 				text: "Also in this issue",
@@ -598,7 +609,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r8",
 				type: "divider",
-				rect: { x: mx, y: 1650, width: w, height: 1 },
+				rect: { x: mx, y: 1714, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#CDBFAF",
@@ -606,7 +617,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-foot",
 				type: "heading",
-				rect: { x: mx, y: 1664, width: w, height: 14 },
+				rect: { x: mx, y: 1730, width: w, height: 14 },
 				throwable: false,
 				pinned: true,
 				text: "Typeset in code  |  Measured by Pretext  |  Moved by Matter.js  |  Built with React + TypeScript",

@@ -250,14 +250,14 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   const maxContentW = 960;
   const contentW = Math.min(vw - gutter * 2, maxContentW);
   const mx = Math.max(gutter, (vw - contentW) / 2);
-  const titleY = narrow ? 34 : 42;
-  const titleSize = narrow ? 46 : vw > 1400 ? 86 : 72;
-  const titleLineHeight = narrow ? 50 : Math.round(titleSize * 0.94);
-  const titleH = narrow ? titleLineHeight * 2 + 6 : titleLineHeight + 8;
-  const deckY = titleY + titleH + 14;
-  const bodyY = deckY + 62;
-  const copySize = narrow ? 21 : 24;
-  const copyLineHeight = narrow ? 34 : 38;
+  const titleY = narrow ? 40 : 48;
+  const titleSize = narrow ? 48 : vw > 1400 ? 84 : 70;
+  const titleLineHeight = narrow ? 52 : Math.round(titleSize * 0.96);
+  const titleH = narrow ? titleLineHeight * 2 + 8 : titleLineHeight + 10;
+  const deckY = titleY + titleH + 18;
+  const bodyY = deckY + 56;
+  const copySize = narrow ? 20 : 23;
+  const copyLineHeight = narrow ? 33 : 37;
   const illustrationScale = narrow ? 0.84 : 1;
   const placeX = (fx: number, width: number) => Math.max(mx, Math.min(mx + contentW * fx, mx + contentW - width));
 
@@ -276,7 +276,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   ];
 
   const SEPARATOR_AFTER = 16;
-  const paragraphGap = Math.round(copyLineHeight * 0.45);
+  const paragraphGap = Math.round(copyLineHeight * 0.52);
 
   const estimateH = (text: string): number => {
     const cpl = Math.floor(contentW / (copySize * 0.56));
@@ -289,10 +289,10 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
     totalTextH += estimateH(paragraphs[i]) + paragraphGap;
   }
   const footerY = bodyY + totalTextH;
-  const H = Math.max(vh, footerY + 210);
+  const H = Math.max(vh, footerY + 228);
 
   const aliceBackdrop =
-    "linear-gradient(180deg, #faf6f2 0%, #f2ecf4 36%, #ebe4f2 70%, #f7f1fa 100%), radial-gradient(circle at 12% 10%, rgba(212, 168, 48, 0.14) 0%, transparent 24%), radial-gradient(circle at 84% 16%, rgba(92, 148, 210, 0.16) 0%, transparent 26%), radial-gradient(circle at 70% 66%, rgba(188, 132, 218, 0.12) 0%, transparent 28%), radial-gradient(circle at 22% 80%, rgba(200, 88, 98, 0.1) 0%, transparent 24%)";
+    "linear-gradient(180deg, #fcf9f5 0%, #f4edf6 38%, #ebe3f0 72%, #faf6fb 100%), radial-gradient(circle at 10% 8%, rgba(218, 178, 65, 0.12) 0%, transparent 26%), radial-gradient(circle at 86% 14%, rgba(88, 152, 212, 0.14) 0%, transparent 28%), radial-gradient(circle at 68% 64%, rgba(196, 138, 224, 0.1) 0%, transparent 30%), radial-gradient(circle at 20% 78%, rgba(210, 95, 105, 0.08) 0%, transparent 26%)";
 
   const elements: SceneDescription["elements"] = [
     {
@@ -301,13 +301,13 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       rect: { x: mx, y: titleY, width: contentW, height: titleH },
       throwable: false,
       pinned: true,
-      text: "Alice in Wonderland",
+      text: "Alice\u2019s Adventures in Wonderland",
       fontSize: titleSize,
       fontWeight: 700,
       fontFamily: SERIF,
       lineHeight: titleLineHeight,
       letterSpacing: "-0.035em",
-      color: "#261a36",
+      color: "#2a1c38",
       minSegmentWidth: 140,
       allowWordBreaks: false,
     },
@@ -317,13 +317,13 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       rect: { x: mx, y: deckY, width: Math.min(contentW, narrow ? contentW : 860), height: 54 },
       throwable: false,
       pinned: true,
-      text: "Chapter I. Down the Rabbit-Hole",
+      text: "Chapter I  ·  Down the Rabbit-Hole",
       fontSize: narrow ? 19 : 21,
       fontWeight: 400,
       fontStyle: "italic",
       fontFamily: SERIF,
       lineHeight: narrow ? 28 : 30,
-      color: "rgba(52, 36, 64, 0.72)",
+      color: "rgba(48, 34, 60, 0.68)",
       minSegmentWidth: 72,
       allowWordBreaks: false,
     },
@@ -347,7 +347,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       fontWeight: 400,
       fontFamily: SERIF,
       lineHeight: copyLineHeight,
-      color: "#3d2c44",
+      color: "#3a2a42",
       minSegmentWidth: 42,
       allowWordBreaks: false,
     });

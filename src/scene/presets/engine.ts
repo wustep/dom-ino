@@ -3,14 +3,14 @@ import type { SceneDescription } from "../types";
 const PAL_SERIF = '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif';
 const UI_SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
 
-const COL1_TEXT = `he web renders text through a pipeline that was designed thirty years ago for static documents. A browser loads a font, shapes the text into glyphs, measures their combined width, determines where lines break, and positions each line vertically. Every step depends on the previous one. Every step requires the rendering engine to consult its internal layout tree \u2014 a structure so expensive to maintain that browsers guard access behind synchronous barriers that can freeze the main thread for tens of milliseconds at a time. For a paragraph in a blog post, this pipeline is invisible. The browser loads, lays out, and paints before the reader\u2019s eye has traveled from the address bar to the first word. But the web is no longer a collection of static documents. It is a platform for applications, and those applications need to know about text in ways the original pipeline never anticipated. A messaging application needs to know the exact height of every message bubble before rendering a virtualized list. A masonry layout needs the height of every card to position them without overlap. An editorial page needs text to flow around images, advertisements, and interactive elements. A responsive dashboard needs to resize and reflow text in real time as the user drags a panel divider. Every one of these operations requires text measurement. And every text measurement on the web today requires a synchronous layout reflow. The cost is devastating. Measuring the height of a single text block forces the browser to recalculate the position of every element on the page. When you measure five hundred text blocks in sequence, you trigger five hundred full layout passes. This pattern, known as layout thrashing, is the single largest source of jank on the modern web. Chrome DevTools will flag it with angry red bars.`;
+const COL1_TEXT = `The web renders text through a pipeline that was designed thirty years ago for static documents. A browser loads a font, shapes the text into glyphs, measures their combined width, determines where lines break, and positions each line vertically. Every step depends on the previous one. Every step requires the rendering engine to consult its internal layout tree \u2014 a structure so expensive to maintain that browsers guard access behind synchronous barriers that can freeze the main thread for tens of milliseconds at a time. For a paragraph in a blog post, this pipeline is invisible. The browser loads, lays out, and paints before the reader\u2019s eye has traveled from the address bar to the first word. But the web is no longer a collection of static documents. It is a platform for applications, and those applications need to know about text in ways the original pipeline never anticipated. A messaging application needs to know the exact height of every message bubble before rendering a virtualized list. A masonry layout needs the height of every card to position them without overlap. An editorial page needs text to flow around images, advertisements, and interactive elements. A responsive dashboard needs to resize and reflow text in real time as the user drags a panel divider. Every one of these operations requires text measurement. And every text measurement on the web today requires a synchronous layout reflow. The cost is devastating. Measuring the height of a single text block forces the browser to recalculate the position of every element on the page. When you measure five hundred text blocks in sequence, you trigger five hundred full layout passes. This pattern, known as layout thrashing, is the single largest source of jank on the modern web. Chrome DevTools will flag it with angry red bars.`;
 
 const COL2_TEXT = `Lighthouse will dock your performance score. But the developer has no alternative \u2014 CSS provides no API for computing text height without rendering it. The information is locked behind the DOM, and the DOM makes you pay for every answer. Developers have invented increasingly desperate workarounds. Estimated heights replace real measurements with guesses, causing content to visibly jump when the guess is wrong. ResizeObserver watches elements for size changes, but it fires asynchronously and always at least one frame too late. IntersectionObserver tracks visibility but says nothing about dimensions. Content-visibility allows the browser to skip rendering off-screen elements, but it breaks scroll position and accessibility. Each workaround addresses one symptom while introducing new problems. The CSS Shapes specification, finalized in 2014, was supposed to bring magazine-style text wrap to the web. It allows text to flow around a defined shape \u2014 a circle, an ellipse, a polygon, even an image alpha channel. On paper, it was the answer. In practice, it is remarkably limited. CSS Shapes only works with floated elements. Text can only wrap on one side of the shape. The shape must be defined statically in CSS \u2014 you cannot animate it or change it dynamically without triggering a full layout reflow. And because it operates within the browser\u2019s layout engine, you have no access to the resulting line geometry. You cannot determine where each line of text starts and ends, how many lines were generated, or what the total height of the shaped text block is. The editorial layouts we see in print magazines \u2014 text flowing around photographs, pull quotes interrupting the column, multiple columns with seamless text handoff \u2014 have remained out of reach for the web.`;
 
-const COL3_TEXT = `Not because they are conceptually difficult, but because the performance cost of implementing them with DOM measurement makes them impractical. A two-column editorial layout that reflows text around three obstacle shapes requires measuring and positioning hundreds of text lines. At thirty milliseconds per measurement, this would take seconds \u2014 an eternity for a render frame. What if text measurement did not require the DOM at all? What if you could compute exactly where every line of text would break, exactly how wide each line would be, and exactly how tall the entire text block would be, using nothing but arithmetic? This is the core insight of pretext. The browser\u2019s canvas API includes a measureText method that returns the width of any string in any font without triggering a layout reflow. Canvas measurement uses the same font engine as DOM rendering \u2014 the results are identical. But because it operates outside the layout tree, it carries no reflow penalty. Pretext exploits this asymmetry. When text first appears, pretext measures every word once via canvas and caches the widths. After this preparation phase, layout is pure arithmetic: walk the cached widths, track the running line width, insert line breaks when the width exceeds the maximum, and sum the line heights. No DOM. No reflow. No layout tree access. The performance improvement is not incremental. Measuring five hundred text blocks with DOM methods costs fifteen to thirty milliseconds and triggers five hundred layout reflows. With pretext, the same operation costs 0.05 milliseconds and triggers zero reflows. This is a three hundred to six hundred times improvement. But even that number understates the impact, because pretext\u2019s cost does not scale with page complexity \u2014 it is independent of how many other elements exist on the page. With DOM-free text measurement, an entire class of previously impractical interfaces becomes trivial.`;
+const COL3_TEXT = `Not because they are conceptually difficult, but because the performance cost of implementing them with DOM measurement makes them impractical. A two-column editorial layout that reflows text around three obstacle shapes requires measuring and positioning hundreds of text lines. At thirty milliseconds per measurement, this would take seconds \u2014 an eternity for a render frame. What if text measurement did not require the DOM at all? What if you could compute exactly where every line of text would break, exactly how wide each line would be, and exactly how tall the entire text block would be, using nothing but arithmetic? This is the core insight of Pretext. The browser\u2019s canvas API includes a measureText method that returns the width of any string in any font without triggering a layout reflow. Canvas measurement uses the same font engine as DOM rendering \u2014 the results are identical. But because it operates outside the layout tree, it carries no reflow penalty. Pretext exploits this asymmetry. When text first appears, Pretext measures every word once via canvas and caches the widths. After this preparation phase, layout is pure arithmetic: walk the cached widths, track the running line width, insert line breaks when the width exceeds the maximum, and sum the line heights. No DOM. No reflow. No layout tree access. The performance improvement is not incremental. Measuring five hundred text blocks with DOM methods costs fifteen to thirty milliseconds and triggers five hundred layout reflows. With Pretext, the same operation costs 0.05 milliseconds and triggers zero reflows. This is a three hundred to six hundred times improvement. But even that number understates the impact, because Pretext\u2019s cost does not scale with page complexity \u2014 it is independent of how many other elements exist on the page. With DOM-free text measurement, an entire class of previously impractical interfaces becomes trivial.`;
 
-const QUOTE_1 = "\u201CThe performance improvement is not incremental \u2014 it is categorical. 0.05ms versus 30ms. Zero reflows versus five hundred.\u201D";
-const QUOTE_2 = "\u201CText becomes a first-class participant in the visual composition \u2014 not a static block, but a fluid material that adapts in real time.\u201D";
+const QUOTE_1 = "\u201CThe gain is not incremental \u2014 it is categorical. Half a millisecond versus thirty. Zero reflows versus five hundred.\u201D";
+const QUOTE_2 = "\u201CText becomes a participant in the composition: not a frozen block, but a material that can move and still read true.\u201D";
 
 type OrbDefinition = {
   id: string;
@@ -47,13 +47,14 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
   const contentW = Math.min(vw - gutter * 2, narrow ? 680 : 1160);
   const mx = Math.max(gutter, (vw - contentW) / 2);
 
-  const headlineY = narrow ? 42 : 44;
-  const headlineSize = narrow ? 42 : vw > 1200 ? 72 : 60;
-  const headlineLineHeight = narrow ? 44 : Math.round(headlineSize * 1.05);
-  const headlineH = headlineLineHeight * 2 + 12;
-  const bodyY = headlineY + headlineH + (narrow ? 30 : 40);
-  const bodyFontSize = narrow ? 16 : 15;
-  const bodyLH = narrow ? 26 : 24;
+  const headlineY = narrow ? 48 : 52;
+  const kickerY = headlineY - 22;
+  const headlineSize = narrow ? 44 : vw > 1200 ? 74 : 62;
+  const headlineLineHeight = narrow ? 46 : Math.round(headlineSize * 1.06);
+  const headlineH = headlineLineHeight * 2 + 14;
+  const bodyY = headlineY + headlineH + (narrow ? 36 : 44);
+  const bodyFontSize = narrow ? 17 : 16;
+  const bodyLH = narrow ? 28 : 26;
 
   const bodyH = narrow ? 1300 : 950;
   const H = Math.max(vh, bodyY + bodyH + 50);
@@ -61,9 +62,23 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
   const orbScale = narrow ? 0.72 : 1;
 
   const engineBackdrop =
-    "radial-gradient(ellipse at 50% 6%, #16161e 0%, #0c0c10 52%, #060608 100%), radial-gradient(circle at 16% 22%, rgba(196,163,90,0.1) 0%, transparent 36%), radial-gradient(circle at 80% 10%, rgba(150,100,220,0.09) 0%, transparent 34%), radial-gradient(circle at 68% 54%, rgba(232,100,130,0.08) 0%, transparent 32%)";
+    "radial-gradient(ellipse at 50% 5%, #18181f 0%, #0e0e12 50%, #070709 100%), radial-gradient(circle at 14% 20%, rgba(212,175,95,0.11) 0%, transparent 38%), radial-gradient(circle at 78% 8%, rgba(160,110,230,0.1) 0%, transparent 36%), radial-gradient(circle at 66% 52%, rgba(238,110,145,0.09) 0%, transparent 34%)";
 
   const elements: SceneDescription["elements"] = [
+    {
+      id: "de-kicker",
+      type: "heading",
+      rect: { x: mx, y: kickerY, width: contentW, height: 16 },
+      throwable: false,
+      pinned: true,
+      text: "DOMino  ·  canvas measure  ·  sixty frames",
+      fontSize: 10,
+      fontWeight: 600,
+      fontFamily: UI_SANS,
+      lineHeight: 16,
+      letterSpacing: "0.12em",
+      color: "rgba(255,255,255,0.36)",
+    },
     {
       id: "de-headline",
       type: "heading",
@@ -75,8 +90,8 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       fontWeight: 700,
       fontFamily: PAL_SERIF,
       lineHeight: headlineLineHeight,
-      letterSpacing: "-0.03em",
-      color: "#faf9f7",
+      letterSpacing: "-0.028em",
+      color: "#fcfaf6",
     },
   ];
 
@@ -94,7 +109,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     fontWeight: 700,
     fontFamily: PAL_SERIF,
     lineHeight: dropCapSize,
-    color: "#c4a35a",
+    color: "#d4b56a",
     backgroundColor: "transparent",
     border: "none",
     boxShadow: "none",
@@ -300,7 +315,8 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       return {
         ...element,
         allowWordBreaks: false,
-        minSegmentWidth: element.id === "de-headline" ? 110 : 50,
+        minSegmentWidth:
+          element.id === "de-headline" ? 110 : element.id === "de-kicker" ? 64 : 50,
       };
     }),
   };
