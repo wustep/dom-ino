@@ -101,6 +101,7 @@ describe("hasRenderableImportedText", () => {
           y: 0,
           width: 120,
           maxWidth: 180,
+          charOffset: 0,
         }],
       })
     ).toBe(true);
