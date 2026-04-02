@@ -55,7 +55,7 @@ function rewriteFetchedDocumentMarkup(html: string): string {
   // the same image after lazy-src promotion.
   for (const noscript of Array.from(doc.querySelectorAll("noscript"))) {
     const parent = noscript.parentElement;
-    const raw = noscript.textContent?.trim() ?? "";
+    const raw = noscript.innerHTML?.trim() ?? "";
     if (!parent || !raw) {
       noscript.remove();
       continue;

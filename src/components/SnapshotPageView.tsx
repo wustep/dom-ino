@@ -353,8 +353,12 @@ export function SnapshotPageView({
         const dominoId = getStableNodeId(root, childEl) || `snapshot-node-${counter++}`;
         childEl.dataset.dominoId = dominoId;
         const sceneElement = elementToSceneElement(childEl, viewportRect, win);
+        const hasMediaDescendants = childEl.querySelector("img, picture, video, svg, canvas") !== null;
         nodes.set(dominoId, childEl);
-        const isTextBlock = isTextSceneElement(sceneElement) && text.length > 0;
+        const isTextBlock =
+          isTextSceneElement(sceneElement) &&
+          text.length > 0 &&
+          (!hasMediaDescendants || tag === "FIGCAPTION");
         if (isTextBlock && !insideTextBlock) {
           textNodes.set(dominoId, childEl);
           nextTextBlocks.push({ id: dominoId, sceneElement, node: childEl });
@@ -408,11 +412,6 @@ export function SnapshotPageView({
     return () => window.removeEventListener("resize", onResize);
   }, [scanCandidates, page.preparedHtml]);
 
-  // Auto-select throwable candidates after first scan.
-  // Selects images, badges, buttons, cards, and links that look like
-  // standalone interactive/visual elements. Skips elements that are
-  // descendants of already-selected elements to avoid duplication.
-  // Skips large containers/infoboxes/tables that serve as layout anchors.
   useEffect(() => {
     if (autoSelectedRef.current || selectableCandidates.length === 0) return;
     autoSelectedRef.current = true;
@@ -426,33 +425,34 @@ export function SnapshotPageView({
       if (c.width < 30 || c.height < 16) continue;
       if (c.y < 40) continue;
 
-      // Skip large floated containers (infoboxes, image galleries, tables)
-      // These should stay pinned so text flows around them naturally
       const cls = (c.node.className || "").toString().toLowerCase();
       const id = (c.node.id || "").toLowerCase();
       const tag = c.node.tagName;
-      const isInfobox = cls.includes("infobox") || cls.includes("sidebar") || cls.includes("navbox") || cls.includes("tmbox") || cls.includes("ambox");
+      const isInfobox =
+        cls.includes("infobox") ||
+        cls.includes("sidebar") ||
+        cls.includes("navbox") ||
+        cls.includes("tmbox") ||
+        cls.includes("ambox");
       const isGallery = cls.includes("gallery") || cls.includes("thumb") || cls.includes("trow");
       const isTable = tag === "TABLE" || tag === "TBODY" || tag === "THEAD";
       const isFloatAnchor = (() => {
         try {
-          const cs = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
-          return cs.float === "left" || cs.float === "right";
-        } catch { return false; }
+          const styles = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
+          return styles.float === "left" || styles.float === "right";
+        } catch {
+          return false;
+        }
       })();
-      // Skip large layout-anchor elements: infoboxes, galleries, tables, or large floats
       if (isInfobox || isGallery || isTable || id.includes("infobox")) continue;
       if (isFloatAnchor && (c.width > 200 || c.height > 200)) continue;
-      // Skip containers that are too large to be a sensible throwable
       if (t === "card" && (c.width > 400 || c.height > 300)) continue;
-
-      // Skip if this element is inside an already-picked element
       if (picked.some((p) => p.node.contains(c.node))) continue;
       picked.push(c);
       if (picked.length >= 30) break;
     }
     if (picked.length > 0) {
-      setSelectedIds(new Set(picked.map((c) => c.id)));
+      setSelectedIds(new Set(picked.map((candidate) => candidate.id)));
     }
   }, [selectableCandidates]);
 
@@ -484,12 +484,28 @@ export function SnapshotPageView({
     });
   }, []);
 
-  // Hide originals for selected DOM nodes so overlay clones replace them visually.
+  // Filter out selected elements whose DOM nodes are descendants of another
+  // selected element — the parent clone already includes them visually.
+  const selectedCandidates = useMemo(() => {
+    const selected = selectableCandidates.filter(
+      (c) => selectedIds.has(c.id) && c.sceneElement
+    );
+    return selected.filter((c) => !selected.some(
+      (other) => other.id !== c.id && other.node.contains(c.node)
+    ));
+  }, [selectableCandidates, selectedIds]);
+
+  const activeSelectedIds = useMemo(
+    () => new Set(selectedCandidates.map((candidate) => candidate.id)),
+    [selectedCandidates]
+  );
+
+  // Hide originals for active selected DOM nodes so overlay clones replace them visually.
   // In picker mode, show originals so the user sees what they're selecting.
   useEffect(() => {
     const current = nodesRef.current;
     current.forEach((node, id) => {
-      if (selectedIds.has(id) && !pickerMode) {
+      if (activeSelectedIds.has(id) && !pickerMode) {
         if (!node.dataset.dominoOriginalVisibility) {
           node.dataset.dominoOriginalVisibility = node.style.visibility || "";
         }
@@ -507,19 +523,7 @@ export function SnapshotPageView({
         }
       });
     };
-  }, [selectedIds, candidates, pickerMode]);
-
-  // Filter out selected elements whose DOM nodes are descendants of another
-  // selected element — the parent clone already includes them visually.
-  const selectedCandidates = useMemo(() => {
-    const selected = selectableCandidates.filter(
-      (c) => selectedIds.has(c.id) && c.sceneElement
-    );
-    return selected
-      .filter((c) => !selected.some(
-        (other) => other.id !== c.id && other.node.contains(c.node)
-      ));
-  }, [selectableCandidates, selectedIds]);
+  }, [activeSelectedIds, candidates, pickerMode]);
 
   const selectedElements = useMemo(() => {
     return selectedCandidates
