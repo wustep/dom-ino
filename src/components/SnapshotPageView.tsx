@@ -18,6 +18,8 @@ import {
   toStageRect,
   type ViewportRectLike,
 } from "./snapshotViewUtils";
+import { buildFontString, DEFAULT_SANS } from "../utils/fonts";
+import { usePhysicsLoop } from "../hooks/usePhysicsLoop";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -65,8 +67,6 @@ type ImportedTextLayout = {
   flow: TextFlowResult;
 };
 
-type BodyPos = { x: number; y: number; angle: number; w: number; h: number };
-
 function isTextSceneElement(
   sceneElement: SceneElement | null
 ): sceneElement is SceneElement & { type: "paragraph" | "heading" } {
@@ -111,27 +111,6 @@ function hasSignificantMediaDescendants(el: HTMLElement): boolean {
     const mediaRect = mediaNode.getBoundingClientRect();
     return mediaRect.width > 48 || mediaRect.height > 48;
   });
-}
-
-function bodyPositionsChanged(
-  prev: Map<string, BodyPos>,
-  next: Map<string, BodyPos>
-): boolean {
-  if (prev.size !== next.size) return true;
-  for (const [id, nextPos] of next) {
-    const prevPos = prev.get(id);
-    if (!prevPos) return true;
-    if (
-      Math.abs(prevPos.x - nextPos.x) > 0.05 ||
-      Math.abs(prevPos.y - nextPos.y) > 0.05 ||
-      Math.abs(prevPos.angle - nextPos.angle) > 0.0005 ||
-      prevPos.w !== nextPos.w ||
-      prevPos.h !== nextPos.h
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 const INLINE_TAGS = new Set([
@@ -358,8 +337,6 @@ export function SnapshotPageView({
   const nodesRef = useRef<Map<string, HTMLElement>>(new Map());
   const textNodesRef = useRef<Map<string, HTMLElement>>(new Map());
   const physicsRef = useRef<PhysicsEngine | null>(null);
-  const rafRef = useRef<number>(0);
-  const fpsFrames = useRef<number[]>([]);
   const hiddenSelectedNodesRef = useRef<Map<HTMLElement, string>>(new Map());
   const hiddenTextNodesRef = useRef<Map<HTMLElement, string>>(new Map());
   const [iframeHeight, setIframeHeight] = useState(1600);
@@ -369,9 +346,6 @@ export function SnapshotPageView({
   const [textBlocks, setTextBlocks] = useState<SnapshotTextBlock[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [droppedElements, setDroppedElements] = useState<SceneElement[]>([]);
-  const [bodyPositions, setBodyPositions] = useState<Map<string, BodyPos>>(new Map());
-  const prevBodyPositionsRef = useRef<Map<string, BodyPos>>(new Map());
-  const [fps, setFps] = useState(60);
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true,
     showObstacleBounds: false,
@@ -382,6 +356,14 @@ export function SnapshotPageView({
     pretextEnabled: true,
     allowWordBreaks: true,
     restitution: 0.3,
+  });
+
+  const { bodyPositions, fps } = usePhysicsLoop({
+    physicsRef,
+    physicsEnabled: settings.physicsEnabled,
+    gravityX: settings.gravityX,
+    gravityY: settings.gravityY,
+    restitution: settings.restitution,
   });
 
   const savedIds = useMemo(() => new Set(savedElements.map((s) => s.element.id)), [savedElements]);
@@ -801,10 +783,8 @@ export function SnapshotPageView({
     for (const block of sortedBlocks) {
       const el = block.sceneElement;
       const padding = el.padding ?? 0;
-      const fw = el.fontWeight ?? 400;
       const fs = el.fontSize ?? 16;
-      const ff = el.fontFamily ?? '"DM Sans", sans-serif';
-      const font = `${fw !== 400 ? `${fw} ` : ""}${fs}px ${ff}`;
+      const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS);
       const contentLeft = el.rect.x + padding;
       const contentRight = el.rect.x + el.rect.width - padding;
       const originalTextTop = el.rect.y + padding;
@@ -894,37 +874,11 @@ export function SnapshotPageView({
     const engine = createPhysicsEngine(overlayScene, stage);
     physicsRef.current = engine;
     return () => {
-      // Don't cancel the RAF loop here — it's managed by a separate effect
-      // and checks physicsRef.current on each frame. Cancelling it here would
-      // kill the animation loop permanently since the RAF effect's deps don't
-      // include overlayScene.
       engine.destroy();
       physicsRef.current = null;
     };
   }, [overlayScene]);
 
-  useEffect(() => {
-    let last = 0;
-    const loop = () => {
-      rafRef.current = requestAnimationFrame(loop);
-      const engine = physicsRef.current;
-      if (!engine || !settings.physicsEnabled) return;
-      const now = performance.now();
-      fpsFrames.current.push(now);
-      while (fpsFrames.current.length > 0 && fpsFrames.current[0] < now - 1000) fpsFrames.current.shift();
-      if (now - last > 250) { setFps(fpsFrames.current.length); last = now; }
-      const positions = engine.getBodyPositions() as Map<string, BodyPos>;
-      if (bodyPositionsChanged(prevBodyPositionsRef.current, positions)) {
-        prevBodyPositionsRef.current = positions;
-        setBodyPositions(positions);
-      }
-    };
-    rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [settings.physicsEnabled]);
-
-  useEffect(() => { physicsRef.current?.setGravity(settings.gravityX, settings.gravityY); }, [settings.gravityX, settings.gravityY]);
-  useEffect(() => { physicsRef.current?.setRestitution(settings.restitution); }, [settings.restitution]);
   useEffect(() => {
     const engine = physicsRef.current;
     if (!engine) return;
@@ -1130,10 +1084,8 @@ export function SnapshotPageView({
         {/* Pretext text overlay for imported pages */}
         {importedTextFlowActive && importedTextLayouts.map((layout) => {
           const el = layout.sceneElement;
-          const fw = el.fontWeight ?? 400;
           const fs = el.fontSize ?? 16;
-          const ff = el.fontFamily ?? '"DM Sans", sans-serif';
-          const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
+          const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS);
           return (
             <TextFlowRegion
               key={`imported-text-${layout.id}`}
@@ -1186,7 +1138,6 @@ export function SnapshotPageView({
               angle={pos?.angle ?? 0}
               isPhysicsEnabled={true}
               showDebug={settings.showObstacleBounds}
-              isPinned={false}
             />
           );
         })}

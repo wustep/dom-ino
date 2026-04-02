@@ -1,5 +1,6 @@
 import { memo } from "react";
-import type { SceneElement } from "../scene/types";
+import type { SceneElement, TextStyle } from "../scene/types";
+import { getBackgroundStyle } from "../utils/styles";
 
 interface PhysicsDomItemProps {
   element: SceneElement;
@@ -8,20 +9,28 @@ interface PhysicsDomItemProps {
   angle: number;
   isPhysicsEnabled: boolean;
   showDebug: boolean;
-  isPinned: boolean;
 }
 
-function getBackgroundStyle(background?: string): React.CSSProperties {
-  if (!background) return {};
-  return background.includes("gradient")
-    ? { background }
-    : { backgroundColor: background };
+/** Build a CSS text style from a TextStyle-bearing element (or child). */
+function textStyleOf(
+  el: TextStyle,
+  defaults?: { fontSize?: number; fontWeight?: number; color?: string; lineHeight?: string }
+): React.CSSProperties {
+  return {
+    fontSize: el.fontSize ?? defaults?.fontSize ?? 16,
+    fontWeight: el.fontWeight ?? defaults?.fontWeight ?? 400,
+    fontStyle: el.fontStyle ?? "normal",
+    fontFamily: el.fontFamily,
+    color: el.color ?? defaults?.color ?? "#333",
+    lineHeight: el.lineHeight ? `${el.lineHeight}px` : (defaults?.lineHeight ?? "1.5"),
+    letterSpacing: el.letterSpacing,
+    textAlign: el.textAlign as React.CSSProperties["textAlign"] | undefined,
+  };
 }
 
 export const PhysicsDomItem = memo(function PhysicsDomItem({
-  element, x, y, angle, isPhysicsEnabled, showDebug,   isPinned,
+  element, x, y, angle, isPhysicsEnabled, showDebug,
 }: PhysicsDomItemProps) {
-  void isPinned;
   const isThrowable = element.throwable;
   const live = isPhysicsEnabled && isThrowable;
   const px = live ? x : element.rect.x;
@@ -60,38 +69,68 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
             display: "flex", flexDirection: "column",
             overflow: "hidden", boxSizing: "border-box",
             position: "relative",
-            color: element.color ?? "#1a1a1a", fontFamily: element.fontFamily,
+            color: element.color ?? "#1a1a1a",
+            fontFamily: element.fontFamily,
             textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined,
           }}>
             {element.text && (
-              <div style={{ fontSize: element.fontSize ?? 16, fontWeight: element.fontWeight ?? 600, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#1a1a1a", lineHeight: element.lineHeight ? `${element.lineHeight}px` : "1.3", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined }}>
+              <div style={textStyleOf(element, { fontWeight: 600, color: "#1a1a1a", lineHeight: "1.3" })}>
                 {element.text}
               </div>
             )}
             {element.children?.map((child) => (
-              <div key={child.id} style={{ marginTop: child.rect.y > 0 ? child.rect.y : 8, fontSize: child.fontSize ?? 13, fontWeight: child.fontWeight ?? 400, fontStyle: child.fontStyle ?? "normal", fontFamily: child.fontFamily, color: child.color ?? "#777", lineHeight: child.lineHeight ? `${child.lineHeight}px` : "1.5", letterSpacing: child.letterSpacing, textAlign: child.textAlign as React.CSSProperties["textAlign"] | undefined, opacity: child.opacity }}>
+              <div key={child.id} style={{
+                marginTop: child.rect.y > 0 ? child.rect.y : 8,
+                opacity: child.opacity,
+                ...textStyleOf(child, { fontSize: 13, color: "#777", lineHeight: "1.5" }),
+              }}>
                 {child.text}
               </div>
             ))}
           </div>
         );
+
       case "button": case "link":
         return (
-          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "#1a1a1a"), borderRadius: element.borderRadius ?? 6, border: element.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 14, fontWeight: element.fontWeight ?? 500, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxShadow: element.boxShadow, boxSizing: "border-box" }}>
+          <div style={{
+            width: "100%", height: "100%",
+            ...getBackgroundStyle(element.backgroundColor ?? "#1a1a1a"),
+            borderRadius: element.borderRadius ?? 6,
+            border: element.border,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: element.boxShadow, boxSizing: "border-box",
+            ...textStyleOf(element, { fontSize: 14, fontWeight: 500, color: "#fff" }),
+          }}>
             {element.text}
           </div>
         );
-      case "badge": {
-        const bg = element.backgroundColor ?? "#333";
+
+      case "badge":
         return (
-          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(bg), borderRadius: element.borderRadius ?? 12, border: element.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 11, fontWeight: element.fontWeight ?? 700, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: element.letterSpacing ?? "0.05em", textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxShadow: element.boxShadow, boxSizing: "border-box" }}>
+          <div style={{
+            width: "100%", height: "100%",
+            ...getBackgroundStyle(element.backgroundColor ?? "#333"),
+            borderRadius: element.borderRadius ?? 12,
+            border: element.border,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: element.boxShadow, boxSizing: "border-box",
+            ...textStyleOf(element, { fontSize: 11, fontWeight: 700, color: "#fff" }),
+            letterSpacing: element.letterSpacing ?? "0.05em",
+          }}>
             {element.text}
           </div>
         );
-      }
+
       case "image":
         return (
-          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "#e5e5e5"), borderRadius: element.borderRadius ?? 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: element.boxShadow }}>
+          <div style={{
+            width: "100%", height: "100%",
+            ...getBackgroundStyle(element.backgroundColor ?? "#e5e5e5"),
+            borderRadius: element.borderRadius ?? 8,
+            overflow: "hidden",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: element.boxShadow,
+          }}>
             {element.imageSrc ? (
               <img src={element.imageSrc} alt={element.imageAlt ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} draggable={false} />
             ) : (
@@ -103,14 +142,54 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
             )}
           </div>
         );
+
       case "input":
-        return (<div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "#fff"), borderRadius: element.borderRadius ?? 6, border: element.border ?? "1px solid #ddd", display: "flex", alignItems: "center", padding: element.padding ?? 8, fontSize: element.fontSize ?? 14, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#999", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxSizing: "border-box" }}>{element.text ?? "Input..."}</div>);
+        return (
+          <div style={{
+            width: "100%", height: "100%",
+            ...getBackgroundStyle(element.backgroundColor ?? "#fff"),
+            borderRadius: element.borderRadius ?? 6,
+            border: element.border ?? "1px solid #ddd",
+            display: "flex", alignItems: "center",
+            padding: element.padding ?? 8,
+            boxSizing: "border-box",
+            ...textStyleOf(element, { fontSize: 14, color: "#999" }),
+          }}>
+            {element.text ?? "Input..."}
+          </div>
+        );
+
       case "container":
-        return (<div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor), borderRadius: element.borderRadius ?? 0, border: element.border, boxShadow: element.boxShadow, overflow: "hidden", boxSizing: "border-box" }} />);
+        return (
+          <div style={{
+            width: "100%", height: "100%",
+            ...getBackgroundStyle(element.backgroundColor),
+            borderRadius: element.borderRadius ?? 0,
+            border: element.border,
+            boxShadow: element.boxShadow,
+            overflow: "hidden", boxSizing: "border-box",
+          }} />
+        );
+
       case "divider":
-        return (<div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#e5e5e5" }} />);
+        return (
+          <div style={{ width: "100%", height: "100%", backgroundColor: element.backgroundColor ?? "#e5e5e5" }} />
+        );
+
       default:
-        return (<div style={{ width: "100%", height: "100%", ...getBackgroundStyle(element.backgroundColor ?? "rgba(200,200,200,0.3)"), borderRadius: element.borderRadius ?? 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 12, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#888", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxSizing: "border-box", border: element.border }}>{element.text}</div>);
+        return (
+          <div style={{
+            width: "100%", height: "100%",
+            ...getBackgroundStyle(element.backgroundColor ?? "rgba(200,200,200,0.3)"),
+            borderRadius: element.borderRadius ?? 4,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxSizing: "border-box",
+            border: element.border,
+            ...textStyleOf(element, { fontSize: 12, color: "#888" }),
+          }}>
+            {element.text}
+          </div>
+        );
     }
   };
 

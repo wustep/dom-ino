@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import type { CSSProperties } from "react";
 import type {
   ObstacleRect,
   SavedElement,
@@ -19,12 +18,9 @@ import type { DebugSettings } from "./Toolbar";
 import { getObstacleAABB } from "../textflow/obstacles";
 import { ThrowablePicker } from "./ThrowablePicker";
 import { QuickSavePicker } from "./QuickSavePicker";
-
-function sceneRootBackgroundStyle(backgroundColor: string): CSSProperties {
-  return backgroundColor.includes("gradient")
-    ? { background: backgroundColor }
-    : { backgroundColor };
-}
+import { getBackgroundStyle } from "../utils/styles";
+import { buildFontString } from "../utils/fonts";
+import { usePhysicsLoop } from "../hooks/usePhysicsLoop";
 
 interface DominoSceneProps {
   scene: SceneDescription;
@@ -45,28 +41,6 @@ interface DominoSceneProps {
   onResetAll?: () => void;
 }
 
-type BodyPos = { x: number; y: number; angle: number; w: number; h: number };
-
-function bodyPositionsChanged(
-  prev: Map<string, BodyPos>,
-  next: Map<string, BodyPos>
-): boolean {
-  if (prev.size !== next.size) return true;
-  for (const [id, nextPos] of next) {
-    const prevPos = prev.get(id);
-    if (!prevPos) return true;
-    if (
-      Math.abs(prevPos.x - nextPos.x) > 0.05 ||
-      Math.abs(prevPos.y - nextPos.y) > 0.05 ||
-      Math.abs(prevPos.angle - nextPos.angle) > 0.0005 ||
-      prevPos.w !== nextPos.w ||
-      prevPos.h !== nextPos.h
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
 
 function computeTextMaxHeights(
   textElements: SceneElement[], allElements: SceneElement[], sceneHeight: number
@@ -93,13 +67,8 @@ export function DominoScene({
 }: DominoSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const physicsRef = useRef<PhysicsEngine | null>(null);
-  const rafRef = useRef<number>(0);
-  const fpsTimestamps = useRef<number[]>([]);
-  const prevBodyPositionsRef = useRef<Map<string, BodyPos>>(new Map());
 
-  const [bodyPositions, setBodyPositions] = useState<Map<string, BodyPos>>(new Map());
   const [generation, setGeneration] = useState(0);
-  const [fps, setFps] = useState(60);
   const [totalLineCount, setTotalLineCount] = useState(0);
   const [pickerMode, setPickerMode] = useState(false);
   const [savePickerMode, setSavePickerMode] = useState(false);
@@ -108,6 +77,16 @@ export function DominoScene({
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true, showObstacleBounds: false, showLineBounds: false,
     gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, allowWordBreaks: true, restitution: 0.3,
+  });
+
+  const bumpGeneration = useCallback(() => setGeneration((g) => g + 1), []);
+  const { bodyPositions, fps } = usePhysicsLoop({
+    physicsRef,
+    physicsEnabled: settings.physicsEnabled,
+    gravityX: settings.gravityX,
+    gravityY: settings.gravityY,
+    restitution: settings.restitution,
+    onPositionsChanged: bumpGeneration,
   });
 
   const { textElements, throwableElements, staticElements } = useMemo(() => {
@@ -131,39 +110,12 @@ export function DominoScene({
     if (!container) return;
     const engine = createPhysicsEngine(scene, container);
     physicsRef.current = engine;
-    prevBodyPositionsRef.current = new Map();
-    setBodyPositions(new Map());
     return () => {
-      // Don't cancel RAF here — the loop effect only depends on physicsEnabled.
-      // Cancelling on scene/engine teardown would stop syncing forever until that toggles (HMR included).
       engine.destroy();
       physicsRef.current = null;
     };
   }, [scene]);
 
-  useEffect(() => {
-    let lastFpsUpdate = 0;
-    const loop = () => {
-      rafRef.current = requestAnimationFrame(loop);
-      const engine = physicsRef.current;
-      if (!engine || !settings.physicsEnabled) return;
-      const now = performance.now();
-      fpsTimestamps.current.push(now);
-      while (fpsTimestamps.current.length > 0 && fpsTimestamps.current[0] < now - 1000) fpsTimestamps.current.shift();
-      if (now - lastFpsUpdate > 250) { setFps(fpsTimestamps.current.length); lastFpsUpdate = now; }
-      const positions = engine.getBodyPositions() as Map<string, BodyPos>;
-      if (bodyPositionsChanged(prevBodyPositionsRef.current, positions)) {
-        prevBodyPositionsRef.current = positions;
-        setBodyPositions(positions);
-        setGeneration((g) => g + 1);
-      }
-    };
-    rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [settings.physicsEnabled]);
-
-  useEffect(() => { physicsRef.current?.setGravity(settings.gravityX, settings.gravityY); }, [settings.gravityX, settings.gravityY]);
-  useEffect(() => { physicsRef.current?.setRestitution(settings.restitution); }, [settings.restitution]);
   useEffect(() => { if (settings.paused) physicsRef.current?.pause(); else physicsRef.current?.resume(); }, [settings.paused]);
 
   const obstacles: ObstacleRect[] = useMemo(() => {
@@ -216,11 +168,8 @@ export function DominoScene({
         if (!nextEl) break;
 
         // Compute flow for current element to get end cursor
-        const fw = current.fontWeight ?? 400, fs = current.fontSize ?? 16;
-        const ff = current.fontFamily ?? '"Source Serif 4", Georgia, serif';
-        const stylePrefix = current.fontStyle && current.fontStyle !== "normal" ? `${current.fontStyle} ` : "";
-        const weightPart = fw !== 400 ? `${fw} ` : "";
-        const font = `${stylePrefix}${weightPart}${fs}px ${ff}`;
+        const fs = current.fontSize ?? 16;
+        const font = buildFontString(fs, current.fontWeight, current.fontFamily, current.fontStyle);
         const pad = current.padding ?? 0;
         const flowResult = computeTextFlow(
           current.text!,
@@ -280,21 +229,23 @@ export function DominoScene({
   const reportLines = useCallback((count: number) => { lineCountRef.current += count; }, []);
   useEffect(() => { lineCountRef.current = 0; const t = setTimeout(() => setTotalLineCount(lineCountRef.current), 50); return () => clearTimeout(t); }, [generation]);
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/domino-saved"));
+      if (data) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        onDropSaved(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top);
+      }
+    } catch { /* not a valid drop */ }
+  }, [onDropSaved]);
+
   return (
-    <div
-      style={{ position: "relative", width: scene.width, height: scene.height, ...sceneRootBackgroundStyle(scene.backgroundColor), overflow: "hidden", cursor: "grab" }}
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-      onDrop={(e) => {
-        e.preventDefault();
-        try {
-          const data = JSON.parse(e.dataTransfer.getData("application/domino-saved"));
-          if (data) {
-            const rect = e.currentTarget.getBoundingClientRect();
-            onDropSaved(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top);
-          }
-        } catch { /* not a valid drop */ }
-      }}
-    >
+    <div style={{ position: "relative", width: scene.width, height: scene.height, ...getBackgroundStyle(scene.backgroundColor), overflow: "hidden", cursor: "grab" }}>
       <div
         ref={containerRef}
         style={{
@@ -307,29 +258,17 @@ export function DominoScene({
           WebkitUserSelect: "none",
           touchAction: "none",
         }}
-        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-        onDrop={(e) => {
-          e.preventDefault();
-          try {
-            const data = JSON.parse(e.dataTransfer.getData("application/domino-saved"));
-            if (data) {
-              const rect = e.currentTarget.getBoundingClientRect();
-              onDropSaved(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top);
-            }
-          } catch { /* not a valid drop */ }
-        }}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
         {staticElements.map((el) => (
-          <PhysicsDomItem key={el.id} element={el} x={el.rect.x} y={el.rect.y} angle={0} isPhysicsEnabled={false} showDebug={false} isPinned={true} />
+          <PhysicsDomItem key={el.id} element={el} x={el.rect.x} y={el.rect.y} angle={0} isPhysicsEnabled={false} showDebug={false} />
         ))}
 
         {settings.pretextEnabled
           ? textElements.map((el) => {
-              const fw = el.fontWeight ?? 400, fs = el.fontSize ?? 16;
-              const ff = el.fontFamily ?? '"Source Serif 4", Georgia, serif';
-              const stylePrefix = el.fontStyle && el.fontStyle !== "normal" ? `${el.fontStyle} ` : "";
-              const weightPart = fw !== 400 ? `${fw} ` : "";
-              const font = `${stylePrefix}${weightPart}${fs}px ${ff}`;
+              const fs = el.fontSize ?? 16;
+              const font = buildFontString(fs, el.fontWeight, el.fontFamily, el.fontStyle);
               const pad = el.padding ?? 0;
               const flowMinSegmentWidth = el.minSegmentWidth ?? (el.type === "heading" ? 80 : 8);
               const allowWordBreaks = el.allowWordBreaks ?? (el.type === "heading" ? false : settings.allowWordBreaks);
@@ -358,7 +297,7 @@ export function DominoScene({
           return (<PhysicsDomItem key={el.id} element={el}
             x={pos?.x ?? el.rect.x} y={pos?.y ?? el.rect.y} angle={pos?.angle ?? 0}
             isPhysicsEnabled={settings.physicsEnabled} showDebug={settings.showObstacleBounds}
-            isPinned={false} />);
+            />);
         })}
 
         {settings.showObstacleBounds && obstacles.map((obs) => {

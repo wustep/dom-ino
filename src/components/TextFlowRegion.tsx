@@ -3,6 +3,7 @@ import type { LayoutCursor } from "@chenglou/pretext";
 import type { FlowLine, TextFlowResult } from "../textflow/useTextFlow";
 import { computeTextFlow } from "../textflow/useTextFlow";
 import type { ObstacleRect } from "../scene/types";
+import { parseFontShorthand } from "../utils/fonts";
 
 interface TextFlowRegionProps {
   text: string;
@@ -26,28 +27,6 @@ interface TextFlowRegionProps {
   allowWordBreaks?: boolean;
   startCursor?: LayoutCursor;
   onEndCursor?: (cursor: LayoutCursor) => void;
-}
-
-/**
- * Parse a CSS font shorthand string to extract style, weight, and family.
- * E.g. "italic 700 17px \"Source Serif 4\", Georgia, serif"
- *   -> { style: "italic", weight: 700, family: '"Source Serif 4", Georgia, serif' }
- */
-function parseFontShorthand(font: string): {
-  style: "normal" | "italic" | "oblique";
-  weight: number;
-  family: string;
-} {
-  const fontMatch = font.match(/^(?:(italic|oblique)\s+)?(?:(\d+)\s+)?(\d+px)\s+(.+)$/);
-  if (fontMatch) {
-    return {
-      style: (fontMatch[1] as "italic" | "oblique" | undefined) ?? "normal",
-      weight: fontMatch[2] ? parseInt(fontMatch[2], 10) : 400,
-      family: fontMatch[4],
-    };
-  }
-
-  return { style: "normal", weight: 400, family: font };
 }
 
 export const TextFlowRegion = memo(function TextFlowRegion({

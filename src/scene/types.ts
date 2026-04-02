@@ -23,13 +23,8 @@ export interface ScenePoint {
   y: number;
 }
 
-export interface SceneElement {
-  id: string;
-  type: SceneElementType;
-  rect: SceneRect;
-  throwable: boolean;
-  pinned: boolean;
-
+/** Typography properties for text-bearing elements. */
+export interface TextStyle {
   text?: string;
   fontSize?: number;
   fontWeight?: number;
@@ -37,30 +32,32 @@ export interface SceneElement {
   fontFamily?: string;
   lineHeight?: number;
   color?: string;
+  textAlign?: string;
+  letterSpacing?: string;
+  allowWordBreaks?: boolean;
+  minSegmentWidth?: number;
+  /** ID of another paragraph element whose text this one continues from */
+  textContinuationId?: string;
+}
+
+/** Visual/box-model properties that control appearance. */
+export interface VisualStyle {
   backgroundColor?: string;
   borderRadius?: number;
   padding?: number;
   paddingVertical?: number;
   border?: string;
-  imageSrc?: string;
-  imageAlt?: string;
   opacity?: number;
   boxShadow?: string;
   /** e.g. blur(12px) for frosted cards over gradients */
   backdropFilter?: string;
-  children?: SceneElement[];
-  textAlign?: string;
-  letterSpacing?: string;
-  href?: string;
   zIndex?: number;
-  gap?: number;
-  allowWordBreaks?: boolean;
-  minSegmentWidth?: number;
-  /** ID of another paragraph element whose text this one continues from */
-  textContinuationId?: string;
+}
+
+/** Matter.js physics simulation properties. */
+export interface PhysicsProperties {
   physicsEnabled?: boolean;
   affectsTextFlow?: boolean;
-
   mass?: number;
   physicsShape?: "rectangle" | "circle" | "polygon";
   polygonPoints?: ScenePoint[];
@@ -70,6 +67,20 @@ export interface SceneElement {
   friction?: number;
   frictionAir?: number;
   restitution?: number;
+}
+
+export interface SceneElement extends TextStyle, VisualStyle, PhysicsProperties {
+  id: string;
+  type: SceneElementType;
+  rect: SceneRect;
+  throwable: boolean;
+  pinned: boolean;
+
+  imageSrc?: string;
+  imageAlt?: string;
+  children?: SceneElement[];
+  href?: string;
+  gap?: number;
 }
 
 export interface SceneDescription {
