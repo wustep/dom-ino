@@ -1,5 +1,5 @@
 import type { SceneDescription, SceneElement, SceneElementType } from "./types";
-import { getSiteCSS, getSiteRemoveSelectors } from "./siteStyles";
+import { getSiteCSS, getSiteCssLinks, getSiteRemoveSelectors } from "./siteStyles";
 
 let snapshotCounter = 0;
 
@@ -27,12 +27,20 @@ export async function prepareHtmlForViewer(
   return sourceUrl ? prepareHtml(html, sourceUrl) : html;
 }
 
+// Classes that JS adds/removes at runtime to signal loading state.
+// We strip scripts, so these classes would stay forever — remove them.
+const REMOVE_CLASS_TOKENS = new Set([
+  "show-curtain", "opaque", "loading", "reading", "writing",
+  "saving", "searching", "pacify",
+]);
+
 function replaceClassTokens(className: string): string {
   const tokens = className
     .split(/\s+/)
     .map((token) => {
       if (token === "client-nojs") return "client-js";
       if (token === "no-js" || token === "nojs") return "js";
+      if (REMOVE_CLASS_TOKENS.has(token)) return "";
       return token;
     })
     .filter(Boolean);
@@ -189,6 +197,45 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
   for (const r of cssResults) {
     if (!r) continue;
     modified = modified.replace(r.linkTag, `<style>${r.css}</style>`);
+  }
+
+  // 1b. Fetch site-specific CSS files (for sites that load CSS via JS)
+  const siteCssLinks = getSiteCssLinks(sourceUrl);
+  if (siteCssLinks.length > 0) {
+    const siteCssResults = await Promise.all(siteCssLinks.map(async (href) => {
+      const cssUrl = href.startsWith("http") || href.startsWith("//")
+        ? (href.startsWith("//") ? "https:" + href : href)
+        : origin + (href.startsWith("/") ? "" : "/") + href;
+      try {
+        const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (res.ok) {
+          let css = await res.text();
+          if (css.length > 10 && css.length < 1000000) {
+            let cssOrigin: string;
+            try { cssOrigin = new URL(cssUrl).origin; } catch { cssOrigin = origin; }
+            const cssBase = cssUrl.replace(/[^/]*$/, "");
+            css = css.replace(/url\(\s*['"]?(?!data:|https?:|\/\/)([^'")]+)['"]?\s*\)/gi,
+              (_, ref: string) => {
+                const abs = ref.startsWith("/") ? cssOrigin + ref : cssBase + ref;
+                return `url("${abs}")`;
+              });
+            return css;
+          }
+        }
+      } catch { /* skip */ }
+      return null;
+    }));
+    const inlinedSiteCss = siteCssResults.filter(Boolean).join("\n");
+    if (inlinedSiteCss) {
+      // Inject before </head> or at start of document
+      if (/<\/head>/i.test(modified)) {
+        modified = modified.replace(/<\/head>/i, `<style data-domino-site-css>${inlinedSiteCss}</style></head>`);
+      } else {
+        modified = `<style data-domino-site-css>${inlinedSiteCss}</style>` + modified;
+      }
+    }
   }
 
   // 2. Rewrite <img src> to absolute (including protocol-relative //urls)

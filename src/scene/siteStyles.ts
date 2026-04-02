@@ -12,6 +12,8 @@ interface SiteRule {
   removeSelectors?: string[];
   /** CSS to inject into the page */
   css?: string;
+  /** CSS file paths to fetch and inline (for sites that load CSS via JS) */
+  cssLinks?: string[];
 }
 
 export const SITE_RULES: SiteRule[] = [
@@ -39,6 +41,14 @@ export const SITE_RULES: SiteRule[] = [
       .portal {
         display: none !important;
       }
+    `,
+  },
+  {
+    match: "craigslist.org",
+    cssLinks: ["/styles/cl.css", "/styles/homepage.css"],
+    removeSelectors: ["#no-js", "#curtain"],
+    css: `
+      .no-js header, .no-js form, .no-js .tsb { display: block !important; }
     `,
   },
   {
@@ -77,6 +87,22 @@ export function getSiteRemoveSelectors(url: string): string[] {
   return SITE_RULES
     .filter((r) => hostname.includes(r.match))
     .flatMap((r) => r.removeSelectors ?? []);
+}
+
+/**
+ * Returns CSS file paths to fetch and inline for the given URL.
+ * These are for sites that load CSS via JavaScript (e.g., craigslist).
+ */
+export function getSiteCssLinks(url: string): string[] {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return [];
+  }
+  return SITE_RULES
+    .filter((r) => hostname.includes(r.match))
+    .flatMap((r) => r.cssLinks ?? []);
 }
 
 /**
