@@ -30,6 +30,7 @@ interface UseSnapshotScannerResult {
   selectedIds: Set<string>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   iframeHeight: number;
+  iframeLoaded: boolean;
   nodesRef: React.RefObject<Map<string, HTMLElement>>;
   textNodesRef: React.RefObject<Map<string, HTMLElement>>;
   handleIframeLoad: () => void;
@@ -51,6 +52,7 @@ export function useSnapshotScanner({
   const nodesRef = useRef<Map<string, HTMLElement>>(new Map());
   const textNodesRef = useRef<Map<string, HTMLElement>>(new Map());
   const [iframeHeight, setIframeHeight] = useState(1600);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const [candidates, setCandidates] = useState<SnapshotCandidate[]>([]);
   const [textBlocks, setTextBlocks] = useState<SnapshotTextBlock[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -183,6 +185,7 @@ export function useSnapshotScanner({
 
   useEffect(() => {
     autoSelectedRef.current = false;
+    setIframeLoaded(false);
   }, [pageId]);
 
   useEffect(() => {
@@ -260,6 +263,7 @@ export function useSnapshotScanner({
     const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, 1200);
     setIframeHeight(h);
     scanCandidates();
+    setIframeLoaded(true);
 
     // Copy @font-face rules from iframe to the parent document so the
     // Pretext text overlay can render with the same custom fonts.
@@ -337,6 +341,7 @@ export function useSnapshotScanner({
     selectedIds,
     setSelectedIds,
     iframeHeight,
+    iframeLoaded,
     nodesRef,
     textNodesRef,
     handleIframeLoad,

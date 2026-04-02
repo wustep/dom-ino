@@ -103,6 +103,7 @@ export function SnapshotPageView({
     selectableCandidates,
     selectedIds,
     iframeHeight,
+    iframeLoaded,
     nodesRef,
     textNodesRef,
     handleIframeLoad,
@@ -319,21 +320,15 @@ export function SnapshotPageView({
   // recreating the engine when static obstacle lists change. Static obstacles
   // are still tracked for Pretext reflow but don't need physics bodies.
   const physicsElements = useMemo(
-    () => [...selectedElements, ...droppedElements],
-    [selectedElements, droppedElements]
+    () => (iframeLoaded ? [...selectedElements, ...droppedElements] : []),
+    [iframeLoaded, selectedElements, droppedElements]
   );
-  const physicsSceneRef = useRef<{ id: string; width: number; height: number }>({
-    id: page.id,
-    width: stageRef.current?.clientWidth || window.innerWidth,
-    height: iframeHeight,
-  });
-  physicsSceneRef.current = { id: page.id, width: stageRef.current?.clientWidth || window.innerWidth, height: iframeHeight };
 
   const baseOverlayScene = useMemo(() => ({
     id: `snapshot-overlay-${page.id}`,
     name: page.name,
-    width: physicsSceneRef.current.width,
-    height: physicsSceneRef.current.height,
+    width: stageRef.current?.clientWidth || window.innerWidth,
+    height: 1600,
     backgroundColor: "transparent",
     elements: [] as SceneElement[],
   }), [page.id, page.name]);
@@ -351,6 +346,13 @@ export function SnapshotPageView({
 
   // Sync physics bodies incrementally so adding/removing elements doesn't
   // destroy the engine and reset existing body positions.
+  useEffect(() => {
+    const engine = physicsRef.current;
+    if (!engine) return;
+
+    engine.resize(stageRef.current?.clientWidth || window.innerWidth, iframeHeight);
+  }, [iframeHeight]);
+
   useEffect(() => {
     const engine = physicsRef.current;
     if (!engine) return;

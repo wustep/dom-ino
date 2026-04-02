@@ -181,6 +181,26 @@ describe("createPhysicsEngine", () => {
       expect(engine.engine.gravity.y).toBe(-2);
     });
 
+    it("resize restores bodies that were clamped by stale initial bounds", () => {
+      container.remove();
+      engine.destroy();
+
+      container = makeContainer();
+      const scene = makeScene([
+        makeElement({ id: "deep", rect: { x: 100, y: 900, width: 80, height: 40 } }),
+      ]);
+      engine = createPhysicsEngine(scene, container);
+
+      const deep = engine.bodies.get("deep")!;
+      Matter.Body.setPosition(deep.body, { x: 140, y: 580 });
+      Matter.Body.setVelocity(deep.body, { x: 0, y: 0 });
+
+      engine.resize(800, 1200);
+
+      expect(deep.body.position.x).toBeCloseTo(140, 3);
+      expect(deep.body.position.y).toBeCloseTo(920, 3);
+    });
+
     it("reset returns bodies to original positions", () => {
       // Move bodies away from original position
       const body1 = engine.bodies.get("el-1")!;

@@ -36,6 +36,7 @@ export interface PhysicsEngine {
   explode: () => void;
   setGravity: (x: number, y: number) => void;
   setRestitution: (value: number) => void;
+  resize: (width: number, height: number) => void;
   addBody: (el: SceneElement) => void;
   removeBody: (id: string) => void;
   getBodyPositions: () => Map<
@@ -69,18 +70,29 @@ export function createPhysicsEngine(
   const walls: Matter.Body[] = [];
 
   const wallThickness = 80;
-  const W = scene.width;
-  const H = scene.height;
+  let W = scene.width;
+  let H = scene.height;
 
   const wallProps = { isStatic: true, friction: 0.8, restitution: 0.15 };
 
-  const floor = Bodies.rectangle(W / 2, H + wallThickness / 2, W + 200, wallThickness, { ...wallProps, label: "wall-floor" });
-  const ceiling = Bodies.rectangle(W / 2, -wallThickness / 2, W + 200, wallThickness, { ...wallProps, label: "wall-ceiling" });
-  const leftWall = Bodies.rectangle(-wallThickness / 2, H / 2, wallThickness, H + 200, { ...wallProps, label: "wall-left" });
-  const rightWall = Bodies.rectangle(W + wallThickness / 2, H / 2, wallThickness, H + 200, { ...wallProps, label: "wall-right" });
+  function createWalls(width: number, height: number) {
+    return [
+      Bodies.rectangle(width / 2, height + wallThickness / 2, width + 200, wallThickness, { ...wallProps, label: "wall-floor" }),
+      Bodies.rectangle(width / 2, -wallThickness / 2, width + 200, wallThickness, { ...wallProps, label: "wall-ceiling" }),
+      Bodies.rectangle(-wallThickness / 2, height / 2, wallThickness, height + 200, { ...wallProps, label: "wall-left" }),
+      Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height + 200, { ...wallProps, label: "wall-right" }),
+    ];
+  }
 
-  walls.push(floor, ceiling, leftWall, rightWall);
-  World.add(engine.world, walls);
+  function replaceWalls(width: number, height: number) {
+    for (const wall of walls) {
+      World.remove(engine.world, wall);
+    }
+    walls.splice(0, walls.length, ...createWalls(width, height));
+    World.add(engine.world, walls);
+  }
+
+  replaceWalls(W, H);
 
   function createBody(el: SceneElement): PhysicsBody | null {
     if (el.physicsEnabled === false) return null;
@@ -170,6 +182,34 @@ export function createPhysicsEngine(
     addElementBody(el);
   }
 
+  function clampBodyToBounds(pb: PhysicsBody, width: number, height: number) {
+    const b = pb.body;
+    if (b.isStatic) return;
+
+    const pos = b.position;
+    const hw = pb.originalW / 2;
+    const hh = pb.originalH / 2;
+    const element = elementsById.get(pb.elementId);
+    let clamped = false;
+    let nx = pos.x;
+    let ny = pos.y;
+
+    if (nx - hw < 0) { nx = hw; clamped = true; }
+    if (nx + hw > width) { nx = width - hw; clamped = true; }
+    if (ny - hh < 0) { ny = hh; clamped = true; }
+    if (ny + hh > height) { ny = height - hh; clamped = true; }
+
+    if (clamped) {
+      Body.setPosition(b, { x: nx, y: ny });
+      Body.setVelocity(b, { x: b.velocity.x * 0.5, y: b.velocity.y * 0.5 });
+    }
+
+    if (element?.lockRotation) {
+      if (Math.abs(b.angle) > 0.0001) Body.setAngle(b, 0);
+      if (Math.abs(b.angularVelocity) > 0.0001) Body.setAngularVelocity(b, 0);
+    }
+  }
+
   const mouse = Mouse.create(container) as InternalMouse;
   mouse.pixelRatio = 1;
   const mouseWithWheel = mouse;
@@ -231,29 +271,7 @@ export function createPhysicsEngine(
 
   Events.on(engine, "afterUpdate", () => {
     for (const [, pb] of bodies) {
-      const b = pb.body;
-      if (b.isStatic) continue;
-      const pos = b.position;
-      const hw = pb.originalW / 2;
-      const hh = pb.originalH / 2;
-      const element = elementsById.get(pb.elementId);
-      let clamped = false;
-      let nx = pos.x, ny = pos.y;
-
-      if (nx - hw < 0) { nx = hw; clamped = true; }
-      if (nx + hw > W) { nx = W - hw; clamped = true; }
-      if (ny - hh < 0) { ny = hh; clamped = true; }
-      if (ny + hh > H) { ny = H - hh; clamped = true; }
-
-      if (clamped) {
-        Body.setPosition(b, { x: nx, y: ny });
-        Body.setVelocity(b, { x: b.velocity.x * 0.5, y: b.velocity.y * 0.5 });
-      }
-
-      if (element?.lockRotation) {
-        if (Math.abs(b.angle) > 0.0001) Body.setAngle(b, 0);
-        if (Math.abs(b.angularVelocity) > 0.0001) Body.setAngularVelocity(b, 0);
-      }
+      clampBodyToBounds(pb, W, H);
     }
   });
 
@@ -303,6 +321,46 @@ export function createPhysicsEngine(
       for (const [, pb] of bodies) {
         if (pb.body.isStatic) continue;
         pb.body.restitution = value;
+      }
+    },
+
+    resize(width: number, height: number) {
+      if (width <= 0 || height <= 0) return;
+
+      const prevW = W;
+      const prevH = H;
+      W = width;
+      H = height;
+      replaceWalls(W, H);
+
+      for (const [, pb] of bodies) {
+        if (pb.body.isStatic) continue;
+
+        const originalCenterX = pb.originalX + pb.originalW / 2;
+        const originalCenterY = pb.originalY + pb.originalH / 2;
+        const snappedToOldRight = Math.abs(pb.body.position.x - (prevW - pb.originalW / 2)) < 0.5;
+        const snappedToOldBottom = Math.abs(pb.body.position.y - (prevH - pb.originalH / 2)) < 0.5;
+        const originalWasOutsideOldBounds =
+          pb.originalX + pb.originalW > prevW || pb.originalY + pb.originalH > prevH;
+        const originalFitsNewBounds =
+          pb.originalX >= 0 &&
+          pb.originalY >= 0 &&
+          pb.originalX + pb.originalW <= W &&
+          pb.originalY + pb.originalH <= H;
+
+        if (
+          originalWasOutsideOldBounds &&
+          originalFitsNewBounds &&
+          (snappedToOldRight || snappedToOldBottom)
+        ) {
+          Body.setPosition(pb.body, { x: originalCenterX, y: originalCenterY });
+          Body.setVelocity(pb.body, { x: 0, y: 0 });
+          if (!elementsById.get(pb.elementId)?.lockRotation) {
+            Body.setAngularVelocity(pb.body, 0);
+          }
+        }
+
+        clampBodyToBounds(pb, W, H);
       }
     },
 
