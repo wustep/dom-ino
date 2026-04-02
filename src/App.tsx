@@ -114,8 +114,8 @@ function loadState(): Partial<PersistedState> {
 				customPages,
 			}
 		}
-	} catch {
-		/* ignore */
+	} catch (e) {
+		console.warn("[DOMino] Failed to load persisted state:", e)
 	}
 	return {}
 }
@@ -133,8 +133,8 @@ function saveState(s: PersistedState) {
 			}),
 		}
 		localStorage.setItem(LS_KEY, JSON.stringify(toSave))
-	} catch {
-		/* quota exceeded etc */
+	} catch (e) {
+		console.warn("[DOMino] Failed to save state:", e)
 	}
 }
 

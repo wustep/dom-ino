@@ -75,7 +75,7 @@ describe("Toolbar", () => {
 
     it("shows picker as active when pickerMode is true", () => {
       render(<Toolbar {...defaultProps({ pickerMode: true })} />);
-      expect(screen.getByLabelText("Exit component mode")).toBeInTheDocument();
+      expect(screen.getByLabelText("Exit component picker")).toBeInTheDocument();
     });
   });
 
@@ -112,10 +112,10 @@ describe("Toolbar", () => {
       );
     });
 
-    it("calls onTogglePicker when component mode clicked", async () => {
+    it("calls onTogglePicker when component picker clicked", async () => {
       const props = defaultProps();
       render(<Toolbar {...props} />);
-      await userEvent.click(screen.getByLabelText("Enter component mode"));
+      await userEvent.click(screen.getByLabelText("Enter component picker"));
       expect(props.onTogglePicker).toHaveBeenCalledOnce();
     });
   });
@@ -269,7 +269,7 @@ describe("Toolbar", () => {
       expect(screen.getByText("1")).toBeInTheDocument();
     });
 
-    it("calls onClearSaved when clear button clicked", async () => {
+    it("shows remove button for saved elements", async () => {
       const props = defaultProps({
         savedElements: [{
           element: {
@@ -283,8 +283,8 @@ describe("Toolbar", () => {
       });
       render(<Toolbar {...props} />);
       await userEvent.click(screen.getByLabelText("Saved components"));
-      await userEvent.click(screen.getByText("Clear"));
-      expect(props.onClearSaved).toHaveBeenCalledOnce();
+      expect(screen.getByText("Drop")).toBeInTheDocument();
+      expect(screen.getByText("×")).toBeInTheDocument();
     });
   });
 

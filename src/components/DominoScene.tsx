@@ -306,7 +306,10 @@ export function DominoScene({
         })}
 
         {pickerMode && (
-          <ThrowablePicker elements={effectiveElements} savedElements={savedElements}
+          <ThrowablePicker elements={effectiveElements.map((el) => {
+            const pos = bodyPositions.get(el.id);
+            return pos ? { ...el, rect: { ...el.rect, x: pos.x, y: pos.y } } : el;
+          })} savedElements={savedElements}
             onToggle={handleToggleThrowable} onSave={handleSaveElement} onUnsave={onUnsaveElement}
             onDelete={(id: string) => {
               if (!onSceneChange) return;
@@ -322,6 +325,7 @@ export function DominoScene({
           <QuickSavePicker
             candidates={saveCandidates}
             onSave={handleSaveElement}
+            onUnsave={onUnsaveElement}
             onClose={() => {
               setSavePickerMode(false);
               if (!settings.paused) physicsRef.current?.resume();
@@ -337,12 +341,9 @@ export function DominoScene({
         onTogglePicker={() => {
           setPickerMode((prev) => {
             if (!prev) {
-              // Entering picker: reset bodies to original positions and pause
               setSavePickerMode(false);
-              physicsRef.current?.reset();
               physicsRef.current?.pause();
             } else {
-              // Exiting picker: resume physics
               if (!settings.paused) physicsRef.current?.resume();
             }
             return !prev;

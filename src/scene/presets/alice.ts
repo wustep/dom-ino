@@ -1,3 +1,4 @@
+import { prepare, layout } from "@chenglou/pretext";
 import type { SceneDescription } from "../types";
 import { SERIF } from "./fonts";
 
@@ -253,7 +254,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   const titleY = narrow ? 40 : 48;
   const titleSize = narrow ? 48 : vw > 1400 ? 84 : 70;
   const titleLineHeight = narrow ? 52 : Math.round(titleSize * 0.96);
-  const titleH = narrow ? titleLineHeight * 2 + 8 : titleLineHeight + 10;
+  const titleFont = `700 ${titleSize}px ${SERIF}`;
+  const titleH = layout(prepare("Alice\u2019s Adventures in Wonderland", titleFont), contentW, titleLineHeight).height + 10;
   const deckY = titleY + titleH + 18;
   const bodyY = deckY + 56;
   const copySize = narrow ? 20 : 23;
@@ -276,7 +278,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   ];
 
   const SEPARATOR_AFTER = 16;
-  const paragraphGap = Math.round(copyLineHeight * 0.52);
+  const paragraphGap = copyLineHeight;
 
   const estimateH = (text: string): number => {
     const cpl = Math.floor(contentW / (copySize * 0.56));
@@ -285,7 +287,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
 
   let totalTextH = 0;
   for (let i = 0; i < paragraphs.length; i++) {
-    if (i === SEPARATOR_AFTER + 1) totalTextH += Math.round(paragraphGap * 2.5);
+    if (i === SEPARATOR_AFTER + 1) totalTextH += paragraphGap;
     totalTextH += estimateH(paragraphs[i]) + paragraphGap;
   }
   const footerY = bodyY + totalTextH;
@@ -332,7 +334,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   let textY = bodyY;
   for (let i = 0; i < paragraphs.length; i++) {
     if (i === SEPARATOR_AFTER + 1) {
-      textY += Math.round(paragraphGap * 2.5);
+      textY += paragraphGap;
     }
 
     const h = estimateH(paragraphs[i]);

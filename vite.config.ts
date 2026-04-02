@@ -15,6 +15,33 @@ function fetchProxyPlugin(): Plugin {
           return;
         }
 
+        // Validate URL: only allow http/https protocols
+        let parsedUrl: URL;
+        try {
+          parsedUrl = new URL(targetUrl);
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid URL' }));
+          return;
+        }
+
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Only http and https URLs are allowed' }));
+          return;
+        }
+
+        // Block requests to private/internal networks
+        const hostname = parsedUrl.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+          || hostname === '0.0.0.0' || hostname.endsWith('.local')
+          || hostname.startsWith('10.') || hostname.startsWith('192.168.')
+          || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Requests to private networks are not allowed' }));
+          return;
+        }
+
         try {
           const response = await fetch(targetUrl, {
             headers: {
@@ -32,9 +59,9 @@ function fetchProxyPlugin(): Plugin {
             'Access-Control-Allow-Origin': '*',
           });
           res.end(html);
-        } catch (e) {
+        } catch {
           res.writeHead(502, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: String(e) }));
+          res.end(JSON.stringify({ error: 'Failed to fetch the requested URL' }));
         }
       });
     },

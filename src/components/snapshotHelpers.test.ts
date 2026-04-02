@@ -4,6 +4,7 @@ import {
   getStableNodeId,
   textOf,
   inferSnapshotElementType,
+  elementToSceneElement,
   pickContentRoot,
   syncHiddenNodes,
   restoreHiddenNodes,
@@ -183,6 +184,217 @@ describe("inferSnapshotElementType", () => {
   it("returns container as fallback", () => {
     const el = makeElement("DIV");
     expect(inferSnapshotElementType(el, mockComputedStyle(), "", defaultRect)).toBe("container");
+  });
+});
+
+// ── elementToSceneElement ──
+
+describe("elementToSceneElement", () => {
+  const rootRect = { left: 0, top: 0, width: 800, height: 600 };
+
+  function makeDOMRect(x: number, y: number, w: number, h: number): DOMRect {
+    return new DOMRect(x, y, w, h);
+  }
+
+  it("returns null for elements smaller than 4px wide", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 3, 100);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "hello");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for elements smaller than 4px tall", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 100, 2);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "hello");
+    expect(result).toBeNull();
+  });
+
+  it("returns a SceneElement with correct type for heading", () => {
+    const el = makeElement("H2");
+    const rect = makeDOMRect(10, 20, 300, 40);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "Title");
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("heading");
+  });
+
+  it("returns a SceneElement with correct type for paragraph", () => {
+    const el = makeElement("P");
+    const rect = makeDOMRect(10, 20, 500, 80);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "Some text");
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("paragraph");
+  });
+
+  it("computes rect relative to rootRect", () => {
+    const el = makeElement("P");
+    const rect = makeDOMRect(50, 100, 200, 40);
+    const root = { left: 20, top: 30, width: 800, height: 600 };
+    const result = elementToSceneElement(el, root, mockComputedStyle(), rect, "text");
+    expect(result).not.toBeNull();
+    expect(result!.rect.x).toBe(30);  // 50 - 20
+    expect(result!.rect.y).toBe(70);  // 100 - 30
+    expect(result!.rect.width).toBe(200);
+    expect(result!.rect.height).toBe(40);
+  });
+
+  it("uses dataset.dominoId as the element id when present", () => {
+    const el = makeElement("P");
+    el.dataset.dominoId = "my-domino-id";
+    const rect = makeDOMRect(0, 0, 200, 40);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "text");
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe("my-domino-id");
+  });
+
+  it("generates a snapshot-prefixed id when no dominoId", () => {
+    const el = makeElement("P");
+    const rect = makeDOMRect(0, 0, 200, 40);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "text");
+    expect(result).not.toBeNull();
+    expect(result!.id).toMatch(/^snapshot-/);
+  });
+
+  it("sets throwable to true and pinned to false", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.throwable).toBe(true);
+    expect(result!.pinned).toBe(false);
+  });
+
+  it("parses font properties from computed style", () => {
+    const el = makeElement("P");
+    const rect = makeDOMRect(0, 0, 200, 40);
+    const cs = mockComputedStyle({
+      fontSize: "20px",
+      fontWeight: "700",
+      fontFamily: "Georgia, serif",
+      lineHeight: "30px",
+      color: "rgb(51, 51, 51)",
+    });
+    const result = elementToSceneElement(el, rootRect, cs, rect, "text");
+    expect(result).not.toBeNull();
+    expect(result!.fontSize).toBe(20);
+    expect(result!.fontWeight).toBe(700);
+    expect(result!.fontFamily).toBe("Georgia, serif");
+    expect(result!.lineHeight).toBe(30);
+    expect(result!.color).toBe("rgb(51, 51, 51)");
+  });
+
+  it("stores text as undefined when empty string is passed", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.text).toBeUndefined();
+  });
+
+  it("stores text when non-empty string is passed", () => {
+    const el = makeElement("P");
+    const rect = makeDOMRect(0, 0, 200, 40);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "Hello world");
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("Hello world");
+  });
+
+  it("includes backgroundColor when it is not transparent", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const cs = mockComputedStyle({ backgroundColor: "rgb(255, 0, 0)" });
+    const result = elementToSceneElement(el, rootRect, cs, rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.backgroundColor).toBe("rgb(255, 0, 0)");
+  });
+
+  it("excludes backgroundColor when transparent", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const cs = mockComputedStyle({ backgroundColor: "rgba(0, 0, 0, 0)" });
+    const result = elementToSceneElement(el, rootRect, cs, rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.backgroundColor).toBeUndefined();
+  });
+
+  it("includes border when borderWidth > 0", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const cs = mockComputedStyle({
+      borderWidth: "2",
+      border: "2px solid black",
+    });
+    const result = elementToSceneElement(el, rootRect, cs, rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.border).toBe("2px solid black");
+  });
+
+  it("excludes border when borderWidth is 0", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.border).toBeUndefined();
+  });
+
+  it("includes boxShadow when not none", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const cs = mockComputedStyle({
+      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+      backgroundColor: "rgb(255, 255, 255)",
+    });
+    const result = elementToSceneElement(el, rootRect, cs, rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.boxShadow).toBe("0 2px 4px rgba(0,0,0,0.1)");
+  });
+
+  it("excludes boxShadow when none", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 200, 100);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.boxShadow).toBeUndefined();
+  });
+
+  it("sets mass to 1", () => {
+    const el = makeElement("P");
+    const rect = makeDOMRect(0, 0, 200, 40);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "text");
+    expect(result).not.toBeNull();
+    expect(result!.mass).toBe(1);
+  });
+
+  it("extracts imageSrc from IMG element", () => {
+    const el = document.createElement("img") as HTMLImageElement;
+    el.setAttribute("src", "https://example.com/photo.jpg");
+    const rect = makeDOMRect(0, 0, 200, 150);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.imageSrc).toBe("https://example.com/photo.jpg");
+  });
+
+  it("extracts imageAlt from IMG element", () => {
+    const el = document.createElement("img") as HTMLImageElement;
+    el.setAttribute("src", "https://example.com/photo.jpg");
+    el.alt = "A nice photo";
+    const rect = makeDOMRect(0, 0, 200, 150);
+    const result = elementToSceneElement(el, rootRect, mockComputedStyle(), rect, "");
+    expect(result).not.toBeNull();
+    expect(result!.imageAlt).toBe("A nice photo");
+  });
+
+  it("defaults lineHeight from fontSize when lineHeight is not parseable", () => {
+    const el = makeElement("P");
+    const rect = makeDOMRect(0, 0, 200, 40);
+    const cs = mockComputedStyle({
+      fontSize: "18px",
+      lineHeight: "normal", // not directly parseable as a number
+    });
+    const result = elementToSceneElement(el, rootRect, cs, rect, "text");
+    expect(result).not.toBeNull();
+    // parseFloat("normal") is NaN, so fallback: fontSize * 1.5 = 27
+    expect(result!.lineHeight).toBe(27);
   });
 });
 

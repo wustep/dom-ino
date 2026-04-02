@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CustomPage, SnapshotCustomPage } from "../App";
 import type { SavedElement, SceneElement } from "../scene/types";
 import type { PresetKey } from "../scene/presets";
@@ -23,6 +23,7 @@ import {
   isStaticTextFlowObstacleCandidate,
   syncHiddenNodes,
   restoreHiddenNodes,
+  type SnapshotCandidate,
 } from "./snapshotHelpers";
 
 interface SnapshotPageViewProps {
@@ -96,289 +97,28 @@ export function SnapshotPageView({
     restitution: settings.restitution,
   });
 
-  const savedIds = useMemo(() => new Set(savedElements.map((s) => s.element.id)), [savedElements]);
-
-  const scanCandidates = useCallback(() => {
-    const iframe = iframeRef.current;
-    const stage = stageRef.current;
-    if (!iframe || !stage) return;
-    const doc = iframe.contentDocument;
-    const win = iframe.contentWindow;
-    if (!doc || !win || !doc.body) return;
-
-    const root = pickContentRoot(doc);
-    // Physics/text overlays are positioned relative to the iframe viewport,
-    // not the semantic content root. Using root-relative coordinates causes
-    // selected clones to appear shifted away from the original DOM node.
-    const viewportRect = new DOMRect(0, 0, 0, 0);
-    const nodes = new Map<string, HTMLElement>();
-    const textNodes = new Map<string, HTMLElement>();
-    const next: SnapshotCandidate[] = [];
-    const nextTextBlocks: SnapshotTextBlock[] = [];
-
-    let counter = 0;
-    const walk = (el: HTMLElement, depth: number, insideTextBlock: boolean) => {
-      if (depth > 40) return;
-      for (const child of Array.from(el.children)) {
-        if (child.nodeType !== Node.ELEMENT_NODE) continue;
-        const childEl = child as HTMLElement;
-        const tag = childEl.tagName;
-        if (["SCRIPT", "STYLE", "NOSCRIPT", "LINK", "META", "HEAD", "TEMPLATE"].includes(tag)) continue;
-        const role = childEl.getAttribute("role");
-        if (role === "navigation" || role === "banner" || role === "complementary") continue;
-        const cls = (childEl.className || "").toString().toLowerCase();
-        const id = (childEl.id || "").toLowerCase();
-        if (cls.includes("sidebar") || cls.includes("navigation") || cls.includes("interlanguage") || id.includes("sidebar")) continue;
-
-        let cs: CSSStyleDeclaration;
-        try { cs = win.getComputedStyle(childEl); } catch { continue; }
-        if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity || "1") === 0) continue;
-        if (cs.position === "fixed" || cs.position === "sticky") continue;
-
-        const rect = childEl.getBoundingClientRect();
-        if (rect.width < 12 || rect.height < 12) { walk(childEl, depth + 1, insideTextBlock); continue; }
-        if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) { walk(childEl, depth + 1, insideTextBlock); continue; }
-
-        const text = textOf(childEl);
-        const display = cs.display || "";
-        const inlineish = display === "inline" || display === "contents";
-        const bg = cs.backgroundColor;
-        const hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
-        const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
-        const hasShadow = cs.boxShadow && cs.boxShadow !== "none";
-        const semantic = /^(BUTTON|A|IMG|PICTURE|VIDEO|SVG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION|TABLE|FIGURE)$/.test(tag);
-        const mediaElement = /^(IMG|PICTURE|VIDEO|SVG|FIGURE)$/.test(tag);
-        const sizableBlock = rect.width >= 48 && rect.height >= 24;
-        // Skip inline non-media elements — but always keep images/videos as candidates
-        if (inlineish && !mediaElement && !hasBg && !hasBorder && !hasShadow) {
-          walk(childEl, depth + 1, insideTextBlock);
-          continue;
-        }
-        if (!semantic && !hasBg && !hasBorder && !hasShadow && text.length < 12 && !sizableBlock) {
-          walk(childEl, depth + 1, insideTextBlock);
-          continue;
-        }
-
-        const dominoId = getStableNodeId(root, childEl) || `snapshot-node-${counter++}`;
-        childEl.dataset.dominoId = dominoId;
-        const sceneElement = elementToSceneElement(childEl, viewportRect, cs, rect, text);
-        const textSceneElement = isTextSceneElement(sceneElement) ? sceneElement : null;
-        const hasMediaDescendants = hasSignificantMediaDescendants(childEl);
-        nodes.set(dominoId, childEl);
-        const isTextBlock =
-          textSceneElement !== null &&
-          isPretextBlockEligible(childEl, textSceneElement, page.sourceUrl) &&
-          text.length > 0 &&
-          (!hasMediaDescendants || tag === "FIGCAPTION");
-        if (isTextBlock && !insideTextBlock) {
-          textNodes.set(dominoId, childEl);
-          nextTextBlocks.push({ id: dominoId, sceneElement: textSceneElement, node: childEl });
-        }
-        const stageRect = toStageRect(rect);
-        next.push({
-          id: dominoId,
-          x: stageRect.x,
-          y: stageRect.y,
-          width: stageRect.width,
-          height: stageRect.height,
-          borderRadius: parseFloat(cs.borderRadius) || 0,
-          saved: savedIds.has(dominoId),
-          node: childEl,
-          sceneElement,
-          display,
-        });
-
-        walk(childEl, depth + 1, insideTextBlock || isTextBlock);
-      }
-    };
-
-    walk(root, 0, false);
-    nodesRef.current = nodes;
-    textNodesRef.current = textNodes;
-    setCandidates(next);
-    setTextBlocks(nextTextBlocks);
-
-    const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, iframe.clientHeight);
-    setIframeHeight(Math.max(800, bodyH));
-  }, [page.sourceUrl, savedIds]);
-
-  const scheduledScanRef = useRef<number | null>(null);
-  const scheduleScanCandidates = useCallback(() => {
-    if (scheduledScanRef.current !== null) return;
-    scheduledScanRef.current = requestAnimationFrame(() => {
-      scheduledScanRef.current = null;
-      scanCandidates();
-    });
-  }, [scanCandidates]);
-
-  const selectableCandidates = useMemo(
-    () => candidates.filter((c) =>
-      c.sceneElement &&
-      c.sceneElement.type !== "paragraph" &&
-      c.sceneElement.type !== "heading" &&
-      // Allow inline images/videos — they're valid throwable targets
-      (c.sceneElement.type === "image" || (c.display !== "inline" && c.display !== "contents")) &&
-      c.width >= 40 &&
-      c.height >= 20
-    ),
-    [candidates]
-  );
-
-  const autoSelectedRef = useRef(false);
-
-  // Reset auto-selection when the page changes
-  useEffect(() => {
-    autoSelectedRef.current = false;
-  }, [page.id]);
-
-  useEffect(() => {
-    scanCandidates();
-    const onResize = () => scheduleScanCandidates();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [scanCandidates, scheduleScanCandidates, page.preparedHtml]);
-
-  useEffect(() => {
-    return () => {
-      if (scheduledScanRef.current !== null) {
-        cancelAnimationFrame(scheduledScanRef.current);
-        scheduledScanRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (autoSelectedRef.current || selectableCandidates.length === 0) return;
-    autoSelectedRef.current = true;
-    const throwableTypes = new Set(["image", "badge", "button", "card", "link", "input"]);
-    const picked: SnapshotCandidate[] = [];
-    for (const c of selectableCandidates) {
-      if (!c.sceneElement) continue;
-      const t = c.sceneElement.type;
-      if (!throwableTypes.has(t)) continue;
-      // Skip inline non-image elements (e.g. inline links, badges)
-      if ((c.display === "inline" || c.display === "contents") && t !== "image") continue;
-      // Allow larger images/videos as throwables (hero media, video embeds)
-      const maxW = t === "image" ? 900 : 500;
-      const maxH = t === "image" ? 700 : 400;
-      if (c.width > maxW || c.height > maxH) continue;
-      if (c.width < 30 || c.height < 16) continue;
-      if (c.y < 40) continue;
-
-      const cls = (c.node.className || "").toString().toLowerCase();
-      const id = (c.node.id || "").toLowerCase();
-      const tag = c.node.tagName;
-      const isNoticeBox =
-        cls.includes("ambox") ||
-        cls.includes("tmbox") ||
-        cls.includes("ombox");
-      const isInfobox =
-        cls.includes("infobox") ||
-        cls.includes("sidebar") ||
-        cls.includes("navbox");
-      const isGallery = cls.includes("gallery") || cls.includes("thumb") || cls.includes("trow");
-      const isTable = tag === "TABLE" || tag === "TBODY" || tag === "THEAD";
-      const isMediaWrapper = t === "image" && (tag === "FIGURE" || isGallery);
-      const isFloatAnchor = (() => {
-        try {
-          const styles = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
-          return styles.float === "left" || styles.float === "right";
-        } catch {
-          return false;
-        }
-      })();
-      if (isInfobox || id.includes("infobox")) continue;
-      if ((isGallery || isTable) && !isMediaWrapper && !isNoticeBox) continue;
-      if (isFloatAnchor && t !== "image" && (c.width > 200 || c.height > 200)) continue;
-      if (t === "card" && !isNoticeBox && (c.width > 400 || c.height > 300)) continue;
-      if (isNoticeBox && (c.width > 980 || c.height > 320)) continue;
-      if (picked.some((p) => p.node.contains(c.node))) continue;
-      picked.push(c);
-      if (picked.length >= 200) break;
-    }
-    if (picked.length > 0) {
-      setSelectedIds(new Set(picked.map((candidate) => candidate.id)));
-    }
-  }, [selectableCandidates]);
-
-  const handleIframeLoad = useCallback(() => {
-    const iframe = iframeRef.current;
-    const doc = iframe?.contentDocument;
-    if (!doc?.body) return;
-    const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, 1200);
-    setIframeHeight(h);
-    scanCandidates();
-
-    // Copy @font-face rules from iframe to the parent document so the
-    // Pretext text overlay can render with the same custom fonts.
-    try {
-      const fontRules: string[] = [];
-      for (const sheet of Array.from(doc.styleSheets)) {
-        try {
-          for (const rule of Array.from(sheet.cssRules)) {
-            if (rule instanceof CSSFontFaceRule) {
-              fontRules.push(rule.cssText);
-            }
-          }
-        } catch { /* cross-origin sheet, skip */ }
-      }
-      if (fontRules.length > 0) {
-        const id = "domino-iframe-fonts";
-        let fontStyle = document.getElementById(id) as HTMLStyleElement | null;
-        if (!fontStyle) {
-          fontStyle = document.createElement("style");
-          fontStyle.id = id;
-          document.head.appendChild(fontStyle);
-        }
-        fontStyle.textContent = fontRules.join("\n");
-      }
-    } catch { /* ignore font extraction errors */ }
-
-    // Wait for images to finish loading, then re-measure height and re-scan.
-    // Images may still be downloading when the iframe fires onload.
-    const images = Array.from(doc.querySelectorAll("img")) as HTMLImageElement[];
-    const pending = images.filter((img) => img.src && !img.complete);
-    if (pending.length > 0) {
-      const settled = Promise.allSettled(
-        pending.map((img) => new Promise<void>((resolve) => {
-          if (img.complete) { resolve(); return; }
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-        }))
-      );
-      // Also add a hard timeout so we don't wait forever
-      const timeout = new Promise<void>((resolve) => setTimeout(resolve, 8000));
-      Promise.race([settled, timeout]).then(() => {
-        if (!iframeRef.current?.contentDocument?.body) return;
-        const newH = Math.max(
-          iframeRef.current.contentDocument.body.scrollHeight,
-          iframeRef.current.contentDocument.documentElement?.scrollHeight || 0,
-          1200
-        );
-        setIframeHeight(newH);
-        scheduleScanCandidates();
-      });
-    }
-  }, [scanCandidates, scheduleScanCandidates]);
-
-  const saveNode = useCallback((id: string) => {
-    const candidate = candidates.find((c) => c.id === id);
-    const sceneEl = candidate?.sceneElement;
-    if (sceneEl) onSaveElement(sceneEl);
-  }, [onSaveElement, candidates]);
-
-  const unsaveNode = useCallback((id: string) => {
-    onUnsaveElement(id);
-  }, [onUnsaveElement]);
-
-  const toggleSelected = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const {
+    candidates,
+    textBlocks,
+    selectableCandidates,
+    selectedIds,
+    iframeHeight,
+    nodesRef,
+    textNodesRef,
+    handleIframeLoad,
+    toggleSelected,
+    saveNode,
+    unsaveNode,
+  } = useSnapshotScanner({
+    iframeRef,
+    stageRef,
+    pageId: page.id,
+    sourceUrl: page.sourceUrl,
+    preparedHtml: page.preparedHtml,
+    savedElements,
+    onSaveElement,
+    onUnsaveElement,
+  });
 
   // Filter out selected elements whose DOM nodes are descendants of another
   // selected element — the parent clone already includes them visually.
@@ -589,25 +329,46 @@ export function SnapshotPageView({
   });
   physicsSceneRef.current = { id: page.id, width: stageRef.current?.clientWidth || window.innerWidth, height: iframeHeight };
 
-  const overlayScene = useMemo(() => ({
+  const baseOverlayScene = useMemo(() => ({
     id: `snapshot-overlay-${page.id}`,
     name: page.name,
     width: physicsSceneRef.current.width,
     height: physicsSceneRef.current.height,
     backgroundColor: "transparent",
-    elements: physicsElements,
-  }), [page.id, page.name, physicsElements]);
+    elements: [] as SceneElement[],
+  }), [page.id, page.name]);
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const engine = createPhysicsEngine(overlayScene, stage);
+    const engine = createPhysicsEngine(baseOverlayScene, stage);
     physicsRef.current = engine;
     return () => {
       engine.destroy();
       physicsRef.current = null;
     };
-  }, [overlayScene]);
+  }, [baseOverlayScene]);
+
+  // Sync physics bodies incrementally so adding/removing elements doesn't
+  // destroy the engine and reset existing body positions.
+  useEffect(() => {
+    const engine = physicsRef.current;
+    if (!engine) return;
+
+    const desiredIds = new Set(physicsElements.map((el) => el.id));
+
+    for (const id of engine.bodies.keys()) {
+      if (!desiredIds.has(id)) {
+        engine.removeBody(id);
+      }
+    }
+
+    for (const el of physicsElements) {
+      if (!engine.bodies.has(el.id)) {
+        engine.addBody(el);
+      }
+    }
+  }, [physicsElements]);
 
   useEffect(() => {
     const engine = physicsRef.current;
@@ -673,120 +434,17 @@ export function SnapshotPageView({
         />
 
         {pickerMode && (
-          <>
-            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.08)", pointerEvents: "none" }} />
-            {selectableCandidates.map((c) => {
-              const wide = c.width >= 80;
-              const selected = selectedIds.has(c.id);
-              return (
-                <div
-                  key={c.id}
-                  style={{
-                    position: "absolute",
-                    left: c.x - 2,
-                    top: c.y - 2,
-                    width: c.width + 4,
-                    height: c.height + 4,
-                    borderRadius: (c.borderRadius ?? 0) + 2,
-                    border: selected ? "2px solid rgba(59,130,246,0.8)" : "2px dashed rgba(59,130,246,0.45)",
-                    background: selected ? "rgba(59,130,246,0.08)" : "rgba(59,130,246,0.04)",
-                    boxSizing: "border-box",
-                    pointerEvents: "auto",
-                    zIndex: 100,
-                    cursor: "pointer",
-                  }}
-                  onClick={() => toggleSelected(c.id)}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelected(c.id);
-                    }}
-                    style={{
-                      position: "absolute",
-                      top: -8,
-                      right: -8,
-                      height: 18,
-                      minWidth: 18,
-                      borderRadius: 9,
-                      padding: wide ? "0 7px" : "0 4px",
-                      border: "2px solid #fff",
-                      background: selected ? "#3b82f6" : "#aaa",
-                      color: "#fff",
-                      fontFamily: '"DM Sans", sans-serif',
-                      fontSize: 9,
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 3,
-                      cursor: "pointer",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                      pointerEvents: "auto",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {selected ? "✓" : ""}
-                    {wide && (selected ? " Physics" : "")}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (c.saved) {
-                        unsaveNode(c.id);
-                      } else {
-                        saveNode(c.id);
-                      }
-                    }}
-                    style={{
-                      position: "absolute",
-                      top: -8,
-                      left: -8,
-                      height: 18,
-                      minWidth: 18,
-                      borderRadius: 9,
-                      padding: wide ? "0 7px" : "0 4px",
-                      border: "2px solid #fff",
-                      background: c.saved ? "#16a34a" : "#7c3aed",
-                      color: "#fff",
-                      fontFamily: '"DM Sans", sans-serif',
-                      fontSize: 9,
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 3,
-                      cursor: "pointer",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                      pointerEvents: "auto",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {c.saved ? "✓" : ""}
-                    {wide && (c.saved ? " Saved" : " Save")}
-                  </button>
-                </div>
-              );
-            })}
-            <div
-              style={{
-                position: "fixed",
-                top: 12,
-                right: 12,
-                zIndex: 101,
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: "rgba(20,20,24,0.75)",
-                color: "#ddd",
-                fontFamily: '"DM Sans", sans-serif',
-                fontSize: 11,
-                fontWeight: 500,
-                pointerEvents: "none",
-              }}
-            >
-              {selectableCandidates.length} selectable · {selectedIds.size} selected
-            </div>
-          </>
+          <SnapshotPickerOverlay
+            selectableCandidates={selectableCandidates}
+            selectedIds={selectedIds}
+            onToggleSelected={toggleSelected}
+            onSaveNode={saveNode}
+            onUnsaveNode={unsaveNode}
+            onClose={() => {
+              setPickerMode(false);
+              if (!settings.paused) physicsRef.current?.resume();
+            }}
+          />
         )}
 
         {savePickerMode && (
@@ -804,6 +462,7 @@ export function SnapshotPageView({
                 saved: candidate.saved,
               }))}
             onSave={onSaveElement}
+            onUnsave={onUnsaveElement}
             onClose={() => {
               setSavePickerMode(false);
               if (!settings.paused) physicsRef.current?.resume();
@@ -882,7 +541,6 @@ export function SnapshotPageView({
           setPickerMode((prev) => {
             if (!prev) {
               setSavePickerMode(false);
-              physicsRef.current?.reset();
               physicsRef.current?.pause();
             } else if (!settings.paused) {
               physicsRef.current?.resume();

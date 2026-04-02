@@ -36,6 +36,8 @@ export interface PhysicsEngine {
   explode: () => void;
   setGravity: (x: number, y: number) => void;
   setRestitution: (value: number) => void;
+  addBody: (el: SceneElement) => void;
+  removeBody: (id: string) => void;
   getBodyPositions: () => Map<
     string,
     { x: number; y: number; angle: number; w: number; h: number }
@@ -302,6 +304,19 @@ export function createPhysicsEngine(
         if (pb.body.isStatic) continue;
         pb.body.restitution = value;
       }
+    },
+
+    addBody(el: SceneElement) {
+      if (bodies.has(el.id)) return;
+      addElementBody(el);
+    },
+
+    removeBody(id: string) {
+      const pb = bodies.get(id);
+      if (!pb) return;
+      World.remove(engine.world, pb.body);
+      bodies.delete(id);
+      elementsById.delete(id);
     },
 
     getBodyPositions() {

@@ -190,7 +190,7 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
           return { linkTag, css };
         }
       }
-    } catch { /* skip */ }
+    } catch (e) { console.warn("[DOMino] Failed to fetch stylesheet:", cssUrl, e); }
     return null;
   }));
 
@@ -224,7 +224,7 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
             return css;
           }
         }
-      } catch { /* skip */ }
+      } catch (e) { console.warn("[DOMino] Failed to fetch site CSS:", href, e); }
       return null;
     }));
     const inlinedSiteCss = siteCssResults.filter(Boolean).join("\n");
@@ -573,11 +573,11 @@ export async function fetchPageHtml(url: string): Promise<{ html: string; url: s
       const text = await res.text();
       if (text.length > 100 && !text.startsWith('{"error')) return { html: text, url: normalizedUrl };
     }
-  } catch { /* try direct */ }
+  } catch (e) { console.warn("[DOMino] Proxy fetch failed, trying direct:", e); }
   try {
     const res = await fetch(normalizedUrl, { signal: AbortSignal.timeout(8000) });
     if (res.ok) return { html: await res.text(), url: normalizedUrl };
-  } catch { /* fall through */ }
+  } catch (e) { console.warn("[DOMino] Direct fetch also failed:", e); }
   throw new Error(`Could not fetch ${normalizedUrl}. Try pasting HTML directly instead.`);
 }
 

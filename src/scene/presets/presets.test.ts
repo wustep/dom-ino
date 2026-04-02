@@ -1,4 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// Mock @chenglou/pretext — some presets (alice, engine) call prepare()/layout()
+// at scene creation time for dynamic text measurement, which requires canvas
+// (unavailable in jsdom).
+vi.mock("@chenglou/pretext", () => ({
+  prepare: vi.fn(() => ({ __mock: true })),
+  layout: vi.fn(() => ({ height: 80, lineCount: 3 })),
+  prepareWithSegments: vi.fn(() => ({ __mock: true })),
+  layoutNextLine: vi.fn(() => null),
+}));
+
 import { PRESET_LIST, DEFAULT_PRESET, isPresetKey, getPresetScene } from "../presets";
 import type { PresetKey } from "../presets";
 

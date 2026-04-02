@@ -1,9 +1,10 @@
+import { prepare, layout } from "@chenglou/pretext";
 import type { SceneDescription } from "../types";
 
 const PAL_SERIF = '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif';
 const UI_SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
 
-const COL1_TEXT = `The web renders text through a pipeline that was designed thirty years ago for static documents. A browser loads a font, shapes the text into glyphs, measures their combined width, determines where lines break, and positions each line vertically. Every step depends on the previous one. Every step requires the rendering engine to consult its internal layout tree \u2014 a structure so expensive to maintain that browsers guard access behind synchronous barriers that can freeze the main thread for tens of milliseconds at a time. For a paragraph in a blog post, this pipeline is invisible. The browser loads, lays out, and paints before the reader\u2019s eye has traveled from the address bar to the first word. But the web is no longer a collection of static documents. It is a platform for applications, and those applications need to know about text in ways the original pipeline never anticipated. A messaging application needs to know the exact height of every message bubble before rendering a virtualized list. A masonry layout needs the height of every card to position them without overlap. An editorial page needs text to flow around images, advertisements, and interactive elements. A responsive dashboard needs to resize and reflow text in real time as the user drags a panel divider. Every one of these operations requires text measurement. And every text measurement on the web today requires a synchronous layout reflow. The cost is devastating. Measuring the height of a single text block forces the browser to recalculate the position of every element on the page. When you measure five hundred text blocks in sequence, you trigger five hundred full layout passes. This pattern, known as layout thrashing, is the single largest source of jank on the modern web. Chrome DevTools will flag it with angry red bars.`;
+const COL1_TEXT = `he web renders text through a pipeline that was designed thirty years ago for static documents. A browser loads a font, shapes the text into glyphs, measures their combined width, determines where lines break, and positions each line vertically. Every step depends on the previous one. Every step requires the rendering engine to consult its internal layout tree \u2014 a structure so expensive to maintain that browsers guard access behind synchronous barriers that can freeze the main thread for tens of milliseconds at a time. For a paragraph in a blog post, this pipeline is invisible. The browser loads, lays out, and paints before the reader\u2019s eye has traveled from the address bar to the first word. But the web is no longer a collection of static documents. It is a platform for applications, and those applications need to know about text in ways the original pipeline never anticipated. A messaging application needs to know the exact height of every message bubble before rendering a virtualized list. A masonry layout needs the height of every card to position them without overlap. An editorial page needs text to flow around images, advertisements, and interactive elements. A responsive dashboard needs to resize and reflow text in real time as the user drags a panel divider. Every one of these operations requires text measurement. And every text measurement on the web today requires a synchronous layout reflow. The cost is devastating. Measuring the height of a single text block forces the browser to recalculate the position of every element on the page. When you measure five hundred text blocks in sequence, you trigger five hundred full layout passes. This pattern, known as layout thrashing, is the single largest source of jank on the modern web. Chrome DevTools will flag it with angry red bars.`;
 
 const COL2_TEXT = `Lighthouse will dock your performance score. But the developer has no alternative \u2014 CSS provides no API for computing text height without rendering it. The information is locked behind the DOM, and the DOM makes you pay for every answer. Developers have invented increasingly desperate workarounds. Estimated heights replace real measurements with guesses, causing content to visibly jump when the guess is wrong. ResizeObserver watches elements for size changes, but it fires asynchronously and always at least one frame too late. IntersectionObserver tracks visibility but says nothing about dimensions. Content-visibility allows the browser to skip rendering off-screen elements, but it breaks scroll position and accessibility. Each workaround addresses one symptom while introducing new problems. The CSS Shapes specification, finalized in 2014, was supposed to bring magazine-style text wrap to the web. It allows text to flow around a defined shape \u2014 a circle, an ellipse, a polygon, even an image alpha channel. On paper, it was the answer. In practice, it is remarkably limited. CSS Shapes only works with floated elements. Text can only wrap on one side of the shape. The shape must be defined statically in CSS \u2014 you cannot animate it or change it dynamically without triggering a full layout reflow. And because it operates within the browser\u2019s layout engine, you have no access to the resulting line geometry. You cannot determine where each line of text starts and ends, how many lines were generated, or what the total height of the shaped text block is. The editorial layouts we see in print magazines \u2014 text flowing around photographs, pull quotes interrupting the column, multiple columns with seamless text handoff \u2014 have remained out of reach for the web.`;
 
@@ -95,9 +96,9 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     },
   ];
 
-  const dropCapSize = narrow ? 62 : 72;
-  const dropCapW = narrow ? 36 : 42;
-  const dropCapH = narrow ? 70 : 80;
+  const dropCapSize = narrow ? 78 : 90;
+  const dropCapW = narrow ? 46 : 54;
+  const dropCapH = narrow ? 66 : 76;
   elements.push({
     id: "de-dropcap",
     type: "card",
@@ -118,6 +119,11 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     affectsTextFlow: true,
   });
 
+  const quoteFont = `italic 400 16px ${PAL_SERIF}`;
+  const quotePad = 10;
+  const quotePadV = 2;
+  const quoteLH = 23;
+
   const colGap = narrow ? 20 : 30;
   const colCount = narrow ? 1 : 3;
   const colW = colCount === 1 ? contentW : (contentW - colGap * (colCount - 1)) / colCount;
@@ -128,13 +134,14 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
 
   if (colCount === 1) {
     const q1W = Math.min(colW * 0.65, 320);
+    const q1H = layout(prepare(QUOTE_1, quoteFont), q1W - quotePad * 2, quoteLH).height + quotePadV * 2;
     const q1Y = bodyY + 480;
 
     elements.push(
       {
         id: "de-pq1",
         type: "card",
-        rect: { x: mx, y: q1Y, width: q1W, height: 130 },
+        rect: { x: mx, y: q1Y, width: q1W, height: q1H },
         throwable: false,
         pinned: true,
         text: QUOTE_1,
@@ -168,15 +175,17 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     );
   } else {
     const q1W = Math.round(colW * 0.62);
-    const q1Y = bodyY + 440;
+    const q1H = layout(prepare(QUOTE_1, quoteFont), q1W - quotePad * 2, quoteLH).height + quotePadV * 2;
+    const q1Y = bodyY + 434;
     const q2W = Math.round(colW * 0.58);
+    const q2H = layout(prepare(QUOTE_2, quoteFont), q2W - quotePad * 2, quoteLH).height + quotePadV * 2;
     const q2Y = bodyY + 280;
 
     elements.push(
       {
         id: "de-pq1",
         type: "card",
-        rect: { x: mx, y: q1Y, width: q1W, height: 140 },
+        rect: { x: mx, y: q1Y, width: q1W, height: q1H },
         throwable: false,
         pinned: true,
         text: QUOTE_1,
@@ -197,7 +206,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       {
         id: "de-pq2",
         type: "card",
-        rect: { x: col2X, y: q2Y, width: q2W, height: 148 },
+        rect: { x: col2X, y: q2Y, width: q2W, height: q2H },
         throwable: false,
         pinned: true,
         text: QUOTE_2,
