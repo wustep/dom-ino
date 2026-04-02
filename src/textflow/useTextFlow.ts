@@ -66,6 +66,30 @@ function getCachedPrepared(
   return prepared;
 }
 
+function cursorToTextOffset(
+  prepared: PreparedTextWithSegments,
+  cursor: LayoutCursor
+): number {
+  if (!Array.isArray(prepared.segments) || !Array.isArray(prepared.kinds)) {
+    return cursor.graphemeIndex;
+  }
+
+  let offset = 0;
+
+  for (let i = 0; i < cursor.segmentIndex; i++) {
+    const kind = prepared.kinds[i];
+    if (kind === "soft-hyphen" || kind === "hard-break") continue;
+    offset += prepared.segments[i]?.length ?? 0;
+  }
+
+  if (cursor.graphemeIndex > 0) {
+    const segment = prepared.segments[cursor.segmentIndex] ?? "";
+    offset += Array.from(segment).slice(0, cursor.graphemeIndex).join("").length;
+  }
+
+  return offset;
+}
+
 export function computeTextFlow(
   text: string,
   font: string,
@@ -140,7 +164,7 @@ export function computeTextFlow(
         y,
         width: line.width,
         maxWidth: segment.width,
-        charOffset: rowCursor.graphemeIndex,
+        charOffset: cursorToTextOffset(prepared, line.start),
       });
 
       rowCursor = line.end;

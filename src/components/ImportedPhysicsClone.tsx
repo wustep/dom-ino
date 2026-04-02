@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
 import { toAbsoluteUrl, toAbsoluteSrcset } from "../utils/url";
+import {
+  revealHiddenAncestors,
+  restoreRevealedAncestors,
+} from "./snapshotHelpers";
 
 interface ImportedPhysicsCloneProps {
   sourceNode: HTMLElement;
@@ -110,21 +114,6 @@ function cloneWithInlineStyles(
   return clone;
 }
 
-function revealHiddenNodes(sourceNode: HTMLElement): Array<{ node: HTMLElement; original: string }> {
-  const hiddenNodes: Array<{ node: HTMLElement; original: string }> = [];
-  let current: HTMLElement | null = sourceNode;
-
-  while (current) {
-    if (current.style.visibility === "hidden") {
-      hiddenNodes.push({ node: current, original: current.style.visibility });
-      current.style.visibility = "visible";
-    }
-    current = current.parentElement;
-  }
-
-  return hiddenNodes;
-}
-
 export function ImportedPhysicsClone({
   sourceNode,
   sourceWindow,
@@ -145,14 +134,12 @@ export function ImportedPhysicsClone({
 
     // Temporarily restore visibility on the source node (and ancestors)
     // so getComputedStyle returns the real visual styles, not 'hidden'.
-    const hiddenNodes = revealHiddenNodes(sourceNode);
+    const hiddenNodes = revealHiddenAncestors(sourceNode);
 
     const clone = cloneWithInlineStyles(sourceNode, sourceWindow, mount.ownerDocument);
 
     // Restore hidden state on originals
-    for (const { node, original } of hiddenNodes) {
-      node.style.visibility = original;
-    }
+    restoreRevealedAncestors(hiddenNodes);
 
     if (clone.nodeType === Node.ELEMENT_NODE) {
       const cloneEl = clone as HTMLElement;

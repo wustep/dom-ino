@@ -30,7 +30,7 @@ export function parseFontShorthand(font: string): {
   family: string;
 } {
   const fontMatch = font.match(
-    /^(?:(italic|oblique)\s+)?(?:(\d+)\s+)?(\d+px)\s+(.+)$/
+    /^(?:(italic|oblique)\s+)?(?:(\d+)\s+)?(\d*\.?\d+px)\s+(.+)$/
   );
   if (fontMatch) {
     return {

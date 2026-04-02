@@ -211,6 +211,23 @@ describe("computeTextFlow", () => {
     expect(result.endCursor).toEqual(cursor(0, 12));
   });
 
+  it("tracks charOffset across prepared segments", () => {
+    const segmentedPrepared = {
+      __mock: true,
+      segments: ["Hello", " ", "world"],
+      kinds: ["word", "space", "word"],
+    } as unknown as PreparedTextWithSegments;
+    mockPrepare.mockReturnValue(segmentedPrepared);
+    mockLayout
+      .mockReturnValueOnce(makeLine("world", 80, cursor(2, 0), 5))
+      .mockReturnValueOnce(null);
+
+    const result = computeTextFlow("Hello world unique", `${FONT} segmented`, 20, 0, 0, 400, 200, []);
+
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0].charOffset).toBe(6);
+  });
+
   // ── Caching ──
 
   it("caches prepared text by text+font key", () => {

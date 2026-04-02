@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CustomPage, SnapshotCustomPage } from "../App";
 import type { SavedElement, SceneElement } from "../scene/types";
 import type { PresetKey } from "../scene/presets";
@@ -24,6 +24,8 @@ import {
   syncHiddenNodes,
   restoreHiddenNodes,
   extractInlineStyles,
+  revealHiddenAncestors,
+  restoreRevealedAncestors,
   type SnapshotCandidate,
   type InlineStyleRun,
 } from "./snapshotHelpers";
@@ -258,7 +260,7 @@ export function SnapshotPageView({
       const el = block.sceneElement;
       const padding = el.padding ?? 0;
       const fs = el.fontSize ?? 16;
-      const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS);
+      const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS, el.fontStyle);
       const contentLeft = el.rect.x + padding;
       const contentRight = el.rect.x + el.rect.width - padding;
       const originalTextTop = el.rect.y + padding;
@@ -291,7 +293,9 @@ export function SnapshotPageView({
       const win = iframeRef.current?.contentWindow;
       let inlineStyles: InlineStyleRun[] | undefined;
       if (win) {
+        const revealedNodes = revealHiddenAncestors(block.node);
         try { inlineStyles = extractInlineStyles(block.node, win); } catch { /* */ }
+        finally { restoreRevealedAncestors(revealedNodes); }
         if (inlineStyles && inlineStyles.length === 0) inlineStyles = undefined;
       }
       const layout: ImportedTextLayout = {
@@ -487,25 +491,45 @@ export function SnapshotPageView({
           const el = layout.sceneElement;
           const fs = el.fontSize ?? 16;
           const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS);
+          const hasContainerVisuals = el.backgroundColor || el.border || el.boxShadow;
           return (
-            <TextFlowRegion
-              key={`imported-text-${layout.id}`}
-              text={el.text ?? ""}
-              font={font}
-              fontSize={fs}
-              lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
-              color={el.color ?? "#333"}
-              containerX={layout.containerX}
-            containerY={layout.containerY}
-            containerWidth={layout.containerWidth}
-            containerMaxHeight={layout.containerMaxHeight}
-            textAlign={el.textAlign}
-            obstacles={importedObstacles}
-            flow={layout.flow}
-            inlineStyles={layout.inlineStyles}
-            showDebug={settings.showLineBounds}
-            generation={bodyPositions.size + selectedIds.size + droppedElements.length}
-          />
+            <React.Fragment key={`imported-text-${layout.id}`}>
+              {hasContainerVisuals && (
+                <div style={{
+                  position: "absolute",
+                  left: el.rect.x,
+                  top: el.rect.y,
+                  width: el.rect.width,
+                  height: el.rect.height,
+                  backgroundColor: el.backgroundColor,
+                  border: el.border,
+                  borderRadius: el.borderRadius ? `${el.borderRadius}px` : undefined,
+                  boxShadow: el.boxShadow,
+                  boxSizing: "border-box",
+                  pointerEvents: "none",
+                  zIndex: 10,
+                }} />
+              )}
+              <TextFlowRegion
+                text={el.text ?? ""}
+                font={font}
+                fontSize={fs}
+                lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
+                color={el.color ?? "#333"}
+                opacity={el.opacity}
+                letterSpacing={el.letterSpacing}
+                containerX={layout.containerX}
+                containerY={layout.containerY}
+                containerWidth={layout.containerWidth}
+                containerMaxHeight={layout.containerMaxHeight}
+                textAlign={el.textAlign}
+                obstacles={importedObstacles}
+                flow={layout.flow}
+                inlineStyles={layout.inlineStyles}
+                showDebug={settings.showLineBounds}
+                generation={bodyPositions.size + selectedIds.size + droppedElements.length}
+              />
+            </React.Fragment>
           );
         })}
 

@@ -22,6 +22,11 @@ export type SnapshotTextBlock = {
   node: HTMLElement;
 };
 
+export type RevealedVisibilityNode = {
+  node: HTMLElement;
+  original: string;
+};
+
 // ── Constants ──
 
 export const INLINE_TAGS = new Set([
@@ -173,6 +178,31 @@ export function extractInlineStyles(
   return runs;
 }
 
+export function revealHiddenAncestors(
+  sourceNode: HTMLElement
+): RevealedVisibilityNode[] {
+  const hiddenNodes: RevealedVisibilityNode[] = [];
+  let current: HTMLElement | null = sourceNode;
+
+  while (current) {
+    if (current.style.visibility === "hidden") {
+      hiddenNodes.push({ node: current, original: current.style.visibility });
+      current.style.visibility = "visible";
+    }
+    current = current.parentElement;
+  }
+
+  return hiddenNodes;
+}
+
+export function restoreRevealedAncestors(
+  hiddenNodes: RevealedVisibilityNode[]
+) {
+  for (const { node, original } of hiddenNodes) {
+    node.style.visibility = original;
+  }
+}
+
 export function hasSignificantMediaDescendants(el: HTMLElement): boolean {
   const mediaNodes = Array.from(
     el.querySelectorAll("img, picture, video, svg, canvas")
@@ -265,9 +295,11 @@ export function elementToSceneElement(
     text: text || undefined,
     fontSize: parseFloat(cs.fontSize) || 16,
     fontWeight: parseInt(cs.fontWeight) || 400,
+    fontStyle: (cs.fontStyle as SceneElement["fontStyle"]) || "normal",
     fontFamily: cs.fontFamily || "\"DM Sans\", sans-serif",
     lineHeight: parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.5,
     color: cs.color || "#333",
+    letterSpacing: cs.letterSpacing && cs.letterSpacing !== "normal" ? cs.letterSpacing : undefined,
     textAlign: cs.textAlign && cs.textAlign !== "start" && cs.textAlign !== "left" ? cs.textAlign : undefined,
     backgroundColor: cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)" ? cs.backgroundColor : undefined,
     borderRadius: parseFloat(cs.borderRadius) || 0,

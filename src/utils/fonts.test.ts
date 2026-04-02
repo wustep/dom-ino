@@ -79,6 +79,14 @@ describe("parseFontShorthand", () => {
     });
   });
 
+  it("parses decimal pixel sizes", () => {
+    expect(parseFontShorthand("700 37.8px sans-serif")).toEqual({
+      style: "normal",
+      weight: 700,
+      family: "sans-serif",
+    });
+  });
+
   it("falls back to defaults for unparseable input", () => {
     expect(parseFontShorthand("Arial")).toEqual({
       style: "normal",

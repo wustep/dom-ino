@@ -1,11 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   isTextSceneElement,
   getStableNodeId,
   textOf,
+  extractInlineStyles,
   inferSnapshotElementType,
   elementToSceneElement,
   pickContentRoot,
+  revealHiddenAncestors,
+  restoreRevealedAncestors,
   syncHiddenNodes,
   restoreHiddenNodes,
   INLINE_TAGS,
@@ -73,6 +76,51 @@ describe("textOf", () => {
   it("returns empty string for empty elements", () => {
     const el = document.createElement("div");
     expect(textOf(el)).toBe("");
+  });
+});
+
+describe("extractInlineStyles", () => {
+  it("captures anchor color runs when the text block is temporarily revealed", () => {
+    const paragraph = document.createElement("p");
+    paragraph.innerHTML = 'Some <a href="/" style="color: rgb(51, 102, 204)">linked text</a> here';
+
+    const visibleRuns = extractInlineStyles(paragraph, window);
+    expect(visibleRuns.some((run) => run.color === "rgb(51, 102, 204)")).toBe(true);
+
+    const realGetComputedStyle = window.getComputedStyle.bind(window);
+    const getComputedStyleSpy = vi.spyOn(window, "getComputedStyle").mockImplementation((el) => {
+      const style = realGetComputedStyle(el);
+      const inheritedVisibility =
+        paragraph.style.visibility === "hidden" &&
+        el instanceof HTMLElement &&
+        el !== paragraph
+          ? "hidden"
+          : style.visibility;
+      return new Proxy(style, {
+        get(target, prop, receiver) {
+          if (prop === "visibility") return inheritedVisibility;
+          return Reflect.get(target, prop, receiver);
+        },
+      }) as CSSStyleDeclaration;
+    });
+
+    paragraph.style.visibility = "hidden";
+    try {
+      const hiddenRuns = extractInlineStyles(paragraph, window);
+      expect(hiddenRuns).toHaveLength(0);
+
+      const revealedNodes = revealHiddenAncestors(paragraph);
+      try {
+        const revealedRuns = extractInlineStyles(paragraph, window);
+        expect(revealedRuns.some((run) => run.color === "rgb(51, 102, 204)")).toBe(true);
+      } finally {
+        restoreRevealedAncestors(revealedNodes);
+      }
+
+      expect(paragraph.style.visibility).toBe("hidden");
+    } finally {
+      getComputedStyleSpy.mockRestore();
+    }
   });
 });
 

@@ -55,7 +55,7 @@ let _pendingPanel: FlyoutPanel = null;
 const COLLAPSED_REVEAL_PROXIMITY_PX = 128;
 
 const WEBSITE_PRESETS = [
-  { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/History_of_art" },
+  { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/Main_Page" },
   { label: "NYTimes", url: "https://www.nytimes.com" },
 ] as const;
 
