@@ -221,18 +221,10 @@ export function createPhysicsEngine(
   });
 
   World.add(engine.world, mouseConstraint);
-
-  // Sync mouse offset with container position — fires often to avoid drift
-  const syncMouseOffset = () => {
-    const rect = container.getBoundingClientRect();
-    Mouse.setOffset(mouse, { x: -rect.left, y: -rect.top });
-  };
-
-  ownerWindow.addEventListener("scroll", syncMouseOffset, { passive: true });
-  ownerWindow.addEventListener("resize", syncMouseOffset, { passive: true });
-  // Also sync before each mouse interaction
-  container.addEventListener("pointerdown", syncMouseOffset, { passive: true });
-  syncMouseOffset();
+  // Matter's DOM mouse position is already computed in element-local coordinates.
+  // Adding page-scroll-derived offsets here makes drag targeting drift the farther
+  // down the page the stage is rendered.
+  Mouse.setOffset(mouse, { x: 0, y: 0 });
 
   Events.on(engine, "afterUpdate", () => {
     for (const [, pb] of bodies) {
@@ -276,9 +268,6 @@ export function createPhysicsEngine(
       ownerWindow.removeEventListener("mouseup", forwardMouseUp);
       ownerWindow.removeEventListener("touchmove", forwardTouchMove);
       ownerWindow.removeEventListener("touchend", forwardTouchEnd);
-      ownerWindow.removeEventListener("scroll", syncMouseOffset);
-      ownerWindow.removeEventListener("resize", syncMouseOffset);
-      container.removeEventListener("pointerdown", syncMouseOffset);
     },
 
     reset() {

@@ -57,6 +57,17 @@ type ImportedTextLayout = {
   containerMaxHeight: number;
 };
 
+type ViewportRectLike = Pick<DOMRect, "left" | "top" | "width" | "height">;
+
+export function toStageRect(rect: ViewportRectLike) {
+  return {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
 function isTextSceneElement(
   sceneElement: SceneElement | null
 ): sceneElement is SceneElement & { type: "paragraph" | "heading" } {
@@ -349,7 +360,6 @@ export function SnapshotPageView({
     // not the semantic content root. Using root-relative coordinates causes
     // selected clones to appear shifted away from the original DOM node.
     const viewportRect = new DOMRect(0, 0, 0, 0);
-    const frameRect = iframe.getBoundingClientRect();
     const nodes = new Map<string, HTMLElement>();
     const textNodes = new Map<string, HTMLElement>();
     const next: SnapshotCandidate[] = [];
@@ -411,12 +421,13 @@ export function SnapshotPageView({
           textNodes.set(dominoId, childEl);
           nextTextBlocks.push({ id: dominoId, sceneElement, node: childEl });
         }
+        const stageRect = toStageRect(rect);
         next.push({
           id: dominoId,
-          x: rect.left - frameRect.left,
-          y: rect.top - frameRect.top,
-          width: rect.width,
-          height: rect.height,
+          x: stageRect.x,
+          y: stageRect.y,
+          width: stageRect.width,
+          height: stageRect.height,
           borderRadius: parseFloat(cs.borderRadius) || 0,
           saved: savedIds.has(dominoId),
           node: childEl,
@@ -434,7 +445,7 @@ export function SnapshotPageView({
     setCandidates(next);
     setTextBlocks(nextTextBlocks);
 
-    const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, frameRect.height);
+    const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, iframe.clientHeight);
     setIframeHeight(Math.max(800, bodyH));
   }, [savedIds]);
 
@@ -453,6 +464,11 @@ export function SnapshotPageView({
 
   const autoSelectedRef = useRef(false);
 
+  // Reset auto-selection when the page changes
+  useEffect(() => {
+    autoSelectedRef.current = false;
+  }, [page.id]);
+
   useEffect(() => {
     scanCandidates();
     const onResize = () => scanCandidates();
@@ -469,9 +485,8 @@ export function SnapshotPageView({
       if (!c.sceneElement) continue;
       const t = c.sceneElement.type;
       if (!throwableTypes.has(t)) continue;
-      // Keep startup selection conservative. Inline media is still available
-      // in picker mode, but auto-selecting it makes Wikipedia pages much noisier.
-      if (c.display === "inline" || c.display === "contents") continue;
+      // Skip inline non-image elements (e.g. inline links, badges)
+      if ((c.display === "inline" || c.display === "contents") && t !== "image") continue;
       // Allow larger images/videos as throwables (hero media, video embeds)
       const maxW = t === "image" ? 900 : 500;
       const maxH = t === "image" ? 700 : 400;
@@ -499,11 +514,11 @@ export function SnapshotPageView({
         }
       })();
       if (isInfobox || isGallery || isTable || id.includes("infobox")) continue;
-      if (isFloatAnchor && (c.width > 200 || c.height > 200)) continue;
+      if (isFloatAnchor && t !== "image" && (c.width > 200 || c.height > 200)) continue;
       if (t === "card" && (c.width > 400 || c.height > 300)) continue;
       if (picked.some((p) => p.node.contains(c.node))) continue;
       picked.push(c);
-      if (picked.length >= 30) break;
+      if (picked.length >= 200) break;
     }
     if (picked.length > 0) {
       setSelectedIds(new Set(picked.map((candidate) => candidate.id)));

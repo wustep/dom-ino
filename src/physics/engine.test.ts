@@ -29,8 +29,17 @@ function makeScene(elements: SceneElement[]): SceneDescription {
 
 function makeContainer(): HTMLDivElement {
   const div = document.createElement("div");
+  Object.defineProperty(div, "clientWidth", {
+    configurable: true,
+    value: 800,
+  });
+  Object.defineProperty(div, "clientHeight", {
+    configurable: true,
+    value: 600,
+  });
   // Set dimensions so Matter.js Mouse can work
   Object.defineProperty(div, "getBoundingClientRect", {
+    configurable: true,
     value: () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => {} }),
   });
   document.body.appendChild(div);
@@ -236,8 +245,50 @@ describe("createPhysicsEngine", () => {
         "touchmove",
         "touchstart",
         "touchend",
-        "pointerdown",
       ]));
+    });
+
+    it("does not add scroll depth to mouse coordinates", () => {
+      container.remove();
+      engine.destroy();
+
+      container = makeContainer();
+      Object.defineProperty(container, "getBoundingClientRect", {
+        value: () => ({
+          left: 0,
+          top: -900,
+          right: 800,
+          bottom: -300,
+          width: 800,
+          height: 600,
+          x: 0,
+          y: -900,
+          toJSON: () => {},
+        }),
+      });
+      Object.defineProperty(window, "pageYOffset", {
+        value: 1000,
+        configurable: true,
+      });
+      Object.defineProperty(window, "pageXOffset", {
+        value: 0,
+        configurable: true,
+      });
+
+      const scene = makeScene([
+        makeElement({ id: "deep", rect: { x: 100, y: 1400, width: 80, height: 40 } }),
+      ]);
+      engine = createPhysicsEngine(scene, container);
+
+      const mouse = engine.mouseConstraint!.mouse as Matter.Mouse & {
+        mousedown: (event: { pageX: number; pageY: number; button: number }) => void;
+      };
+
+      mouse.mousedown({ pageX: 140, pageY: 1500, button: 0 });
+
+      expect(mouse.offset).toEqual({ x: 0, y: 0 });
+      expect(mouse.position.x).toBe(140);
+      expect(mouse.position.y).toBe(1400);
     });
   });
 

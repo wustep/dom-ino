@@ -469,7 +469,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-pq",
 				type: "card",
-				rect: { x: mx + col3W + 48, y: 1284, width: 210, height: 128 },
+				rect: { x: mx + col3W + 48, y: 1284, width: 210, height: 105 },
 				throwable: true,
 				pinned: false,
 				text: '"The document was meant to be read, not touched."',
@@ -479,7 +479,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 				color: "#6d28d9",
 				backgroundColor: "rgba(255, 253, 248, 0.92)",
 				borderRadius: 12,
-				padding: 14,
+				padding: 10,
 				border: "1px solid rgba(201, 191, 175, 0.55)",
 				backdropFilter: "blur(8px)",
 				boxShadow: "0 8px 26px rgba(26,22,18,0.06)",
@@ -488,7 +488,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 					{
 						id: "e-pq-a",
 						type: "paragraph",
-						rect: { x: 0, y: 8, width: 0, height: 0 },
+						rect: { x: 0, y: 2, width: 0, height: 0 },
 						throwable: false,
 						pinned: true,
 						text: "Until JavaScript, CSS, and the DOM turned it into something alive.",
