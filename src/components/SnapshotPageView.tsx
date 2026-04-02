@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CustomPage, SnapshotCustomPage } from "../App";
 import type { SavedElement, SceneElement } from "../scene/types";
 import type { PresetKey } from "../scene/presets";
@@ -605,7 +605,7 @@ export function SnapshotPageView({
     [selectedCandidates]
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const desiredNodes =
       pickerMode
         ? []
@@ -651,7 +651,7 @@ export function SnapshotPageView({
     settings.pretextEnabled &&
     textBlocks.length > 0 &&
     (selectedElements.length > 0 || droppedElements.length > 0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const desiredNodes = importedTextFlowActive
       ? Array.from(textNodesRef.current.values())
       : [];
