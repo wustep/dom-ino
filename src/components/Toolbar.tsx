@@ -281,7 +281,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                 {fetchStatus === "error" && <div style={{ fontSize: 10, color: "#f87171" }}>{fetchError || "Could not fetch."}</div>}
                 <button onClick={handleFetchUrl} disabled={!urlInput.trim() || fetchStatus === "loading"}
                   style={{ ...primaryBtnStyle, opacity: urlInput.trim() ? 1 : 0.4, cursor: urlInput.trim() ? "pointer" : "not-allowed" }}>
-                  {fetchStatus === "loading" ? "Fetching..." : "Fetch & Import"}</button>
+                  {fetchStatus === "loading" ? "Fetching..." : "Import"}</button>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

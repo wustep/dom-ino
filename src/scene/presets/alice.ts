@@ -278,7 +278,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   ];
 
   const SEPARATOR_AFTER = 16;
-  const paragraphGap = copyLineHeight;
+  const paragraphGap = Math.round(copyLineHeight * 0.45);
 
   const estimateH = (text: string): number => {
     const cpl = Math.floor(contentW / (copySize * 0.56));

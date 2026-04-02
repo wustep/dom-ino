@@ -183,7 +183,7 @@ describe("Toolbar", () => {
       await userEvent.click(screen.getByLabelText("Pages"));
       const input = screen.getByPlaceholderText("example.com");
       await userEvent.type(input, "test.com");
-      await userEvent.click(screen.getByText("Fetch & Import"));
+      await userEvent.click(screen.getByText("Import"));
       expect(props.onFetchUrl).toHaveBeenCalledWith("test.com");
     });
 
@@ -195,7 +195,7 @@ describe("Toolbar", () => {
       await userEvent.click(screen.getByLabelText("Pages"));
       const input = screen.getByPlaceholderText("example.com");
       await userEvent.type(input, "bad.com");
-      await userEvent.click(screen.getByText("Fetch & Import"));
+      await userEvent.click(screen.getByText("Import"));
       expect(await screen.findByText("Network failed")).toBeInTheDocument();
     });
 

@@ -161,6 +161,7 @@ export default function App({
 		() => !localStorage.getItem("domino-hint-seen")
 	)
 	const [sceneKey, setSceneKey] = useState(0)
+	const [fetchingUrl, setFetchingUrl] = useState<string | null>(null)
 	const [savedElements, setSavedElements] = useState<SavedElement[]>(
 		persisted.savedElements ?? []
 	)
@@ -244,18 +245,26 @@ export default function App({
 
 	const handleFetchUrl = useCallback(
 		async (url: string) => {
-			const result = await fetchPageHtml(url)
-			let name = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
-			// For long URLs, use the last path segment for a shorter, distinguishable name
-			if (name.length > 25) {
-				const parts = name.split("/")
-				const last = parts[parts.length - 1]
-				if (last && parts.length > 1) {
-					name = decodeURIComponent(last).replace(/_/g, " ")
+			setFetchingUrl(url)
+			const start = Date.now()
+			try {
+				const result = await fetchPageHtml(url)
+				let name = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
+				// For long URLs, use the last path segment for a shorter, distinguishable name
+				if (name.length > 25) {
+					const parts = name.split("/")
+					const last = parts[parts.length - 1]
+					if (last && parts.length > 1) {
+						name = decodeURIComponent(last).replace(/_/g, " ")
+					}
 				}
+				if (name.length > 25) name = name.slice(0, 25) + "..."
+				const elapsed = Date.now() - start
+				if (elapsed < 500) await new Promise((r) => setTimeout(r, 500 - elapsed))
+				await handleImportHtml(result.html, name, result.url)
+			} finally {
+				setFetchingUrl(null)
 			}
-			if (name.length > 25) name = name.slice(0, 25) + "..."
-			await handleImportHtml(result.html, name, result.url)
 		},
 		[handleImportHtml]
 	)
@@ -284,9 +293,12 @@ export default function App({
 		queueMicrotask(() => {
 			setRefetchError(null)
 			void (async () => {
+				const start = Date.now()
 				try {
 					const result = await fetchPageHtml(activeCustomPage.sourceUrl!)
 					const preparedHtml = await prepareHtmlForViewer(result.html, result.url)
+					const elapsed = Date.now() - start
+					if (elapsed < 500) await new Promise((r) => setTimeout(r, 500 - elapsed))
 					setCustomPages((prev) =>
 						prev.map((p) =>
 							p.id === pageId && p.kind === "snapshot"
@@ -459,8 +471,35 @@ export default function App({
 					onResetAll={handleResetAll}
 				/>
 			) : null}
+			{fetchingUrl && <FetchOverlay url={fetchingUrl} />}
 			{showHint && <Hint />}
 		</>
+	)
+}
+
+function FetchOverlay({ url }: { url: string }) {
+	const displayUrl = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
+	return (
+		<div style={{
+			position: "fixed", inset: 0, zIndex: 9999,
+			display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+			backgroundColor: "#fff",
+			fontFamily: '"DM Sans", sans-serif',
+			animation: "reloadFadeIn 0.3s ease both",
+		}}>
+			<svg width="24" height="24" viewBox="0 0 24 24" style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}>
+				<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
+				<circle cx="12" cy="12" r="10" fill="none" stroke="#999" strokeWidth="2.5"
+					strokeDasharray="20 43" strokeLinecap="round" />
+			</svg>
+			<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>
+				Fetching {displayUrl.length > 40 ? displayUrl.slice(0, 40) + "..." : displayUrl}
+			</div>
+			<style>{`
+				@keyframes reloadSpin { to { transform: rotate(360deg); } }
+				@keyframes reloadFadeIn { from { opacity: 0; } to { opacity: 1; } }
+			`}</style>
+		</div>
 	)
 }
 
@@ -476,7 +515,7 @@ function PageReloadOverlay({ url, error, onRetry, onBack }: {
 	return (
 		<div style={{
 			display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-			height: "100vh", fontFamily: '"DM Sans", sans-serif',
+			height: "100vh", backgroundColor: "#fff", fontFamily: '"DM Sans", sans-serif',
 			animation: "reloadFadeIn 0.3s ease both",
 		}}>
 			{!error ? (
@@ -487,7 +526,7 @@ function PageReloadOverlay({ url, error, onRetry, onBack }: {
 							strokeDasharray="20 43" strokeLinecap="round" />
 					</svg>
 					<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>
-						Reloading {displayUrl}
+						Fetching {displayUrl}
 					</div>
 				</>
 			) : (

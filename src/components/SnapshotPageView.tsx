@@ -23,7 +23,9 @@ import {
   isStaticTextFlowObstacleCandidate,
   syncHiddenNodes,
   restoreHiddenNodes,
+  extractInlineStyles,
   type SnapshotCandidate,
+  type InlineStyleRun,
 } from "./snapshotHelpers";
 
 interface SnapshotPageViewProps {
@@ -51,6 +53,7 @@ type ImportedTextLayout = {
   containerWidth: number;
   containerMaxHeight: number;
   flow: TextFlowResult;
+  inlineStyles?: InlineStyleRun[];
 };
 
 export function SnapshotPageView({
@@ -285,6 +288,12 @@ export function SnapshotPageView({
       );
 
       const containerWidth = Math.max(0, el.rect.width - padding * 2);
+      const win = iframeRef.current?.contentWindow;
+      let inlineStyles: InlineStyleRun[] | undefined;
+      if (win) {
+        try { inlineStyles = extractInlineStyles(block.node, win); } catch { /* */ }
+        if (inlineStyles && inlineStyles.length === 0) inlineStyles = undefined;
+      }
       const layout: ImportedTextLayout = {
         id: block.id,
         sceneElement: el,
@@ -293,6 +302,7 @@ export function SnapshotPageView({
         containerWidth,
         containerMaxHeight: remainingHeight,
         flow,
+        inlineStyles,
       };
       layouts.push(layout);
       placed.push({
@@ -489,8 +499,10 @@ export function SnapshotPageView({
             containerY={layout.containerY}
             containerWidth={layout.containerWidth}
             containerMaxHeight={layout.containerMaxHeight}
+            textAlign={el.textAlign}
             obstacles={importedObstacles}
             flow={layout.flow}
+            inlineStyles={layout.inlineStyles}
             showDebug={settings.showLineBounds}
             generation={bodyPositions.size + selectedIds.size + droppedElements.length}
           />

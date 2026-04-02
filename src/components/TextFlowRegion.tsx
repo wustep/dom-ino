@@ -3,6 +3,7 @@ import type { LayoutCursor } from "@chenglou/pretext";
 import type { FlowLine, TextFlowResult } from "../textflow/useTextFlow";
 import { computeTextFlow } from "../textflow/useTextFlow";
 import type { ObstacleRect } from "../scene/types";
+import type { InlineStyleRun } from "./snapshotHelpers";
 import { parseFontShorthand } from "../utils/fonts";
 
 interface TextFlowRegionProps {
@@ -20,6 +21,7 @@ interface TextFlowRegionProps {
   containerMaxHeight: number;
   obstacles: ObstacleRect[];
   flow?: TextFlowResult;
+  inlineStyles?: InlineStyleRun[];
   showDebug?: boolean;
   generation: number;
   onLineCount?: (count: number) => void;
@@ -27,6 +29,62 @@ interface TextFlowRegionProps {
   allowWordBreaks?: boolean;
   startCursor?: LayoutCursor;
   onEndCursor?: (cursor: LayoutCursor) => void;
+}
+
+function renderStyledLine(
+  line: FlowLine,
+  inlineStyles?: InlineStyleRun[]
+): React.ReactNode {
+  if (!inlineStyles || inlineStyles.length === 0) return line.text;
+
+  const lineStart = line.charOffset;
+  const lineEnd = lineStart + line.text.length;
+
+  // Find runs that overlap this line
+  const overlapping = inlineStyles.filter(
+    (r) => r.start < lineEnd && r.end > lineStart
+  );
+  if (overlapping.length === 0) return line.text;
+
+  // Build segments: split the line text at run boundaries
+  const cuts = new Set<number>();
+  cuts.add(0);
+  cuts.add(line.text.length);
+  for (const run of overlapping) {
+    const s = Math.max(0, run.start - lineStart);
+    const e = Math.min(line.text.length, run.end - lineStart);
+    cuts.add(s);
+    cuts.add(e);
+  }
+  const sorted = Array.from(cuts).sort((a, b) => a - b);
+
+  const parts: React.ReactNode[] = [];
+  for (let j = 0; j < sorted.length - 1; j++) {
+    const s = sorted[j];
+    const e = sorted[j + 1];
+    const substr = line.text.slice(s, e);
+    if (!substr) continue;
+
+    const absStart = lineStart + s;
+    const absEnd = lineStart + e;
+    // Find the most specific (innermost/last) run covering this segment
+    const run = overlapping.findLast(
+      (r) => r.start <= absStart && r.end >= absEnd
+    );
+
+    if (!run) {
+      parts.push(substr);
+    } else {
+      const spanStyle: React.CSSProperties = {};
+      if (run.fontWeight) spanStyle.fontWeight = run.fontWeight;
+      if (run.fontStyle) spanStyle.fontStyle = run.fontStyle;
+      if (run.fontFamily) spanStyle.fontFamily = run.fontFamily;
+      if (run.color) spanStyle.color = run.color;
+      if (run.textDecoration) spanStyle.textDecoration = run.textDecoration;
+      parts.push(<span key={j} style={spanStyle}>{substr}</span>);
+    }
+  }
+  return parts;
 }
 
 export const TextFlowRegion = memo(function TextFlowRegion({
@@ -44,6 +102,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
   containerMaxHeight,
   obstacles,
   flow: providedFlow,
+  inlineStyles,
   showDebug,
   generation,
   onLineCount,
@@ -107,7 +166,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
             zIndex: 11,
           }}
         >
-          {line.text}
+          {renderStyledLine(line, inlineStyles)}
         </div>
       ))}
       {showDebug &&

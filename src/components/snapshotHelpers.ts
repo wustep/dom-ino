@@ -67,6 +67,112 @@ export function textOf(el: HTMLElement): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+// ── Inline style runs ──
+
+export type InlineStyleRun = {
+  start: number;
+  end: number;
+  fontWeight?: number;
+  fontStyle?: string;
+  fontFamily?: string;
+  color?: string;
+  textDecoration?: string;
+};
+
+/**
+ * Walk an element's DOM tree and extract styled runs that differ from the
+ * element's own computed style. Returns runs keyed by character offset in the
+ * normalized plain-text (same string that `textOf()` produces).
+ */
+export function extractInlineStyles(
+  el: HTMLElement,
+  win: Window
+): InlineStyleRun[] {
+  const baseCs = win.getComputedStyle(el);
+  const baseWeight = parseInt(baseCs.fontWeight) || 400;
+  const baseStyle = baseCs.fontStyle || "normal";
+  const baseFamily = baseCs.fontFamily || "";
+  const baseColor = baseCs.color || "";
+  const baseDecoration = baseCs.textDecorationLine || baseCs.textDecoration || "none";
+
+  const runs: InlineStyleRun[] = [];
+  let offset = 0;
+  // Track whether the previous character was whitespace, so we can collapse
+  // runs of whitespace the same way textOf()'s .replace(/\s+/g, " ") does.
+  let prevWasSpace = true; // true to trim leading whitespace
+
+  function walkNode(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const raw = node.textContent ?? "";
+      // Replicate the whitespace normalization of textOf():
+      // collapse runs of whitespace to single spaces, trim leading/trailing.
+      for (const ch of raw) {
+        if (/\s/.test(ch)) {
+          if (!prevWasSpace) {
+            offset++;
+            prevWasSpace = true;
+          }
+        } else {
+          offset++;
+          prevWasSpace = false;
+        }
+      }
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const childEl = node as HTMLElement;
+    if (childEl.tagName === "BR" || childEl.tagName === "WBR") return;
+
+    let cs: CSSStyleDeclaration;
+    try { cs = win.getComputedStyle(childEl); } catch { return; }
+
+    // Hidden elements: still advance offset (textOf includes their text
+    // via textContent) but don't emit style runs.
+    if (cs.display === "none" || cs.visibility === "hidden") {
+      for (const child of Array.from(childEl.childNodes)) {
+        walkNode(child);
+      }
+      return;
+    }
+
+    const weight = parseInt(cs.fontWeight) || 400;
+    const style = cs.fontStyle || "normal";
+    const family = cs.fontFamily || "";
+    const color = cs.color || "";
+    const decoration = cs.textDecorationLine || cs.textDecoration || "none";
+
+    const differs =
+      weight !== baseWeight ||
+      style !== baseStyle ||
+      family !== baseFamily ||
+      color !== baseColor ||
+      (decoration !== baseDecoration && decoration !== "none");
+
+    const startOffset = offset;
+    for (const child of Array.from(childEl.childNodes)) {
+      walkNode(child);
+    }
+    const endOffset = offset;
+
+    if (differs && endOffset > startOffset) {
+      const run: InlineStyleRun = { start: startOffset, end: endOffset };
+      if (weight !== baseWeight) run.fontWeight = weight;
+      if (style !== baseStyle) run.fontStyle = style;
+      if (family !== baseFamily) run.fontFamily = family;
+      if (color !== baseColor) run.color = color;
+      if (decoration !== baseDecoration && decoration !== "none") run.textDecoration = decoration;
+      runs.push(run);
+    }
+  }
+
+  for (const child of Array.from(el.childNodes)) {
+    walkNode(child);
+  }
+
+  // Trim trailing space offset (matches textOf's .trim())
+  return runs;
+}
+
 export function hasSignificantMediaDescendants(el: HTMLElement): boolean {
   const mediaNodes = Array.from(
     el.querySelectorAll("img, picture, video, svg, canvas")
@@ -162,6 +268,7 @@ export function elementToSceneElement(
     fontFamily: cs.fontFamily || "\"DM Sans\", sans-serif",
     lineHeight: parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.5,
     color: cs.color || "#333",
+    textAlign: cs.textAlign && cs.textAlign !== "start" && cs.textAlign !== "left" ? cs.textAlign : undefined,
     backgroundColor: cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)" ? cs.backgroundColor : undefined,
     borderRadius: parseFloat(cs.borderRadius) || 0,
     padding: parseFloat(cs.paddingLeft) || 0,

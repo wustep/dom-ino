@@ -12,6 +12,8 @@ export interface FlowLine {
   y: number;
   width: number;
   maxWidth: number;
+  /** Character offset of this line's text within the full source string. */
+  charOffset: number;
 }
 
 export interface TextFlowResult {
@@ -138,6 +140,7 @@ export function computeTextFlow(
         y,
         width: line.width,
         maxWidth: segment.width,
+        charOffset: rowCursor.graphemeIndex,
       });
 
       rowCursor = line.end;
