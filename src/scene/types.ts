@@ -48,6 +48,8 @@ export interface SceneElement {
   children?: SceneElement[];
   textAlign?: string;
   letterSpacing?: string;
+  href?: string;
+  zIndex?: number;
   gap?: number;
   allowWordBreaks?: boolean;
   minSegmentWidth?: number;
