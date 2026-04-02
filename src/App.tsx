@@ -142,27 +142,27 @@ export default function App({
 	initialFetchUrl = null,
 	initialPreset = null,
 }: AppProps) {
-	const persisted = useRef(loadState())
+	const persisted = useMemo(() => loadState(), [])
 
 	const [windowSize, setWindowSize] = useState({
 		width: window.innerWidth,
 		height: window.innerHeight,
 	})
 	const [currentPreset, setCurrentPreset] = useState<PresetKey | "custom">(
-		initialPreset ?? persisted.current.currentPreset ?? DEFAULT_PRESET
+		initialPreset ?? persisted.currentPreset ?? DEFAULT_PRESET
 	)
 	const [customPages, setCustomPages] = useState<CustomPage[]>(
-		persisted.current.customPages ?? []
+		persisted.customPages ?? []
 	)
 	const [activeCustomId, setActiveCustomId] = useState<string | null>(
-		persisted.current.activeCustomId ?? null
+		persisted.activeCustomId ?? null
 	)
 	const [showHint, setShowHint] = useState(
 		() => !localStorage.getItem("domino-hint-seen")
 	)
 	const [sceneKey, setSceneKey] = useState(0)
 	const [savedElements, setSavedElements] = useState<SavedElement[]>(
-		persisted.current.savedElements ?? []
+		persisted.savedElements ?? []
 	)
 
 	// Persist state on changes
@@ -239,7 +239,7 @@ export default function App({
 			setSceneKey((k) => k + 1)
 			setShowHint(false)
 		},
-		[windowSize.width]
+		[]
 	)
 
 	const handleFetchUrl = useCallback(
@@ -263,8 +263,10 @@ export default function App({
 	useEffect(() => {
 		if (!initialFetchUrl || consumedInitialFetchUrl === initialFetchUrl) return
 		consumedInitialFetchUrl = initialFetchUrl
-		void handleFetchUrl(initialFetchUrl).catch((error) => {
-			console.error("Failed to import bootstrap fetch URL.", error)
+		queueMicrotask(() => {
+			void handleFetchUrl(initialFetchUrl).catch((error) => {
+				console.error("Failed to import bootstrap fetch URL.", error)
+			})
 		})
 	}, [initialFetchUrl, handleFetchUrl])
 
@@ -278,24 +280,26 @@ export default function App({
 		if (!activeCustomPage.sourceUrl) return
 		if (refetchedRef.current.has(activeCustomPage.id)) return
 		refetchedRef.current.add(activeCustomPage.id)
-		setRefetchError(null)
 		const pageId = activeCustomPage.id
-		void (async () => {
-			try {
-				const result = await fetchPageHtml(activeCustomPage.sourceUrl!)
-				const preparedHtml = await prepareHtmlForViewer(result.html, result.url)
-				setCustomPages((prev) =>
-					prev.map((p) =>
-						p.id === pageId && p.kind === "snapshot"
-							? { ...p, preparedHtml }
-							: p
+		queueMicrotask(() => {
+			setRefetchError(null)
+			void (async () => {
+				try {
+					const result = await fetchPageHtml(activeCustomPage.sourceUrl!)
+					const preparedHtml = await prepareHtmlForViewer(result.html, result.url)
+					setCustomPages((prev) =>
+						prev.map((p) =>
+							p.id === pageId && p.kind === "snapshot"
+								? { ...p, preparedHtml }
+								: p
+						)
 					)
-				)
-				setSceneKey((k) => k + 1)
-			} catch {
-				setRefetchError("Could not reload this page.")
-			}
-		})()
+					setSceneKey((k) => k + 1)
+				} catch {
+					setRefetchError("Could not reload this page.")
+				}
+			})()
+		})
 	}, [activeCustomPage])
 
 	// Ensures modifying a preset creates exactly one scene-backed custom page fork

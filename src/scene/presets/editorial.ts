@@ -111,7 +111,7 @@ const EDITORIAL_PLATE = svgUri(`
 export function createEditorialScene(vw: number, vh: number): SceneDescription {
 	const w = Math.min(vw - 40, 940)
 	const mx = Math.max(20, (vw - w) / 2)
-	const H = Math.max(vh, 1760)
+	const H = Math.max(vh, 1740)
 	const col2W = (w - 28) / 2
 	const col3W = (w - 48) / 3
 
@@ -144,11 +144,12 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 				fontFamily: SERIF,
 				lineHeight: 48,
 				color: "#12100d",
+				textAlign: "center",
 			},
 			{
 				id: "e-vol",
 				type: "heading",
-				rect: { x: mx, y: 80, width: w / 2, height: 16 },
+				rect: { x: mx, y: 80, width: w, height: 16 },
 				throwable: false,
 				pinned: true,
 				text: "Vol. I  |  First edition  |  April 2026",
@@ -157,24 +158,12 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 				fontFamily: MONO,
 				lineHeight: 14,
 				color: "#7d7569",
-			},
-			{
-				id: "e-weather",
-				type: "heading",
-				rect: { x: mx + w - 238, y: 80, width: 138, height: 16 },
-				throwable: false,
-				pinned: true,
-				text: "W3C  ·  ECMA  ·  IETF",
-				fontSize: 10,
-				fontWeight: 500,
-				fontFamily: MONO,
-				lineHeight: 14,
-				color: "#7d7569",
+				textAlign: "center",
 			},
 			{
 				id: "e-price",
 				type: "badge",
-				rect: { x: mx + w - 72, y: 74, width: 72, height: 22 },
+				rect: { x: mx + w - 72, y: 112, width: 72, height: 22 },
 				throwable: true,
 				pinned: false,
 				text: "v1.0",
@@ -208,7 +197,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-sec-1",
 				type: "badge",
-				rect: { x: mx, y: 110, width: 82, height: 24 },
+				rect: { x: mx, y: 112, width: 82, height: 24 },
 				throwable: true,
 				pinned: false,
 				text: "HISTORY",
@@ -224,7 +213,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-sec-2",
 				type: "badge",
-				rect: { x: mx + 90, y: 110, width: 88, height: 24 },
+				rect: { x: mx + 90, y: 112, width: 88, height: 24 },
 				throwable: true,
 				pinned: false,
 				text: "SYSTEMS",
@@ -240,7 +229,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-sec-3",
 				type: "badge",
-				rect: { x: mx + 186, y: 110, width: 68, height: 24 },
+				rect: { x: mx + 186, y: 112, width: 68, height: 24 },
 				throwable: true,
 				pinned: false,
 				text: "CRAFT",
@@ -258,7 +247,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-hl",
 				type: "heading",
-				rect: { x: mx, y: 142, width: w, height: 42 },
+				rect: { x: mx, y: 146, width: w, height: 42 },
 				throwable: false,
 				pinned: true,
 				text: "How The Web Learned To Move",
@@ -297,7 +286,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r3",
 				type: "divider",
-				rect: { x: mx, y: 332, width: w, height: 1 },
+				rect: { x: mx, y: 330, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#D8CEC0",
@@ -307,7 +296,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-c1",
 				type: "paragraph",
-				rect: { x: mx, y: 354, width: col2W, height: 452 },
+				rect: { x: mx, y: 350, width: col2W, height: 452 },
 				throwable: false,
 				pinned: true,
 				text: LEAD_L,
@@ -320,7 +309,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-c2",
 				type: "paragraph",
-				rect: { x: mx + col2W + 28, y: 354, width: col2W, height: 452 },
+				rect: { x: mx + col2W + 28, y: 350, width: col2W, height: 452 },
 				throwable: false,
 				pinned: true,
 				text: LEAD_R,
@@ -333,7 +322,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-plate",
 				type: "image",
-				rect: { x: mx + col2W - 78, y: 452, width: 184, height: 208 },
+				rect: { x: mx + col2W - 78, y: 448, width: 184, height: 208 },
 				throwable: true,
 				pinned: false,
 				backgroundColor: "#ECE5D8",
@@ -346,7 +335,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-note",
 				type: "card",
-				rect: { x: mx + w - 148, y: 612, width: 148, height: 110 },
+				rect: { x: mx + w - 148, y: 608, width: 148, height: 110 },
 				throwable: true,
 				pinned: false,
 				text: "Technical note",
@@ -382,7 +371,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r4",
 				type: "divider",
-				rect: { x: mx, y: 836, width: w, height: 1 },
+				rect: { x: mx, y: 832, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#CDBFAF",
@@ -390,7 +379,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-mid-h",
 				type: "heading",
-				rect: { x: mx, y: 856, width: w, height: 28 },
+				rect: { x: mx, y: 846, width: w, height: 28 },
 				throwable: false,
 				pinned: true,
 				text: "The languages that shaped the page",
@@ -403,7 +392,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r5",
 				type: "divider",
-				rect: { x: mx, y: 892, width: w, height: 1 },
+				rect: { x: mx, y: 878, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#D8CEC0",
@@ -413,7 +402,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-t1",
 				type: "paragraph",
-				rect: { x: mx, y: 910, width: col3W, height: 362 },
+				rect: { x: mx, y: 892, width: col3W, height: 362 },
 				throwable: false,
 				pinned: true,
 				text: SEC2_1,
@@ -426,7 +415,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-t2",
 				type: "paragraph",
-				rect: { x: mx + col3W + 24, y: 910, width: col3W, height: 362 },
+				rect: { x: mx + col3W + 24, y: 892, width: col3W, height: 362 },
 				throwable: false,
 				pinned: true,
 				text: SEC2_2,
@@ -439,7 +428,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-t3",
 				type: "paragraph",
-				rect: { x: mx + (col3W + 24) * 2, y: 910, width: col3W, height: 362 },
+				rect: { x: mx + (col3W + 24) * 2, y: 892, width: col3W, height: 362 },
 				throwable: false,
 				pinned: true,
 				text: SEC2_3,
@@ -454,7 +443,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-seal",
 				type: "badge",
-				rect: { x: mx + 24, y: 1288, width: 54, height: 54 },
+				rect: { x: mx + 24, y: 1282, width: 54, height: 54 },
 				throwable: true,
 				pinned: false,
 				text: "DOM",
@@ -469,7 +458,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-pq",
 				type: "card",
-				rect: { x: mx + col3W + 48, y: 1284, width: 210, height: 105 },
+				rect: { x: mx + col3W + 48, y: 1278, width: 210, height: 105 },
 				throwable: true,
 				pinned: false,
 				text: '"The document was meant to be read, not touched."',
@@ -513,7 +502,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-disp-h",
 				type: "heading",
-				rect: { x: mx, y: 1420, width: w, height: 28 },
+				rect: { x: mx, y: 1414, width: w, height: 28 },
 				throwable: false,
 				pinned: true,
 				text: "The physics of reading",
@@ -526,7 +515,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r7",
 				type: "divider",
-				rect: { x: mx, y: 1456, width: w, height: 1 },
+				rect: { x: mx, y: 1446, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#D8CEC0",
@@ -534,7 +523,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-dispatch",
 				type: "paragraph",
-				rect: { x: mx, y: 1474, width: w, height: 210 },
+				rect: { x: mx, y: 1460, width: w, height: 210 },
 				throwable: false,
 				pinned: true,
 				text: DISPATCH,
@@ -547,7 +536,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-briefs",
 				type: "card",
-				rect: { x: mx + w - 196, y: 1508, width: 196, height: 180 },
+				rect: { x: mx + w - 196, y: 1494, width: 196, height: 180 },
 				throwable: true,
 				pinned: false,
 				text: "Also in this issue",
@@ -609,7 +598,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-r8",
 				type: "divider",
-				rect: { x: mx, y: 1714, width: w, height: 1 },
+				rect: { x: mx, y: 1696, width: w, height: 1 },
 				throwable: false,
 				pinned: true,
 				backgroundColor: "#CDBFAF",
@@ -617,7 +606,7 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 			{
 				id: "e-foot",
 				type: "heading",
-				rect: { x: mx, y: 1730, width: w, height: 14 },
+				rect: { x: mx, y: 1712, width: w, height: 14 },
 				throwable: false,
 				pinned: true,
 				text: "Typeset in code  |  Measured by Pretext  |  Moved by Matter.js  |  Built with React + TypeScript",

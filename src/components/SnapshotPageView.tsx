@@ -10,7 +10,8 @@ import { TextFlowRegion } from "./TextFlowRegion";
 import type { ObstacleRect } from "../scene/types";
 import { QuickSavePicker } from "./QuickSavePicker";
 import { ImportedPhysicsClone } from "./ImportedPhysicsClone";
-import { computeTextFlow } from "../textflow/useTextFlow";
+import { computeTextFlow, type TextFlowResult } from "../textflow/useTextFlow";
+import { hasMovedImportedElement, isImportedTextBlockEligible, toStageRect } from "./snapshotViewUtils";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -55,18 +56,10 @@ type ImportedTextLayout = {
   containerY: number;
   containerWidth: number;
   containerMaxHeight: number;
+  flow: TextFlowResult;
 };
 
-type ViewportRectLike = Pick<DOMRect, "left" | "top" | "width" | "height">;
-
-export function toStageRect(rect: ViewportRectLike) {
-  return {
-    x: rect.left,
-    y: rect.top,
-    width: rect.width,
-    height: rect.height,
-  };
-}
+type BodyPos = { x: number; y: number; angle: number; w: number; h: number };
 
 function isTextSceneElement(
   sceneElement: SceneElement | null
@@ -103,13 +96,39 @@ function textOf(el: HTMLElement): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+function bodyPositionsChanged(
+  prev: Map<string, BodyPos>,
+  next: Map<string, BodyPos>
+): boolean {
+  if (prev.size !== next.size) return true;
+  for (const [id, nextPos] of next) {
+    const prevPos = prev.get(id);
+    if (!prevPos) return true;
+    if (
+      Math.abs(prevPos.x - nextPos.x) > 0.05 ||
+      Math.abs(prevPos.y - nextPos.y) > 0.05 ||
+      Math.abs(prevPos.angle - nextPos.angle) > 0.0005 ||
+      prevPos.w !== nextPos.w ||
+      prevPos.h !== nextPos.h
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const INLINE_TAGS = new Set([
   "SPAN", "EM", "STRONG", "B", "I", "A", "SMALL", "SUB", "SUP",
   "MARK", "ABBR", "CODE", "TIME", "BR", "WBR", "S", "U", "Q",
   "CITE", "DFN", "KBD", "SAMP", "VAR", "DATA", "INS", "DEL",
 ]);
 
-function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): SceneElement["type"] {
+function inferSnapshotElementType(
+  el: HTMLElement,
+  cs: CSSStyleDeclaration,
+  text: string,
+  rect: DOMRect
+): SceneElement["type"] {
   const tag = el.tagName;
   if (/^H[1-6]$/.test(tag)) return "heading";
   if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION" || tag === "LI"
@@ -128,14 +147,12 @@ function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): Sce
     const img = el.querySelector("img, picture, video");
     if (img && img instanceof HTMLElement) {
       const imgRect = img.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
       // If the image fills most of the container, treat the container as an image
-      if (imgRect.width > elRect.width * 0.6 && imgRect.height > elRect.height * 0.4) return "image";
+      if (imgRect.width > rect.width * 0.6 && imgRect.height > rect.height * 0.4) return "image";
     }
   }
   // Generic elements (div, span, section, etc.) that are primarily text containers
   // — all children are inline elements and there is meaningful text content
-  const text = textOf(el);
   if (text.length > 20) {
     const children = Array.from(el.children);
     const allInline = children.length === 0 || children.every(
@@ -164,12 +181,15 @@ function getResolvedImageSrc(el: HTMLImageElement): string | undefined {
   }
 }
 
-function elementToSceneElement(el: HTMLElement, rootRect: DOMRect, win: Window): SceneElement | null {
-  const cs = win.getComputedStyle(el);
-  const rect = el.getBoundingClientRect();
+function elementToSceneElement(
+  el: HTMLElement,
+  rootRect: ViewportRectLike,
+  cs: CSSStyleDeclaration,
+  rect: DOMRect,
+  text: string
+): SceneElement | null {
   if (rect.width < 4 || rect.height < 4) return null;
-  const text = textOf(el);
-  const type = inferSnapshotElementType(el, cs);
+  const type = inferSnapshotElementType(el, cs, text, rect);
   return {
     id: el.dataset.dominoId || `snapshot-${Math.random().toString(36).slice(2, 8)}`,
     type,
@@ -332,7 +352,8 @@ export function SnapshotPageView({
   const [textBlocks, setTextBlocks] = useState<SnapshotTextBlock[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [droppedElements, setDroppedElements] = useState<SceneElement[]>([]);
-  const [bodyPositions, setBodyPositions] = useState<Map<string, { x: number; y: number; angle: number; w: number; h: number }>>(new Map());
+  const [bodyPositions, setBodyPositions] = useState<Map<string, BodyPos>>(new Map());
+  const prevBodyPositionsRef = useRef<Map<string, BodyPos>>(new Map());
   const [fps, setFps] = useState(60);
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true,
@@ -410,11 +431,11 @@ export function SnapshotPageView({
 
         const dominoId = getStableNodeId(root, childEl) || `snapshot-node-${counter++}`;
         childEl.dataset.dominoId = dominoId;
-        const sceneElement = elementToSceneElement(childEl, viewportRect, win);
+        const sceneElement = elementToSceneElement(childEl, viewportRect, cs, rect, text);
         const hasMediaDescendants = childEl.querySelector("img, picture, video, svg, canvas") !== null;
         nodes.set(dominoId, childEl);
         const isTextBlock =
-          isTextSceneElement(sceneElement) &&
+          isImportedTextBlockEligible(childEl, sceneElement, page.sourceUrl) &&
           text.length > 0 &&
           (!hasMediaDescendants || tag === "FIGCAPTION");
         if (isTextBlock && !insideTextBlock) {
@@ -447,7 +468,16 @@ export function SnapshotPageView({
 
     const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, iframe.clientHeight);
     setIframeHeight(Math.max(800, bodyH));
-  }, [savedIds]);
+  }, [page.sourceUrl, savedIds]);
+
+  const scheduledScanRef = useRef<number | null>(null);
+  const scheduleScanCandidates = useCallback(() => {
+    if (scheduledScanRef.current !== null) return;
+    scheduledScanRef.current = requestAnimationFrame(() => {
+      scheduledScanRef.current = null;
+      scanCandidates();
+    });
+  }, [scanCandidates]);
 
   const selectableCandidates = useMemo(
     () => candidates.filter((c) =>
@@ -471,10 +501,19 @@ export function SnapshotPageView({
 
   useEffect(() => {
     scanCandidates();
-    const onResize = () => scanCandidates();
+    const onResize = () => scheduleScanCandidates();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [scanCandidates, page.preparedHtml]);
+  }, [scanCandidates, scheduleScanCandidates, page.preparedHtml]);
+
+  useEffect(() => {
+    return () => {
+      if (scheduledScanRef.current !== null) {
+        cancelAnimationFrame(scheduledScanRef.current);
+        scheduledScanRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (autoSelectedRef.current || selectableCandidates.length === 0) return;
@@ -580,10 +619,10 @@ export function SnapshotPageView({
           1200
         );
         setIframeHeight(newH);
-        scanCandidates();
+        scheduleScanCandidates();
       });
     }
-  }, [scanCandidates]);
+  }, [scanCandidates, scheduleScanCandidates]);
 
   const saveNode = useCallback((id: string) => {
     const candidate = candidates.find((c) => c.id === id);
@@ -620,6 +659,11 @@ export function SnapshotPageView({
     [selectedCandidates]
   );
 
+  const selectableCandidateMap = useMemo(
+    () => new Map(selectableCandidates.map((candidate) => [candidate.id, candidate])),
+    [selectableCandidates]
+  );
+
   useLayoutEffect(() => {
     const desiredNodes =
       pickerMode
@@ -631,7 +675,8 @@ export function SnapshotPageView({
   }, [activeSelectedIds, candidates, pickerMode]);
 
   useEffect(() => {
-    return () => restoreHiddenNodes(hiddenSelectedNodesRef.current);
+    const hiddenSelectedNodes = hiddenSelectedNodesRef.current;
+    return () => restoreHiddenNodes(hiddenSelectedNodes);
   }, []);
 
   const selectedElements = useMemo(() => {
@@ -662,10 +707,15 @@ export function SnapshotPageView({
     return obstacleCandidates;
   }, [candidates, selectedCandidates]);
 
+  const hasMovedSelectedElements = useMemo(
+    () => selectedElements.some((el) => hasMovedImportedElement(el, bodyPositions.get(el.id))),
+    [bodyPositions, selectedElements]
+  );
+
   const importedTextFlowActive =
     settings.pretextEnabled &&
     textBlocks.length > 0 &&
-    (selectedElements.length > 0 || droppedElements.length > 0);
+    (hasMovedSelectedElements || droppedElements.length > 0);
   useLayoutEffect(() => {
     const desiredNodes = importedTextFlowActive
       ? Array.from(textNodesRef.current.values())
@@ -674,7 +724,8 @@ export function SnapshotPageView({
   }, [importedTextFlowActive, textBlocks]);
 
   useEffect(() => {
-    return () => restoreHiddenNodes(hiddenTextNodesRef.current);
+    const hiddenTextNodes = hiddenTextNodesRef.current;
+    return () => restoreHiddenNodes(hiddenTextNodes);
   }, []);
 
   const importedObstacles: ObstacleRect[] = useMemo(() => {
@@ -771,6 +822,7 @@ export function SnapshotPageView({
         containerY: shiftedTextTop,
         containerWidth,
         containerMaxHeight: remainingHeight,
+        flow,
       };
       layouts.push(layout);
       placed.push({
@@ -812,10 +864,6 @@ export function SnapshotPageView({
     if (!stage) return;
     const engine = createPhysicsEngine(overlayScene, stage);
     physicsRef.current = engine;
-    engine.setGravity(settings.gravityX, settings.gravityY);
-    if (pickerMode || savePickerMode || settings.paused || !settings.physicsEnabled) {
-      engine.pause();
-    }
     return () => {
       // Don't cancel the RAF loop here — it's managed by a separate effect
       // and checks physicsRef.current on each frame. Cancelling it here would
@@ -828,7 +876,6 @@ export function SnapshotPageView({
 
   useEffect(() => {
     let last = 0;
-    let prevSnapshot = "";
     const loop = () => {
       rafRef.current = requestAnimationFrame(loop);
       const engine = physicsRef.current;
@@ -837,11 +884,9 @@ export function SnapshotPageView({
       fpsFrames.current.push(now);
       while (fpsFrames.current.length > 0 && fpsFrames.current[0] < now - 1000) fpsFrames.current.shift();
       if (now - last > 250) { setFps(fpsFrames.current.length); last = now; }
-      const positions = engine.getBodyPositions();
-      let snapshot = "";
-      for (const [id, p] of positions) snapshot += `${id}:${p.x.toFixed(1)},${p.y.toFixed(1)},${p.angle.toFixed(3)};`;
-      if (snapshot !== prevSnapshot) {
-        prevSnapshot = snapshot;
+      const positions = engine.getBodyPositions() as Map<string, BodyPos>;
+      if (bodyPositionsChanged(prevBodyPositionsRef.current, positions)) {
+        prevBodyPositionsRef.current = positions;
         setBodyPositions(positions);
       }
     };
@@ -1068,13 +1113,14 @@ export function SnapshotPageView({
               lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
               color={el.color ?? "#333"}
               containerX={layout.containerX}
-              containerY={layout.containerY}
-              containerWidth={layout.containerWidth}
-              containerMaxHeight={layout.containerMaxHeight}
-              obstacles={importedObstacles}
-              showDebug={settings.showLineBounds}
-              generation={bodyPositions.size + selectedIds.size + droppedElements.length}
-            />
+            containerY={layout.containerY}
+            containerWidth={layout.containerWidth}
+            containerMaxHeight={layout.containerMaxHeight}
+            obstacles={importedObstacles}
+            flow={layout.flow}
+            showDebug={settings.showLineBounds}
+            generation={bodyPositions.size + selectedIds.size + droppedElements.length}
+          />
           );
         })}
 
@@ -1082,7 +1128,7 @@ export function SnapshotPageView({
             Hidden during picker mode so originals are visible for selection. */}
         {!pickerMode && selectedElements.map((el) => {
           const pos = bodyPositions.get(el.id);
-          const candidate = selectableCandidates.find((c) => c.id === el.id);
+          const candidate = selectableCandidateMap.get(el.id);
           if (!candidate) return null;
           return (
             <ImportedPhysicsClone

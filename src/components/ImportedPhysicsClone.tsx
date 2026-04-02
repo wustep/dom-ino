@@ -137,6 +137,21 @@ function cloneWithInlineStyles(
   return clone;
 }
 
+function revealHiddenNodes(sourceNode: HTMLElement): Array<{ node: HTMLElement; original: string }> {
+  const hiddenNodes: Array<{ node: HTMLElement; original: string }> = [];
+  let current: HTMLElement | null = sourceNode;
+
+  while (current) {
+    if (current.style.visibility === "hidden") {
+      hiddenNodes.push({ node: current, original: current.style.visibility });
+      current.style.visibility = "visible";
+    }
+    current = current.parentElement;
+  }
+
+  return hiddenNodes;
+}
+
 export function ImportedPhysicsClone({
   sourceNode,
   sourceWindow,
@@ -157,15 +172,7 @@ export function ImportedPhysicsClone({
 
     // Temporarily restore visibility on the source node (and ancestors)
     // so getComputedStyle returns the real visual styles, not 'hidden'.
-    const hiddenNodes: { node: HTMLElement; original: string }[] = [];
-    let walk: HTMLElement | null = sourceNode;
-    while (walk) {
-      if (walk.style.visibility === "hidden") {
-        hiddenNodes.push({ node: walk, original: walk.style.visibility });
-        walk.style.visibility = "visible";
-      }
-      walk = walk.parentElement;
-    }
+    const hiddenNodes = revealHiddenNodes(sourceNode);
 
     const clone = cloneWithInlineStyles(sourceNode, sourceWindow, mount.ownerDocument);
 

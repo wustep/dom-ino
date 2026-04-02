@@ -297,6 +297,10 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 function renderAndWalk(
   html: string, containerWidth: number, sceneName: string
 ): Promise<SceneDescription | null> {
+  const removeIframe = (iframe: HTMLIFrameElement) => {
+    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+  };
+
   return new Promise((resolve) => {
     const iframe = document.createElement("iframe");
     iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${containerWidth}px;height:6000px;border:none;visibility:hidden;pointer-events:none;`;
@@ -305,7 +309,7 @@ function renderAndWalk(
     iframe.srcdoc = html;
 
     const timeout = setTimeout(() => {
-      try { document.body.removeChild(iframe); } catch {}
+      removeIframe(iframe);
       resolve(null);
     }, 10000);
 
@@ -318,7 +322,7 @@ function renderAndWalk(
             const win = iframe.contentWindow;
             if (!doc?.body || !win) {
               clearTimeout(timeout);
-              try { document.body.removeChild(iframe); } catch {}
+              removeIframe(iframe);
               resolve(null);
               return;
             }
@@ -343,7 +347,7 @@ function renderAndWalk(
             } catch { /* */ }
 
             clearTimeout(timeout);
-            try { document.body.removeChild(iframe); } catch {}
+            removeIframe(iframe);
 
             resolve(elements.length >= 3 ? {
               id: `snapshot-${Date.now()}`, name: sceneName,
@@ -353,7 +357,7 @@ function renderAndWalk(
           } catch {
             if (retries > 0) { attempt(retries - 1); return; }
             clearTimeout(timeout);
-            try { document.body.removeChild(iframe); } catch {}
+            removeIframe(iframe);
             resolve(null);
           }
         }, 500);
@@ -364,7 +368,7 @@ function renderAndWalk(
 
     iframe.onerror = () => {
       clearTimeout(timeout);
-      try { document.body.removeChild(iframe); } catch {}
+      removeIframe(iframe);
       resolve(null);
     };
 

@@ -47,6 +47,27 @@ interface DominoSceneProps {
 
 type BodyPos = { x: number; y: number; angle: number; w: number; h: number };
 
+function bodyPositionsChanged(
+  prev: Map<string, BodyPos>,
+  next: Map<string, BodyPos>
+): boolean {
+  if (prev.size !== next.size) return true;
+  for (const [id, nextPos] of next) {
+    const prevPos = prev.get(id);
+    if (!prevPos) return true;
+    if (
+      Math.abs(prevPos.x - nextPos.x) > 0.05 ||
+      Math.abs(prevPos.y - nextPos.y) > 0.05 ||
+      Math.abs(prevPos.angle - nextPos.angle) > 0.0005 ||
+      prevPos.w !== nextPos.w ||
+      prevPos.h !== nextPos.h
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function computeTextMaxHeights(
   textElements: SceneElement[], allElements: SceneElement[], sceneHeight: number
 ): Map<string, number> {
@@ -74,6 +95,7 @@ export function DominoScene({
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const rafRef = useRef<number>(0);
   const fpsTimestamps = useRef<number[]>([]);
+  const prevBodyPositionsRef = useRef<Map<string, BodyPos>>(new Map());
 
   const [bodyPositions, setBodyPositions] = useState<Map<string, BodyPos>>(new Map());
   const [generation, setGeneration] = useState(0);
@@ -109,6 +131,7 @@ export function DominoScene({
     if (!container) return;
     const engine = createPhysicsEngine(scene, container);
     physicsRef.current = engine;
+    prevBodyPositionsRef.current = new Map();
     setBodyPositions(new Map());
     return () => {
       // Don't cancel RAF here — the loop effect only depends on physicsEnabled.
@@ -119,7 +142,7 @@ export function DominoScene({
   }, [scene]);
 
   useEffect(() => {
-    let lastFpsUpdate = 0, prevSnapshot = "";
+    let lastFpsUpdate = 0;
     const loop = () => {
       rafRef.current = requestAnimationFrame(loop);
       const engine = physicsRef.current;
@@ -128,10 +151,12 @@ export function DominoScene({
       fpsTimestamps.current.push(now);
       while (fpsTimestamps.current.length > 0 && fpsTimestamps.current[0] < now - 1000) fpsTimestamps.current.shift();
       if (now - lastFpsUpdate > 250) { setFps(fpsTimestamps.current.length); lastFpsUpdate = now; }
-      const positions = engine.getBodyPositions();
-      let snapshot = "";
-      for (const [id, p] of positions) snapshot += `${id}:${p.x.toFixed(1)},${p.y.toFixed(1)},${p.angle.toFixed(3)};`;
-      if (snapshot !== prevSnapshot) { prevSnapshot = snapshot; setBodyPositions(positions); setGeneration((g) => g + 1); }
+      const positions = engine.getBodyPositions() as Map<string, BodyPos>;
+      if (bodyPositionsChanged(prevBodyPositionsRef.current, positions)) {
+        prevBodyPositionsRef.current = positions;
+        setBodyPositions(positions);
+        setGeneration((g) => g + 1);
+      }
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);

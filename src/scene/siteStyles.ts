@@ -20,6 +20,10 @@ export const SITE_RULES: SiteRule[] = [
   {
     match: "wikipedia.org",
     removeSelectors: [
+      ".vector-column-start",
+      ".vector-column-end",
+      ".vector-sticky-pinned-container",
+      ".vector-sitenotice-container",
       ".navbox",
       ".vertical-navbox",
       "#catlinks",
@@ -38,8 +42,41 @@ export const SITE_RULES: SiteRule[] = [
       .shortdescription,
       .mw-indicators,
       .sistersitebox,
-      .portal {
+      .portal,
+      #siteNotice,
+      #vector-page-titlebar-toc,
+      #p-lang-btn,
+      .mw-aria-live-region {
         display: none !important;
+      }
+
+      .mw-page-container {
+        padding-top: 0 !important;
+      }
+
+      .mw-page-container-inner {
+        display: block !important;
+      }
+
+      .mw-content-container {
+        margin: 0 auto !important;
+        max-width: 980px !important;
+        padding: 0 24px 40px !important;
+      }
+
+      .vector-header-container,
+      .vector-page-toolbar {
+        margin: 0 auto !important;
+        max-width: 1120px !important;
+      }
+
+      .mw-body,
+      .vector-body {
+        margin: 0 !important;
+      }
+
+      .mw-body-header {
+        padding-top: 24px !important;
       }
     `,
   },

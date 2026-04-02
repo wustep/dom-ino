@@ -1,6 +1,6 @@
 import { memo, useMemo, useEffect } from "react";
 import type { LayoutCursor } from "@chenglou/pretext";
-import type { FlowLine } from "../textflow/useTextFlow";
+import type { FlowLine, TextFlowResult } from "../textflow/useTextFlow";
 import { computeTextFlow } from "../textflow/useTextFlow";
 import type { ObstacleRect } from "../scene/types";
 
@@ -18,6 +18,7 @@ interface TextFlowRegionProps {
   containerWidth: number;
   containerMaxHeight: number;
   obstacles: ObstacleRect[];
+  flow?: TextFlowResult;
   showDebug?: boolean;
   generation: number;
   onLineCount?: (count: number) => void;
@@ -63,6 +64,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
   containerWidth,
   containerMaxHeight,
   obstacles,
+  flow: providedFlow,
   showDebug,
   generation,
   onLineCount,
@@ -72,6 +74,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
   onEndCursor,
 }: TextFlowRegionProps) {
   const flow = useMemo(() => {
+    if (providedFlow) return providedFlow;
     return computeTextFlow(
       text,
       font,
@@ -87,7 +90,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
       startCursor
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, font, lineHeight, containerX, containerY, containerWidth, containerMaxHeight, obstacles, generation, minSegmentWidth, allowWordBreaks, startCursor]);
+  }, [providedFlow, text, font, lineHeight, containerX, containerY, containerWidth, containerMaxHeight, obstacles, generation, minSegmentWidth, allowWordBreaks, startCursor]);
 
   useEffect(() => {
     onLineCount?.(flow.lines.length);
@@ -108,6 +111,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
             position: "absolute",
             left: line.x,
             top: line.y,
+            width: textAlign ? line.maxWidth : undefined,
             height: lineHeight,
             fontSize,
             lineHeight: `${lineHeight}px`,

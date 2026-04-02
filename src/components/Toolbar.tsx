@@ -67,9 +67,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   } = props;
 
   const [openPanel, setOpenPanel] = useState<FlyoutPanel>(_pendingPanel);
-
-  // Clear the pending panel after consuming it
-  if (_pendingPanel) _pendingPanel = null;
   const [collapsed, setCollapsed] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "html">("url");
   const [urlInput, setUrlInput] = useState("");
@@ -80,6 +77,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const [activeTooltip, setActiveTooltip] = useState<TooltipAnchor | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ left: number; bottom: number } | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!_pendingPanel) return;
+    _pendingPanel = null;
+  }, []);
 
   const update = useCallback(
     (partial: Partial<DebugSettings>) => onSettingsChange({ ...settings, ...partial }),
