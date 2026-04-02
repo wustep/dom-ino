@@ -7,9 +7,11 @@ import type {
 } from "../scene/types";
 import type { PresetKey } from "../scene/presets";
 import type { CustomPage } from "../App";
+import type { LayoutCursor } from "@chenglou/pretext";
 import { createPhysicsEngine } from "../physics/engine";
 import type { PhysicsEngine } from "../physics/engine";
 import { TextFlowRegion } from "./TextFlowRegion";
+import { computeTextFlow } from "../textflow/useTextFlow";
 import { PhysicsDomItem } from "./PhysicsDomItem";
 import { Toolbar } from "./Toolbar";
 import type { DebugSettings } from "./Toolbar";
@@ -155,6 +157,60 @@ export function DominoScene({
     });
   }, [effectiveElements, bodyPositions, settings.pretextEnabled]);
 
+  // Compute start cursors for text continuation chains.
+  // E.g. col2 continues from col1, col3 from col2 — we run computeTextFlow
+  // for predecessors to derive where each successor should start.
+  const continuationCursors = useMemo(() => {
+    const cursors = new Map<string, LayoutCursor>();
+    if (!settings.pretextEnabled) return cursors;
+
+    // Build ordered chains starting from each root (elements without textContinuationId)
+    const visited = new Set<string>();
+    for (const el of textElements) {
+      if (el.textContinuationId || visited.has(el.id)) continue;
+      // Walk the chain forward
+      let current: SceneElement | undefined = el;
+      let prevCursor: LayoutCursor | undefined;
+      while (current) {
+        visited.add(current.id);
+        if (prevCursor) {
+          cursors.set(current.id, prevCursor);
+        }
+        // Find next element in chain
+        const nextEl = textElements.find(
+          (te) => te.textContinuationId === current!.id
+        );
+        if (!nextEl) break;
+
+        // Compute flow for current element to get end cursor
+        const fw = current.fontWeight ?? 400, fs = current.fontSize ?? 16;
+        const ff = current.fontFamily ?? '"Source Serif 4", Georgia, serif';
+        const stylePrefix = current.fontStyle && current.fontStyle !== "normal" ? `${current.fontStyle} ` : "";
+        const weightPart = fw !== 400 ? `${fw} ` : "";
+        const font = `${stylePrefix}${weightPart}${fs}px ${ff}`;
+        const pad = current.padding ?? 0;
+        const flowResult = computeTextFlow(
+          current.text!,
+          font,
+          current.lineHeight ?? 28,
+          current.rect.x + pad,
+          current.rect.y + pad,
+          current.rect.width - pad * 2,
+          (textMaxHeights.get(current.id) ?? current.rect.height) - pad * 2,
+          obstacles,
+          8,
+          current.minSegmentWidth ?? (current.type === "heading" ? 80 : 8),
+          current.allowWordBreaks ?? (current.type === "heading" ? false : settings.allowWordBreaks),
+          prevCursor
+        );
+        prevCursor = flowResult.endCursor;
+        current = nextEl;
+      }
+    }
+    return cursors;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textElements, textMaxHeights, obstacles, settings.pretextEnabled, settings.allowWordBreaks, generation]);
+
   const handleExplode = useCallback(() => physicsRef.current?.explode(), []);
   const handleReset = useCallback(() => {
     physicsRef.current?.reset();
@@ -221,6 +277,7 @@ export function DominoScene({
               const pad = el.padding ?? 0;
               const flowMinSegmentWidth = el.minSegmentWidth ?? (el.type === "heading" ? 80 : 8);
               const allowWordBreaks = el.allowWordBreaks ?? (el.type === "heading" ? false : settings.allowWordBreaks);
+              const startCursor = continuationCursors.get(el.id);
               return (<TextFlowRegion key={el.id} text={el.text!} font={font} fontSize={fs}
                 lineHeight={el.lineHeight ?? 28} color={el.color ?? "#333"}
                 opacity={el.opacity} letterSpacing={el.letterSpacing} textAlign={el.textAlign}
@@ -230,7 +287,8 @@ export function DominoScene({
                 obstacles={obstacles} showDebug={settings.showLineBounds}
                 generation={generation} onLineCount={reportLines}
                 minSegmentWidth={flowMinSegmentWidth}
-                allowWordBreaks={allowWordBreaks} />);
+                allowWordBreaks={allowWordBreaks}
+                startCursor={startCursor} />);
             })
           : textElements.map((el) => {
               const pad = el.padding ?? 0;

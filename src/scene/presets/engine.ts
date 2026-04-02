@@ -46,17 +46,12 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
   const gutter = narrow ? 20 : 48;
   const contentW = Math.min(vw - gutter * 2, narrow ? 680 : 1160);
   const mx = Math.max(gutter, (vw - contentW) / 2);
-  const colGap = narrow ? 20 : 30;
-  const colCount = narrow ? 1 : 3;
-  const colW = colCount === 1 ? contentW : (contentW - colGap * (colCount - 1)) / colCount;
-  const col2X = mx + colW + colGap;
-  const col3X = mx + (colW + colGap) * 2;
 
   const headlineY = narrow ? 42 : 44;
-  const headlineSize = narrow ? 36 : vw > 1200 ? 54 : 48;
-  const headlineLineHeight = narrow ? 38 : Math.round(headlineSize * 0.93);
-  const headlineH = narrow ? headlineLineHeight * 2 + 6 : headlineLineHeight + 8;
-  const bodyY = narrow ? 176 : 210;
+  const headlineSize = narrow ? 42 : vw > 1200 ? 72 : 60;
+  const headlineLineHeight = narrow ? 44 : Math.round(headlineSize * 1.05);
+  const headlineH = headlineLineHeight * 2 + 12;
+  const bodyY = headlineY + headlineH + (narrow ? 30 : 40);
   const bodyFontSize = narrow ? 16 : 15;
   const bodyLH = narrow ? 26 : 24;
 
@@ -101,13 +96,13 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     },
   ];
 
-  const dropCapSize = narrow ? 78 : 88;
-  const dropCapW = narrow ? 42 : 48;
-  const dropCapH = narrow ? 86 : 96;
+  const dropCapSize = narrow ? 62 : 72;
+  const dropCapW = narrow ? 36 : 42;
+  const dropCapH = narrow ? 70 : 80;
   elements.push({
     id: "de-dropcap",
     type: "card",
-    rect: { x: mx - 2, y: bodyY - 8, width: dropCapW, height: dropCapH },
+    rect: { x: mx - 2, y: bodyY - 6, width: dropCapW, height: dropCapH },
     throwable: false,
     pinned: true,
     text: "T",
@@ -124,8 +119,15 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     affectsTextFlow: true,
   });
 
+  const colGap = narrow ? 20 : 30;
+  const colCount = narrow ? 1 : 3;
+  const colW = colCount === 1 ? contentW : (contentW - colGap * (colCount - 1)) / colCount;
+  const col2X = mx + colW + colGap;
+  const col3X = mx + (colW + colGap) * 2;
+
+  const fullText = COL1_TEXT + " " + COL2_TEXT + " " + COL3_TEXT;
+
   if (colCount === 1) {
-    const narrowText = COL1_TEXT + " " + COL2_TEXT;
     const q1W = Math.min(colW * 0.65, 320);
     const q1Y = bodyY + 480;
 
@@ -156,7 +158,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: narrowText,
+        text: fullText,
         fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,
@@ -217,7 +219,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: COL1_TEXT,
+        text: fullText,
         fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,
@@ -230,7 +232,8 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         rect: { x: col2X, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: COL2_TEXT,
+        text: fullText,
+        textContinuationId: "de-col1",
         fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,
@@ -243,7 +246,8 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         rect: { x: col3X, y: bodyY, width: colW, height: bodyH },
         throwable: false,
         pinned: true,
-        text: COL3_TEXT,
+        text: fullText,
+        textContinuationId: "de-col2",
         fontSize: bodyFontSize,
         fontWeight: 400,
         fontFamily: PAL_SERIF,

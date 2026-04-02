@@ -53,6 +53,8 @@ export interface SceneElement {
   gap?: number;
   allowWordBreaks?: boolean;
   minSegmentWidth?: number;
+  /** ID of another paragraph element whose text this one continues from */
+  textContinuationId?: string;
   physicsEnabled?: boolean;
   affectsTextFlow?: boolean;
 

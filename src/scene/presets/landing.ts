@@ -1,4 +1,4 @@
-import type { SceneDescription } from "../types";
+import type { SceneDescription, SceneElement } from "../types";
 import { SANS, SERIF, MONO } from "./fonts";
 
 const svgUri = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -29,7 +29,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
   const narrow = vw < 820;
   const w = Math.min(vw - 40, 1100);
   const mx = Math.max(20, (vw - w) / 2);
-  const H = Math.max(vh, narrow ? 2100 : 1740);
+  const H = Math.max(vh, narrow ? 2800 : 2400);
   const fW = (w - 24) / 3;
   const heroImageW = narrow ? Math.min(w, 400) : Math.min(400, w * 0.37);
   const heroX = narrow ? mx + (w - heroImageW) / 2 : mx + w - heroImageW;
@@ -37,12 +37,13 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
 
   const heroImageY = narrow ? 540 : 138;
   const metricsY = narrow ? heroImageY + 360 : 514;
-  const sectionY = narrow ? metricsY + 156 : 726;
+  const sectionY = narrow ? metricsY + 156 : 766;
   const featureY = sectionY + 180;
-  const wordsY = featureY + 160;
-  const quoteY = wordsY + 118;
-  const pricingY = quoteY + 186;
-  const bottomY = pricingY + 244;
+  const wordsY = featureY + 180;
+  const quoteY = wordsY + 140;
+  const pricingY = quoteY + 220;
+  const bottomY = pricingY + 280;
+  const footerY = bottomY + 140;
 
   return {
     id: "landing", name: "Landing Page", width: vw, height: H, backgroundColor: "#07111D",
@@ -61,19 +62,21 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + 66, y: 22, width: 260, height: 32 },
         throwable: false, pinned: true,
         text: "DOMino Studio", fontSize: 28, fontWeight: 700, fontFamily: SANS, lineHeight: 32, color: "#F8FAFC",
+        backgroundColor: "transparent",
       },
       {
         id: "l-brand-sub", type: "heading",
         rect: { x: mx + 66, y: 54, width: 200, height: 16 },
         throwable: false, pinned: true,
         text: "Interactive page systems", fontSize: 11, fontWeight: 600, fontFamily: MONO, lineHeight: 16, color: "#8CA0B8",
+        backgroundColor: "transparent",
       },
       {
         id: "l-n1", type: "button",
         rect: { x: mx + w - 364, y: 28, width: 82, height: 28 },
         throwable: true, pinned: false,
         text: "Use cases", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#94A3B8", backgroundColor: "transparent", borderRadius: 4,
+        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 4,
         mass: 0.12,
       },
       {
@@ -81,7 +84,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + w - 274, y: 28, width: 64, height: 28 },
         throwable: true, pinned: false,
         text: "Pricing", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#94A3B8", backgroundColor: "transparent", borderRadius: 4,
+        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 4,
         mass: 0.12,
       },
       {
@@ -89,7 +92,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + w - 202, y: 28, width: 56, height: 28 },
         throwable: true, pinned: false,
         text: "Docs", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#94A3B8", backgroundColor: "transparent", borderRadius: 4,
+        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 4,
         mass: 0.12,
       },
       {
@@ -97,8 +100,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + w - 138, y: 22, width: 68, height: 34 },
         throwable: true, pinned: false,
         text: "Sign in", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#E2E8F0", backgroundColor: "transparent", borderRadius: 8,
-        border: "1px solid #253244",
+        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 8,
+        border: "1px solid #2A3B50",
         mass: 0.2,
       },
       {
@@ -107,6 +110,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "Demo", fontSize: 13, fontWeight: 600, fontFamily: SANS,
         color: "#fff", backgroundColor: "#7C3AED", borderRadius: 8,
+        boxShadow: "0 2px 12px rgba(124,58,237,0.3)",
         mass: 0.3,
       },
 
@@ -126,29 +130,31 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         text: "Design pages\nthat react like\nliving systems.",
         fontSize: narrow ? 44 : 68, fontWeight: 800, fontFamily: SANS,
         lineHeight: narrow ? 50 : 74, color: "#F8FAFC",
+        backgroundColor: "transparent",
       },
       {
         id: "l-sub", type: "paragraph",
         rect: { x: mx, y: narrow ? 360 : 394, width: heroTextW, height: 98 },
         throwable: false, pinned: true,
-        text: "DOMino Studio helps teams prototype editorial packages, launch surfaces, and dense operational pages that still feel intentional once the reader starts dragging pieces around. It is layout tooling for pages with actual narrative weight and cleaner visual hierarchy.",
-        fontSize: 18, fontWeight: 400, fontFamily: SANS, lineHeight: 29, color: "#9FB0C5",
+        text: "Prototype editorial layouts, launch pages, and dense operational views where every element responds to interaction — without sacrificing the craft that makes a page feel intentional.",
+        fontSize: 18, fontWeight: 400, fontFamily: SANS, lineHeight: 29, color: "#94ADC4",
+        backgroundColor: "transparent",
       },
       {
         id: "l-cta1", type: "button",
         rect: { x: mx, y: narrow ? 476 : 516, width: 174, height: 50 },
         throwable: true, pinned: false,
-        text: "Start building", fontSize: 15, fontWeight: 700, fontFamily: SANS,
+        text: "Get started", fontSize: 15, fontWeight: 700, fontFamily: SANS,
         color: "#fff", backgroundColor: "#7C3AED", borderRadius: 12,
-        boxShadow: "0 4px 20px rgba(124,58,237,0.35)",
+        boxShadow: "0 4px 24px rgba(124,58,237,0.4)",
         mass: 0.6,
       },
       {
         id: "l-cta2", type: "button",
         rect: { x: mx + 188, y: narrow ? 476 : 516, width: 150, height: 50 },
         throwable: true, pinned: false,
-        text: "See examples", fontSize: 15, fontWeight: 500, fontFamily: SANS,
-        color: "#E2E8F0", backgroundColor: "transparent", borderRadius: 12,
+        text: "Watch demo", fontSize: 15, fontWeight: 500, fontFamily: SANS,
+        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 12,
         border: "1px solid #2A394D",
         mass: 0.5,
       },
@@ -158,36 +164,46 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-proof", type: "heading",
         rect: { x: mx, y: narrow ? 538 : 594, width: heroTextW, height: 20 },
         throwable: false, pinned: true,
-        text: "Used by design engineers, newsroom prototypers, and docs teams",
+        text: "Trusted by 2,000+ teams building production pages",
         fontSize: 12, fontWeight: 500, fontFamily: SANS, lineHeight: 20, color: "#5D728A",
+        backgroundColor: "transparent",
       },
-      {
-        id: "l-logo-1", type: "badge",
-        rect: { x: mx, y: narrow ? 568 : 628, width: 112, height: 30 },
-        throwable: true, pinned: false,
-        text: "Masthead", fontSize: 16, fontWeight: 700, fontFamily: SANS,
-        color: "#8398B1", backgroundColor: "rgba(15,23,42,0.6)", borderRadius: 8,
-        border: "1px solid #1E2D3F",
-        mass: 0.3,
-      },
-      {
-        id: "l-logo-2", type: "badge",
-        rect: { x: mx + 126, y: narrow ? 568 : 628, width: 126, height: 30 },
-        throwable: true, pinned: false,
-        text: "Orbit Docs", fontSize: 16, fontWeight: 700, fontFamily: SANS,
-        color: "#8398B1", backgroundColor: "rgba(15,23,42,0.6)", borderRadius: 8,
-        border: "1px solid #1E2D3F",
-        mass: 0.3,
-      },
-      {
-        id: "l-logo-3", type: "badge",
-        rect: { x: mx + 266, y: narrow ? 568 : 628, width: 118, height: 30 },
-        throwable: true, pinned: false,
-        text: "Northstar", fontSize: 16, fontWeight: 700, fontFamily: SANS,
-        color: "#8398B1", backgroundColor: "rgba(15,23,42,0.6)", borderRadius: 8,
-        border: "1px solid #1E2D3F",
-        mass: 0.3,
-      },
+      // Row 1
+      ...((() => {
+        const logoRow1 = [
+          { id: "l-logo-1", text: "Vectral", w: 104 },
+          { id: "l-logo-2", text: "Streamline", w: 130 },
+          { id: "l-logo-3", text: "Northstar", w: 118 },
+          { id: "l-logo-4", text: "Forma", w: 90 },
+          { id: "l-logo-5", text: "Datapulse", w: 122 },
+        ];
+        const logoRow2 = [
+          { id: "l-logo-6", text: "Reforge", w: 102 },
+          { id: "l-logo-7", text: "Lineage", w: 104 },
+          { id: "l-logo-8", text: "Superstack", w: 134 },
+          { id: "l-logo-9", text: "Relay", w: 82 },
+          { id: "l-logo-10", text: "Masthead", w: 114 },
+        ];
+        const logoY1 = narrow ? 568 : 628;
+        const logoY2 = logoY1 + 40;
+        const gap = 14;
+        const makeLogo = (logo: { id: string; text: string; w: number }, xOff: number, y: number): SceneElement => ({
+          id: logo.id, type: "badge",
+          rect: { x: mx + xOff, y, width: logo.w, height: 32 },
+          throwable: true, pinned: false,
+          text: logo.text, fontSize: 15, fontWeight: 700, fontFamily: SANS,
+          color: "#6B829B", backgroundColor: "rgba(15,23,42,0.5)", borderRadius: 8,
+          border: "1px solid rgba(30,45,63,0.6)",
+          mass: 0.25,
+          letterSpacing: "0.02em",
+        });
+        const result: SceneElement[] = [];
+        let x1 = 0;
+        for (const l of logoRow1) { result.push(makeLogo(l, x1, logoY1)); x1 += l.w + gap; }
+        let x2 = 0;
+        for (const l of logoRow2) { result.push(makeLogo(l, x2, logoY2)); x2 += l.w + gap; }
+        return result;
+      })()),
 
       // ── Hero UI image ──
       {
@@ -237,13 +253,15 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: false, pinned: true,
         text: "Built for real page systems",
         fontSize: 32, fontWeight: 700, fontFamily: SANS, lineHeight: 34, color: "#F8FAFC",
+        backgroundColor: "transparent",
       },
       {
         id: "l-section-p", type: "paragraph",
         rect: { x: mx, y: sectionY + 76, width: Math.min(w * 0.78, 760), height: 78 },
         throwable: false, pinned: true,
-        text: "The strongest presets read as pages before they are touched. That means larger brands, more typographic rhythm, and fewer containers overloaded with copy. The text should carry the mood. The panels should support it.",
-        fontSize: 16, fontWeight: 400, fontFamily: SANS, lineHeight: 26, color: "#90A2B8",
+        text: "Every preset is designed to look like a finished page before anyone touches it. Real typographic rhythm, deliberate whitespace, and content that carries its own weight.",
+        fontSize: 16, fontWeight: 400, fontFamily: SANS, lineHeight: 26, color: "#8599B0",
+        backgroundColor: "transparent",
       },
 
       // ── Feature cards ──
@@ -253,15 +271,15 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "Launch surfaces", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #223247",
-        boxShadow: "0 14px 34px rgba(2,6,23,0.28)",
+        border: "1px solid #1E2D42",
+        boxShadow: "0 8px 32px rgba(2,6,23,0.35)",
         mass: 1.4,
         children: [{
           id: "l-f1-d", type: "paragraph",
           rect: { x: 0, y: 12, width: 0, height: 0 },
           throwable: false, pinned: true,
-          text: "Proof points, release notes, pricing, and momentum in one readable frame.",
-          fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#91A4BB",
+          text: "Pricing, changelogs, and proof points in one frame that holds together under interaction.",
+          fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#7B93AB",
         }],
       },
       {
@@ -270,15 +288,15 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "Editorial packages", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #223247",
-        boxShadow: "0 14px 34px rgba(2,6,23,0.28)",
+        border: "1px solid #1E2D42",
+        boxShadow: "0 8px 32px rgba(2,6,23,0.35)",
         mass: 1.4,
         children: [{
           id: "l-f2-d", type: "paragraph",
           rect: { x: 0, y: 12, width: 0, height: 0 },
           throwable: false, pinned: true,
-          text: "Covers, rails, captions, and plates that still feel edited under motion.",
-          fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#91A4BB",
+          text: "Covers, pull quotes, and sidebars that still feel edited when readers drag them.",
+          fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#7B93AB",
         }],
       },
       {
@@ -287,15 +305,15 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "Operational pages", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #223247",
-        boxShadow: "0 14px 34px rgba(2,6,23,0.28)",
+        border: "1px solid #1E2D42",
+        boxShadow: "0 8px 32px rgba(2,6,23,0.35)",
         mass: 1.4,
         children: [{
           id: "l-f3-d", type: "paragraph",
           rect: { x: 0, y: 12, width: 0, height: 0 },
           throwable: false, pinned: true,
-          text: "Dense board views with named work, states, and enough whitespace to scan.",
-          fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#91A4BB",
+          text: "Status boards and dashboards with real data density and room to breathe.",
+          fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 19, color: "#7B93AB",
         }],
       },
 
@@ -336,8 +354,9 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-words-p", type: "paragraph",
         rect: { x: mx, y: wordsY + 50, width: w, height: 52 },
         throwable: false, pinned: true,
-        text: "The library works best when each page has its own voice. These larger labels make the page feel like a system of distinct publication modes instead of one endless feature grid.",
-        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#90A2B8",
+        text: "Every page type gets its own voice. Not a feature grid — a system of distinct, publishable surfaces.",
+        fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#8599B0",
+        backgroundColor: "transparent",
       },
 
       // ── Quote card ──
@@ -345,18 +364,18 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         id: "l-quote-card", type: "card",
         rect: { x: mx, y: quoteY, width: w, height: 154 },
         throwable: true, pinned: false,
-        text: "What teams say after switching", fontSize: 16, fontWeight: 700, fontFamily: SANS,
-        color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 24,
-        border: "1px solid #223247",
-        boxShadow: "0 18px 40px rgba(2,6,23,0.28)",
+        text: "From the teams using it", fontSize: 11, fontWeight: 700, fontFamily: MONO,
+        color: "#8CA0B8", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 24,
+        border: "1px solid #1E2D42",
+        boxShadow: "0 12px 36px rgba(2,6,23,0.35)",
         mass: 2,
         children: [
           {
             id: "l-quote-a", type: "paragraph",
             rect: { x: 0, y: 16, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "\u201CWe were able to prototype a whole Sunday package and an analytics launch page in the same system. The pages finally felt authored instead of AI-generated placeholders.\u201D",
-            fontSize: 18, fontWeight: 400, fontFamily: SERIF, lineHeight: 28, color: "#D7E0EA",
+            text: "\u201CWe prototyped a magazine cover and an analytics dashboard in the same afternoon. First time our pages felt authored, not generated.\u201D",
+            fontSize: 18, fontWeight: 400, fontFamily: SERIF, lineHeight: 28, color: "#D0DBE6",
           },
           {
             id: "l-quote-b", type: "paragraph",
@@ -375,8 +394,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "Starter plan", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #223247",
-        boxShadow: "0 18px 40px rgba(2,6,23,0.28)",
+        border: "1px solid #1E2D42",
+        boxShadow: "0 12px 36px rgba(2,6,23,0.35)",
         mass: 1.8,
         children: [
           {
@@ -390,15 +409,15 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
             id: "l-plan-desc", type: "paragraph",
             rect: { x: 0, y: 12, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "Preset library, scene editor, import tools, and unlimited local prototypes.",
-            fontSize: 14, fontWeight: 400, fontFamily: SANS, lineHeight: 22, color: "#91A4BB",
+            text: "Full preset library, scene editor, import tools, and unlimited prototypes.",
+            fontSize: 14, fontWeight: 400, fontFamily: SANS, lineHeight: 22, color: "#7B93AB",
           },
           {
             id: "l-plan-ent", type: "paragraph",
             rect: { x: 0, y: 8, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "Enterprise adds approvals, shared collections, and publishing workflows.",
-            fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 20, color: "#6B829B",
+            text: "Enterprise adds team permissions, shared collections, and publishing workflows.",
+            fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 20, color: "#56708A",
           },
         ],
       },
@@ -410,49 +429,49 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "Launch in one afternoon", fontSize: 20, fontWeight: 700, fontFamily: SANS,
         color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #223247",
-        boxShadow: "0 18px 40px rgba(2,6,23,0.28)",
+        border: "1px solid #1E2D42",
+        boxShadow: "0 12px 36px rgba(2,6,23,0.35)",
         mass: 1.8,
         children: [
           {
             id: "l-check-a", type: "paragraph",
             rect: { x: 0, y: 14, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "1  Choose a preset with the right narrative shape",
+            text: "1  Pick a preset that fits your page type",
             fontSize: 13, fontWeight: 600, fontFamily: MONO, lineHeight: 24, color: "#C4B5FD",
           },
           {
             id: "l-check-b", type: "paragraph",
             rect: { x: 0, y: 4, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "2  Swap in your copy, diagrams, and named work items",
+            text: "2  Drop in your content and assets",
             fontSize: 13, fontWeight: 600, fontFamily: MONO, lineHeight: 24, color: "#C4B5FD",
           },
           {
             id: "l-check-c", type: "paragraph",
             rect: { x: 0, y: 4, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "3  Tune motion and save reusable scene fragments",
+            text: "3  Tune physics and save reusable fragments",
             fontSize: 13, fontWeight: 600, fontFamily: MONO, lineHeight: 24, color: "#C4B5FD",
           },
           {
             id: "l-check-d", type: "paragraph",
             rect: { x: 0, y: 4, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "4  Publish a page that still looks intentional after interaction",
+            text: "4  Ship a page that holds up under interaction",
             fontSize: 13, fontWeight: 600, fontFamily: MONO, lineHeight: 24, color: "#C4B5FD",
           },
           {
             id: "l-check-e", type: "paragraph",
             rect: { x: 0, y: 10, width: 0, height: 0 },
             throwable: false, pinned: true,
-            text: "The richer presets are meant to demonstrate that last step, not just the mechanics behind it.",
-            fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 20, color: "#91A4BB",
+            text: "Most teams go from first import to published page in under four hours.",
+            fontSize: 13, fontWeight: 400, fontFamily: SANS, lineHeight: 20, color: "#7B93AB",
           },
         ],
       },
 
-      // ── Bottom ──
+      // ── Bottom CTA ──
       {
         id: "l-bottom", type: "card",
         rect: { x: mx, y: bottomY, width: w, height: 72 },
@@ -466,9 +485,97 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
           id: "l-bottom-p", type: "paragraph",
           rect: { x: 0, y: 0, width: 0, height: 0 },
           throwable: false, pinned: true,
-          text: "No empty hero placeholders. No tiny logos pretending to be social proof. Just presets with enough specificity to feel like real pages you might actually publish, audit, or present to a team.",
-          fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#8196AD",
+          text: "Pages that feel crafted before anyone touches them — and still feel crafted after. Start building for free, no credit card required.",
+          fontSize: 15, fontWeight: 400, fontFamily: SANS, lineHeight: 24, color: "#8599B0",
         }],
+      },
+
+      // ── Footer ──
+      {
+        id: "l-footer-line-top", type: "divider",
+        rect: { x: mx, y: footerY, width: w, height: 1 },
+        throwable: false, pinned: true,
+        backgroundColor: "#152236",
+      },
+      // Brand
+      {
+        id: "l-footer-brand", type: "badge",
+        rect: { x: mx, y: footerY + 36, width: 46, height: 46 },
+        throwable: true, pinned: false,
+        text: "DO", fontSize: 14, fontWeight: 800, fontFamily: MONO,
+        color: "#94A3B8", backgroundColor: "rgba(124,58,237,0.12)", borderRadius: 14, padding: 6,
+        mass: 0.2,
+      },
+      {
+        id: "l-footer-name", type: "heading",
+        rect: { x: mx + 58, y: footerY + 40, width: 200, height: 22 },
+        throwable: false, pinned: true,
+        text: "DOMino Studio", fontSize: 18, fontWeight: 700, fontFamily: SANS, lineHeight: 22, color: "#94A3B8",
+        backgroundColor: "transparent",
+      },
+      {
+        id: "l-footer-tagline", type: "paragraph",
+        rect: { x: mx + 58, y: footerY + 64, width: 240, height: 18 },
+        throwable: false, pinned: true,
+        text: "Layout tooling for pages with weight.",
+        fontSize: 12, fontWeight: 400, fontFamily: SANS, lineHeight: 18, color: "#3D5269",
+        backgroundColor: "transparent",
+      },
+      // Nav columns
+      ...((() => {
+        const cols = [
+          { label: "Product", items: ["Features", "Pricing", "Changelog", "Docs"] },
+          { label: "Resources", items: ["Blog", "Guides", "API", "Community"] },
+          { label: "Company", items: ["About", "Careers", "Privacy", "Terms"] },
+        ];
+        const colStartX = narrow ? 0 : Math.floor(w * 0.42);
+        const colSpacing = narrow ? Math.floor(w / 3) : Math.floor(w * 0.19);
+        const colTopY = narrow ? footerY + 116 : footerY + 36;
+        const result: SceneElement[] = [];
+        cols.forEach((col, ci) => {
+          result.push({
+            id: `l-ft-h${ci}`, type: "heading",
+            rect: { x: mx + colStartX + ci * colSpacing, y: colTopY, width: 120, height: 16 },
+            throwable: false, pinned: true,
+            text: col.label, fontSize: 11, fontWeight: 700, fontFamily: MONO,
+            lineHeight: 16, color: "#4A6178", letterSpacing: "0.06em",
+            backgroundColor: "transparent",
+          });
+          col.items.forEach((item, ii) => {
+            result.push({
+              id: `l-ft-${ci}-${ii}`, type: "heading",
+              rect: { x: mx + colStartX + ci * colSpacing, y: colTopY + 26 + ii * 24, width: 120, height: 18 },
+              throwable: false, pinned: true,
+              text: item, fontSize: 13, fontWeight: 400, fontFamily: SANS,
+              lineHeight: 18, color: "#5D728A",
+              backgroundColor: "transparent",
+            });
+          });
+        });
+        return result;
+      })()),
+      // Copyright bar
+      {
+        id: "l-footer-line", type: "divider",
+        rect: { x: mx, y: footerY + (narrow ? 240 : 160), width: w, height: 1 },
+        throwable: false, pinned: true,
+        backgroundColor: "#152236",
+      },
+      {
+        id: "l-footer-copy", type: "paragraph",
+        rect: { x: mx, y: footerY + (narrow ? 256 : 176), width: w / 2, height: 16 },
+        throwable: false, pinned: true,
+        text: "© 2026 DOMino Studio", fontSize: 11, fontWeight: 400, fontFamily: SANS, lineHeight: 16, color: "#2E4358",
+        backgroundColor: "transparent",
+      },
+      {
+        id: "l-footer-links", type: "paragraph",
+        rect: { x: mx + w / 2, y: footerY + (narrow ? 256 : 176), width: w / 2, height: 16 },
+        throwable: false, pinned: true,
+        text: "Status   ·   Twitter   ·   GitHub",
+        fontSize: 11, fontWeight: 400, fontFamily: SANS, lineHeight: 16, color: "#2E4358",
+        textAlign: "right",
+        backgroundColor: "transparent",
       },
     ],
   };

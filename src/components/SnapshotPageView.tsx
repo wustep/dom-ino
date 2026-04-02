@@ -80,8 +80,22 @@ function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): Sce
   if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION" || tag === "LI") return "paragraph";
   if (tag === "BUTTON") return "button";
   if (tag === "A") return cs.display === "inline" ? "link" : "button";
-  if (tag === "IMG") return "image";
+  if (tag === "IMG" || tag === "PICTURE" || tag === "VIDEO" || tag === "SVG") return "image";
+  // FIGURE elements that contain images/videos are images
+  if (tag === "FIGURE") {
+    if (el.querySelector("img, picture, video, svg")) return "image";
+  }
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return "input";
+  // Divs/sections that contain an image as primary content
+  if ((tag === "DIV" || tag === "SECTION" || tag === "ARTICLE") && el.children.length <= 3) {
+    const img = el.querySelector("img, picture, video");
+    if (img && img instanceof HTMLElement) {
+      const imgRect = img.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      // If the image fills most of the container, treat the container as an image
+      if (imgRect.width > elRect.width * 0.6 && imgRect.height > elRect.height * 0.4) return "image";
+    }
+  }
   const bg = cs.backgroundColor;
   const hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
   const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
@@ -131,8 +145,18 @@ function elementToSceneElement(el: HTMLElement, rootRect: DOMRect, win: Window):
     padding: parseFloat(cs.paddingLeft) || 0,
     border: parseFloat(cs.borderWidth) > 0 ? cs.border : undefined,
     boxShadow: cs.boxShadow !== "none" ? cs.boxShadow : undefined,
-    imageSrc: el.tagName === "IMG" ? getResolvedImageSrc(el as HTMLImageElement) : undefined,
-    imageAlt: el.tagName === "IMG" ? (el as HTMLImageElement).alt : undefined,
+    imageSrc: (() => {
+      if (el.tagName === "IMG") return getResolvedImageSrc(el as HTMLImageElement);
+      // For figure/picture/div containers, find the inner img
+      const innerImg = el.querySelector("img") as HTMLImageElement | null;
+      if (innerImg) return getResolvedImageSrc(innerImg);
+      return undefined;
+    })(),
+    imageAlt: (() => {
+      if (el.tagName === "IMG") return (el as HTMLImageElement).alt;
+      const innerImg = el.querySelector("img") as HTMLImageElement | null;
+      return innerImg?.alt;
+    })(),
     mass: 1,
   };
 }
@@ -254,7 +278,7 @@ export function SnapshotPageView({
         const hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
         const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
         const hasShadow = cs.boxShadow && cs.boxShadow !== "none";
-        const semantic = /^(BUTTON|A|IMG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION|TABLE|FIGURE)$/.test(tag);
+        const semantic = /^(BUTTON|A|IMG|PICTURE|VIDEO|SVG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION|TABLE|FIGURE)$/.test(tag);
         const sizableBlock = rect.width >= 48 && rect.height >= 24;
         if (inlineish && !hasBg && !hasBorder && !hasShadow) {
           walk(childEl, depth + 1);
@@ -330,6 +354,7 @@ export function SnapshotPageView({
   // Selects images, badges, buttons, cards, and links that look like
   // standalone interactive/visual elements. Skips elements that are
   // descendants of already-selected elements to avoid duplication.
+  // Skips large containers/infoboxes/tables that serve as layout anchors.
   useEffect(() => {
     if (autoSelectedRef.current || selectableCandidates.length === 0) return;
     autoSelectedRef.current = true;
@@ -342,6 +367,27 @@ export function SnapshotPageView({
       if (c.width > 500 || c.height > 400) continue;
       if (c.width < 30 || c.height < 16) continue;
       if (c.y < 40) continue;
+
+      // Skip large floated containers (infoboxes, image galleries, tables)
+      // These should stay pinned so text flows around them naturally
+      const cls = (c.node.className || "").toString().toLowerCase();
+      const id = (c.node.id || "").toLowerCase();
+      const tag = c.node.tagName;
+      const isInfobox = cls.includes("infobox") || cls.includes("sidebar") || cls.includes("navbox") || cls.includes("tmbox") || cls.includes("ambox");
+      const isGallery = cls.includes("gallery") || cls.includes("thumb") || cls.includes("trow");
+      const isTable = tag === "TABLE" || tag === "TBODY" || tag === "THEAD";
+      const isFloatAnchor = (() => {
+        try {
+          const cs = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
+          return cs.float === "left" || cs.float === "right";
+        } catch { return false; }
+      })();
+      // Skip large layout-anchor elements: infoboxes, galleries, tables, or large floats
+      if (isInfobox || isGallery || isTable || id.includes("infobox")) continue;
+      if (isFloatAnchor && (c.width > 200 || c.height > 200)) continue;
+      // Skip containers that are too large to be a sensible throwable
+      if (t === "card" && (c.width > 400 || c.height > 300)) continue;
+
       // Skip if this element is inside an already-picked element
       if (picked.some((p) => p.node.contains(c.node))) continue;
       picked.push(c);
@@ -452,47 +498,24 @@ export function SnapshotPageView({
   }, [importedTextFlowActive, textBlocks]);
 
   const importedObstacles: ObstacleRect[] = useMemo(() => {
-    // Only include elements that have actually moved from their original
-    // position (by more than a small threshold). Elements at rest at their
-    // original position don't need to be Pretext obstacles because the
-    // browser already laid out text around them.
-    const movedThreshold = 5;
+    // When the Pretext text overlay is active (original text hidden), ALL
+    // selected elements must be obstacles — even at rest — so text wraps
+    // around them. Without this, text renders underneath elements that
+    // haven't been moved yet (e.g. floated images, infoboxes).
     const obstacles: ObstacleRect[] = [];
 
     for (const el of [...selectedElements, ...droppedElements]) {
+      if (obstacles.some((o) => o.id === el.id)) continue;
       const pos = bodyPositions.get(el.id);
-      const curX = pos?.x ?? el.rect.x;
-      const curY = pos?.y ?? el.rect.y;
-      const dx = Math.abs(curX - el.rect.x);
-      const dy = Math.abs(curY - el.rect.y);
-      const angle = pos?.angle ?? 0;
-      if (dx > movedThreshold || dy > movedThreshold || Math.abs(angle) > 0.05) {
-        obstacles.push({
-          id: el.id,
-          x: curX,
-          y: curY,
-          width: pos?.w ?? el.rect.width,
-          height: pos?.h ?? el.rect.height,
-          angle,
-          borderRadius: el.borderRadius,
-        });
-      }
-    }
-
-    // Dropped elements (from stash) are always obstacles
-    for (const el of droppedElements) {
-      if (!obstacles.some((o) => o.id === el.id)) {
-        const pos = bodyPositions.get(el.id);
-        obstacles.push({
-          id: el.id,
-          x: pos?.x ?? el.rect.x,
-          y: pos?.y ?? el.rect.y,
-          width: pos?.w ?? el.rect.width,
-          height: pos?.h ?? el.rect.height,
-          angle: pos?.angle ?? 0,
-          borderRadius: el.borderRadius,
-        });
-      }
+      obstacles.push({
+        id: el.id,
+        x: pos?.x ?? el.rect.x,
+        y: pos?.y ?? el.rect.y,
+        width: pos?.w ?? el.rect.width,
+        height: pos?.h ?? el.rect.height,
+        angle: pos?.angle ?? 0,
+        borderRadius: el.borderRadius,
+      });
     }
 
     return obstacles;

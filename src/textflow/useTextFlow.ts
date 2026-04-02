@@ -17,6 +17,7 @@ export interface FlowLine {
 export interface TextFlowResult {
   lines: FlowLine[];
   totalHeight: number;
+  endCursor: LayoutCursor;
 }
 
 function lineBreaksInsideSegment(cursor: LayoutCursor): boolean {
@@ -74,15 +75,17 @@ export function computeTextFlow(
   obstacles: ObstacleRect[],
   obstaclePadding: number = 8,
   minSegmentWidth: number = 8,
-  allowWordBreaks: boolean = true
+  allowWordBreaks: boolean = true,
+  startCursor?: LayoutCursor
 ): TextFlowResult {
+  const zeroCursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
   if (!text || containerWidth < 30) {
-    return { lines: [], totalHeight: 0 };
+    return { lines: [], totalHeight: 0, endCursor: startCursor ?? zeroCursor };
   }
 
   const prepared = getCachedPrepared(text, font);
   const lines: FlowLine[] = [];
-  let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
+  let cursor: LayoutCursor = startCursor ?? zeroCursor;
   let y = containerY;
   const maxY = containerY + containerMaxHeight;
   const cLeft = containerX;
@@ -154,5 +157,5 @@ export function computeTextFlow(
     if (exhausted) break;
   }
 
-  return { lines, totalHeight: y - containerY };
+  return { lines, totalHeight: y - containerY, endCursor: cursor };
 }
