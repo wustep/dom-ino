@@ -1,5 +1,5 @@
 import type { SceneDescription } from "../types";
-import { SANS, SERIF } from "./fonts";
+import { SERIF } from "./fonts";
 
 const svgUri = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
@@ -225,9 +225,9 @@ type OrbDefinition = {
 };
 
 const ORBS: OrbDefinition[] = [
-  { id: "orb-1", fx: 0.90, fy: 0.22, size: 90, mass: 0.55, vx: 0.36, vy: 0.28, color: [235, 160, 60] },
-  { id: "orb-2", fx: 0.08, fy: 0.52, size: 100, mass: 0.62, vx: -0.3, vy: 0.22, color: [240, 170, 70] },
-  { id: "orb-3", fx: 0.88, fy: 0.78, size: 85, mass: 0.5, vx: 0.24, vy: -0.32, color: [230, 150, 50] },
+  { id: "orb-1", fx: 0.94, fy: 0.18, size: 90, mass: 0.55, vx: 0.36, vy: 0.28, color: [235, 160, 60] },
+  { id: "orb-2", fx: 0.04, fy: 0.48, size: 100, mass: 0.62, vx: -0.3, vy: 0.22, color: [240, 170, 70] },
+  { id: "orb-3", fx: 0.94, fy: 0.70, size: 85, mass: 0.5, vx: 0.24, vy: -0.32, color: [230, 150, 50] },
 ];
 
 function orbGradient(color: [number, number, number]): string {
@@ -277,7 +277,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
 
   const SEPARATOR_AFTER = 16;
   const paragraphGap = Math.round(copyLineHeight * 0.45);
-  const sepRowH = Math.round(copyLineHeight * 0.85);
+
   const estimateH = (text: string): number => {
     const cpl = Math.floor(contentW / (copySize * 0.56));
     return Math.ceil(text.length / cpl) * copyLineHeight;
@@ -285,7 +285,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
 
   let totalTextH = 0;
   for (let i = 0; i < paragraphs.length; i++) {
-    if (i === SEPARATOR_AFTER + 1) totalTextH += sepRowH * 3 + paragraphGap * 3;
+    if (i === SEPARATOR_AFTER + 1) totalTextH += Math.round(paragraphGap * 2.5);
     totalTextH += estimateH(paragraphs[i]) + paragraphGap;
   }
   const footerY = bodyY + totalTextH;
@@ -348,33 +348,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   let textY = bodyY;
   for (let i = 0; i < paragraphs.length; i++) {
     if (i === SEPARATOR_AFTER + 1) {
-      const sepGap = Math.round(paragraphGap * 1.5);
-      textY += sepGap;
-      const sepRows = [
-        { text: "*       *       *       *       *       *       *", w: 440 },
-        { text: "*       *       *       *       *       *", w: 370 },
-        { text: "*       *       *       *       *       *       *", w: 440 },
-      ];
-      for (let j = 0; j < sepRows.length; j++) {
-        const sw = narrow ? sepRows[j].w * 0.75 : sepRows[j].w;
-        elements.push({
-          id: `pg-sep-${j + 1}`,
-          type: "paragraph",
-          rect: { x: Math.round(vw / 2 - sw / 2), y: textY, width: sw, height: sepRowH },
-          throwable: false,
-          pinned: true,
-          text: sepRows[j].text,
-          fontSize: copySize,
-          fontWeight: 400,
-          fontFamily: SERIF,
-          lineHeight: sepRowH,
-          color: "rgba(58, 40, 64, 0.4)",
-          minSegmentWidth: 8,
-          allowWordBreaks: false,
-        });
-        textY += sepRowH;
-      }
-      textY += sepGap;
+      textY += Math.round(paragraphGap * 2.5);
     }
 
     const h = estimateH(paragraphs[i]);
@@ -403,8 +377,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       id: "white-rabbit",
       imageSrc: WHITE_RABBIT_SVG,
       imageAlt: "The White Rabbit in his waistcoat",
-      fx: narrow ? 0.82 : 0.88,
-      fy: narrow ? 0.08 : 0.07,
+      fx: narrow ? 0.84 : 0.92,
+      fy: narrow ? 0.06 : 0.06,
       width: 208 * illustrationScale,
       height: 168 * illustrationScale,
       mass: 1.7,
@@ -431,8 +405,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       id: "cheshire",
       imageSrc: CHESHIRE_SVG,
       imageAlt: "The Cheshire Cat's grin",
-      fx: narrow ? 0.14 : 0.10,
-      fy: narrow ? 0.42 : 0.40,
+      fx: narrow ? 0.12 : 0.06,
+      fy: narrow ? 0.36 : 0.34,
       width: 240 * illustrationScale,
       height: 170 * illustrationScale,
       mass: 1.4,
@@ -454,8 +428,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       id: "teacup",
       imageSrc: TEACUP_SVG,
       imageAlt: "A teacup from the Mad Tea-Party",
-      fx: narrow ? 0.78 : 0.84,
-      fy: narrow ? 0.64 : 0.62,
+      fx: narrow ? 0.84 : 0.92,
+      fy: narrow ? 0.58 : 0.56,
       width: 200 * illustrationScale,
       height: 166 * illustrationScale,
       mass: 1.5,
@@ -477,8 +451,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       id: "cake",
       imageSrc: CAKE_SVG,
       imageAlt: "The EAT ME cake",
-      fx: narrow ? 0.16 : 0.12,
-      fy: narrow ? 0.86 : 0.84,
+      fx: narrow ? 0.14 : 0.06,
+      fy: narrow ? 0.82 : 0.80,
       width: 160 * illustrationScale,
       height: 144 * illustrationScale,
       mass: 1.4,
@@ -528,8 +502,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       imageSrc: POCKET_WATCH_SVG,
       imageAlt: "The White Rabbit's pocket watch",
       rect: {
-        x: placeX(narrow ? 0.72 : 0.78, narrow ? 100 : 120),
-        y: bodyY + totalTextH * 0.10,
+        x: placeX(narrow ? 0.10 : 0.04, narrow ? 100 : 120),
+        y: bodyY + totalTextH * 0.20,
         width: (narrow ? 100 : 120) * illustrationScale,
         height: (narrow ? 125 : 150) * illustrationScale,
       },
@@ -540,8 +514,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       imageSrc: GOLDEN_KEY_SVG,
       imageAlt: "The tiny golden key",
       rect: {
-        x: placeX(narrow ? 0.80 : 0.86, narrow ? 60 : 72),
-        y: bodyY + totalTextH * 0.54,
+        x: placeX(narrow ? 0.86 : 0.94, narrow ? 60 : 72),
+        y: bodyY + totalTextH * 0.42,
         width: (narrow ? 60 : 72) * illustrationScale,
         height: (narrow ? 132 : 158) * illustrationScale,
       },
@@ -552,8 +526,8 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       imageSrc: PLAYING_CARD_SVG,
       imageAlt: "A playing card from the Queen's court",
       rect: {
-        x: placeX(narrow ? 0.14 : 0.10, narrow ? 90 : 106),
-        y: bodyY + totalTextH * 0.82,
+        x: placeX(narrow ? 0.12 : 0.06, narrow ? 90 : 106),
+        y: bodyY + totalTextH * 0.66,
         width: (narrow ? 90 : 106) * illustrationScale,
         height: (narrow ? 126 : 148) * illustrationScale,
       },
@@ -611,33 +585,6 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
     });
   }
 
-  // ---- Stickers — Alice quotes ----
-
-  const stickers = [
-    { id: "pg-sticker-late", width: 108, x: placeX(0.14, 108), y: bodyY + totalTextH * 0.09, height: 40, text: "I'm late!", backgroundColor: "#f5e0a0", color: "#6b4b0e" },
-  ];
-
-  for (const sticker of stickers) {
-    elements.push({
-      id: sticker.id,
-      type: "button",
-      rect: { x: sticker.x, y: sticker.y, width: sticker.width, height: sticker.height },
-      throwable: true,
-      pinned: false,
-      text: sticker.text,
-      fontSize: 14,
-      fontWeight: 700,
-      fontFamily: SANS,
-      color: sticker.color,
-      backgroundColor: sticker.backgroundColor,
-      borderRadius: 999,
-      border: "1px solid rgba(45, 31, 61, 0.08)",
-      boxShadow: "0 10px 24px rgba(60, 40, 70, 0.08)",
-      mass: 0.54,
-      frictionAir: 0.022,
-      restitution: 0.78,
-    });
-  }
 
   return {
     id: "alice",

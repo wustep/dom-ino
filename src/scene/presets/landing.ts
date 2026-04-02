@@ -29,7 +29,6 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
   const narrow = vw < 820;
   const w = Math.min(vw - 40, 1100);
   const mx = Math.max(20, (vw - w) / 2);
-  const H = Math.max(vh, narrow ? 2800 : 2400);
   const fW = (w - 24) / 3;
   const heroImageW = narrow ? Math.min(w, 400) : Math.min(400, w * 0.37);
   const heroX = narrow ? mx + (w - heroImageW) / 2 : mx + w - heroImageW;
@@ -44,6 +43,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
   const pricingY = quoteY + 220;
   const bottomY = pricingY + 280;
   const footerY = bottomY + 140;
+  const H = Math.max(vh, footerY + (narrow ? 272 : 192) + 40);
 
   return {
     id: "landing", name: "Landing Page", width: vw, height: H, backgroundColor: "#07111D",
