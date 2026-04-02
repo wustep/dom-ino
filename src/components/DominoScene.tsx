@@ -50,7 +50,7 @@ function computeTextMaxHeights(
     const elBottom = el.rect.y + el.rect.height;
     let nextY = sceneHeight;
     for (const stop of allYStops) { if (stop > elBottom - 4) { nextY = stop; break; } }
-    result.set(el.id, Math.min(Math.max(el.rect.height, nextY - el.rect.y - 4), 800));
+    result.set(el.id, Math.min(Math.max(el.rect.height, nextY - el.rect.y - 4), 3000));
   }
   return result;
 }
@@ -102,7 +102,8 @@ export function DominoScene({
     physicsRef.current = engine;
     setBodyPositions(new Map());
     return () => {
-      cancelAnimationFrame(rafRef.current);
+      // Don't cancel RAF here — the loop effect only depends on physicsEnabled.
+      // Cancelling on scene/engine teardown would stop syncing forever until that toggles (HMR included).
       engine.destroy();
       physicsRef.current = null;
     };
