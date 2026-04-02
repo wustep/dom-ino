@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { SceneElement } from "../scene/types";
-import { hasMovedImportedElement, isImportedTextBlockEligible, toStageRect } from "./snapshotViewUtils";
+import {
+  hasMovedImportedElement,
+  hasRenderableImportedText,
+  toStageRect,
+} from "./snapshotViewUtils";
 
 function makeTextElement(type: SceneElement["type"] = "paragraph"): SceneElement {
   return {
@@ -49,66 +53,6 @@ describe("toStageRect", () => {
   });
 });
 
-describe("isImportedTextBlockEligible", () => {
-  it("keeps normal Wikipedia paragraphs eligible for imported text flow", () => {
-    const node = document.createElement("p");
-    node.textContent = "The history of art focuses on objects made by humans.";
-
-    expect(
-      isImportedTextBlockEligible(
-        node,
-        makeTextElement(),
-        "https://en.wikipedia.org/wiki/History_of_art"
-      )
-    ).toBe(true);
-  });
-
-  it("excludes Wikipedia hatnotes from imported text flow", () => {
-    const node = document.createElement("div");
-    node.className = "hatnote";
-    node.textContent = "For the academic discipline, see Art history.";
-
-    expect(
-      isImportedTextBlockEligible(
-        node,
-        makeTextElement(),
-        "https://en.wikipedia.org/wiki/History_of_art"
-      )
-    ).toBe(false);
-  });
-
-  it("excludes Wikipedia infobox text from imported text flow", () => {
-    const table = document.createElement("table");
-    table.className = "infobox";
-    const cell = document.createElement("td");
-    const node = document.createElement("p");
-    node.textContent = "Periods and movements";
-    cell.appendChild(node);
-    table.appendChild(cell);
-
-    expect(
-      isImportedTextBlockEligible(
-        node,
-        makeTextElement(),
-        "https://en.wikipedia.org/wiki/History_of_art"
-      )
-    ).toBe(false);
-  });
-
-  it("preserves generic non-Wikipedia text blocks", () => {
-    const node = document.createElement("div");
-    node.textContent = "A generic imported site may use divs for article copy.";
-
-    expect(
-      isImportedTextBlockEligible(
-        node,
-        makeTextElement(),
-        "https://example.com/article"
-      )
-    ).toBe(true);
-  });
-});
-
 describe("hasMovedImportedElement", () => {
   it("stays inactive when the physics body is still at the original rect", () => {
     const element = makeTextElement("image");
@@ -134,6 +78,30 @@ describe("hasMovedImportedElement", () => {
         angle: 0,
         w: element.rect.width,
         h: element.rect.height,
+      })
+    ).toBe(true);
+  });
+});
+
+describe("hasRenderableImportedText", () => {
+  it("stays false when a text block cannot produce replacement lines", () => {
+    expect(
+      hasRenderableImportedText({
+        lines: [],
+      })
+    ).toBe(false);
+  });
+
+  it("activates once imported text flow has at least one line to render", () => {
+    expect(
+      hasRenderableImportedText({
+        lines: [{
+          text: "This article may be too long to read.",
+          x: 0,
+          y: 0,
+          width: 120,
+          maxWidth: 180,
+        }],
       })
     ).toBe(true);
   });

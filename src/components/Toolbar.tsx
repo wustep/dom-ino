@@ -13,6 +13,7 @@ export interface DebugSettings {
   paused: boolean;
   pretextEnabled: boolean;
   allowWordBreaks: boolean;
+  restitution: number;
 }
 
 interface ToolbarProps {
@@ -334,6 +335,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             <Lbl text="Gravity" />
             <Slider label="X" value={settings.gravityX} min={-3} max={3} onValue={(v) => update({ gravityX: v })} onReset={() => update({ gravityX: 0 })} />
             <Slider label="Y" value={settings.gravityY} min={-3} max={3} onValue={(v) => update({ gravityY: v })} onReset={() => update({ gravityY: 0 })} />
+            <Lbl text="Bodies" />
+            <Slider label="Bounce" value={settings.restitution} min={0} max={1} onValue={(v) => update({ restitution: v })} onReset={() => update({ restitution: 0.3 })} step={0.05} resetLabel="0.3" />
             <Lbl text="Debug" />
             <Toggle
               label="Bounds"
@@ -496,8 +499,8 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}><span>{label}</span><div onClick={() => onChange(!checked)} style={{ width: 28, height: 16, borderRadius: 8, backgroundColor: checked ? "rgba(74,222,128,0.5)" : "rgba(255,255,255,0.1)", position: "relative", cursor: "pointer", flexShrink: 0 }}><div style={{ position: "absolute", top: 2, left: checked ? 14 : 2, width: 12, height: 12, borderRadius: "50%", backgroundColor: checked ? "#4ade80" : "#555", transition: "left 0.2s" }} /></div></label>;
 }
 
-function Slider({ label, value, min, max, onValue, onReset }: { label: string; value: number; min: number; max: number; onValue: (v: number) => void; onReset: () => void }) {
-  return <div><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}><span style={{ fontSize: 9, color: "#888" }}>{label}: {value.toFixed(1)}</span><button onClick={onReset} style={{ background: "none", border: "none", color: "#555", fontSize: 8, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: '"JetBrains Mono", monospace' }}>0</button></div><input type="range" min={min} max={max} step="0.1" value={value} onChange={(e) => onValue(parseFloat(e.target.value))} style={{ width: "100%", accentColor: "#555", height: 4 }} /></div>;
+function Slider({ label, value, min, max, onValue, onReset, step = 0.1, resetLabel }: { label: string; value: number; min: number; max: number; onValue: (v: number) => void; onReset: () => void; step?: number; resetLabel?: string }) {
+  return <div><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}><span style={{ fontSize: 9, color: "#888" }}>{label}: {value.toFixed(2)}</span><button onClick={onReset} style={{ background: "none", border: "none", color: "#555", fontSize: 8, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: '"JetBrains Mono", monospace' }}>{resetLabel ?? "0"}</button></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onValue(parseFloat(e.target.value))} style={{ width: "100%", accentColor: "#555", height: 4 }} /></div>;
 }
 
 // ─── Icons ───

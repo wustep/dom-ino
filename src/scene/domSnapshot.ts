@@ -294,6 +294,13 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 
 // ─── Iframe render + walk ───
 
+/** Delay (ms) between each render attempt to let images/fonts/CSS settle */
+const IFRAME_RENDER_DELAY_MS = 500;
+/** How many times to retry if the DOM walk finds <3 elements */
+const IFRAME_RENDER_RETRIES = 3;
+/** Hard timeout (ms) before giving up on the iframe entirely */
+const IFRAME_RENDER_TIMEOUT_MS = 10000;
+
 function renderAndWalk(
   html: string, containerWidth: number, sceneName: string
 ): Promise<SceneDescription | null> {
@@ -311,7 +318,7 @@ function renderAndWalk(
     const timeout = setTimeout(() => {
       removeIframe(iframe);
       resolve(null);
-    }, 10000);
+    }, IFRAME_RENDER_TIMEOUT_MS);
 
     iframe.onload = () => {
       // CSS is inlined so it applies immediately; small wait for images
@@ -360,10 +367,10 @@ function renderAndWalk(
             removeIframe(iframe);
             resolve(null);
           }
-        }, 500);
+        }, IFRAME_RENDER_DELAY_MS);
       };
 
-      attempt(3);
+      attempt(IFRAME_RENDER_RETRIES);
     };
 
     iframe.onerror = () => {

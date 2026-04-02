@@ -107,7 +107,7 @@ export function DominoScene({
 
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true, showObstacleBounds: false, showLineBounds: false,
-    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, allowWordBreaks: true,
+    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, allowWordBreaks: true, restitution: 0.3,
   });
 
   const { textElements, throwableElements, staticElements } = useMemo(() => {
@@ -163,6 +163,7 @@ export function DominoScene({
   }, [settings.physicsEnabled]);
 
   useEffect(() => { physicsRef.current?.setGravity(settings.gravityX, settings.gravityY); }, [settings.gravityX, settings.gravityY]);
+  useEffect(() => { physicsRef.current?.setRestitution(settings.restitution); }, [settings.restitution]);
   useEffect(() => { if (settings.paused) physicsRef.current?.pause(); else physicsRef.current?.resume(); }, [settings.paused]);
 
   const obstacles: ObstacleRect[] = useMemo(() => {

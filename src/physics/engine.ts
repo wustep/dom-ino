@@ -35,6 +35,7 @@ export interface PhysicsEngine {
   resume: () => void;
   explode: () => void;
   setGravity: (x: number, y: number) => void;
+  setRestitution: (value: number) => void;
   getBodyPositions: () => Map<
     string,
     { x: number; y: number; angle: number; w: number; h: number }
@@ -294,6 +295,13 @@ export function createPhysicsEngine(
     setGravity(x: number, y: number) {
       engine.gravity.x = x;
       engine.gravity.y = y;
+    },
+
+    setRestitution(value: number) {
+      for (const [, pb] of bodies) {
+        if (pb.body.isStatic) continue;
+        pb.body.restitution = value;
+      }
     },
 
     getBodyPositions() {

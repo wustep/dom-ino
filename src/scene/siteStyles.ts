@@ -5,6 +5,20 @@
  * - `css`: additional CSS to inject for layout fixes
  */
 
+import type { SceneElement } from "./types";
+
+interface SnapshotPretextRule {
+  /** Restrict Pretext text blocks to these tag names when provided. */
+  pretextTags?: string[];
+  /** Keep nodes inside these ancestors out of Pretext flow. */
+  neverPretextWithin?: string;
+}
+
+interface SnapshotSolidRule {
+  /** Nodes matching these selectors stay native and act as walls. */
+  solidSelectors?: string[];
+}
+
 interface SiteRule {
   /** Substring matched against the page URL's hostname */
   match: string;
@@ -14,6 +28,10 @@ interface SiteRule {
   css?: string;
   /** CSS file paths to fetch and inline (for sites that load CSS via JS) */
   cssLinks?: string[];
+  /** Snapshot-view behavior overrides for imported-page Pretext flow. */
+  snapshotPretext?: SnapshotPretextRule;
+  /** Snapshot-view behavior overrides for native solid components. */
+  snapshotSolid?: SnapshotSolidRule;
 }
 
 export const SITE_RULES: SiteRule[] = [
@@ -79,6 +97,75 @@ export const SITE_RULES: SiteRule[] = [
         padding-top: 24px !important;
       }
     `,
+    snapshotPretext: {
+      pretextTags: [
+        "DIV",
+        "P",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "BLOCKQUOTE",
+        "LI",
+        "DD",
+        "DT",
+        "TD",
+        "TH",
+      ],
+      neverPretextWithin: [
+        "table",
+        "figure",
+        "figcaption",
+        "aside",
+        "nav",
+        "header",
+        "footer",
+        "form",
+        "button",
+        "[role='navigation']",
+        "[role='banner']",
+        "[role='complementary']",
+        ".ambox",
+        ".dablink",
+        ".gallery",
+        ".gallerybox",
+        ".hatnote",
+        ".infobox",
+        ".metadata",
+        ".navbox",
+        ".portal",
+        ".reference",
+        ".references",
+        ".reflist",
+        ".rellink",
+        ".sidebar",
+        ".shortdescription",
+        ".thumb",
+        ".thumbcaption",
+        ".thumbinner",
+        ".ombox",
+        ".tmbox",
+        ".trow",
+        ".vector-column-end",
+        ".vector-column-start",
+        ".vector-header-container",
+        ".vector-page-toolbar",
+        ".vector-page-titlebar",
+        ".vector-sticky-header-container",
+        ".vector-toc",
+        ".mw-table-of-contents-container",
+        ".mw-footer-container",
+        "#mw-navigation",
+        "#mw-panel",
+        "#p-lang-btn",
+        "#vector-page-titlebar-toc",
+      ].join(", "),
+    },
+    snapshotSolid: {
+      solidSelectors: [".ambox", ".tmbox", ".ombox", ".infobox", "table.sidebar"],
+    },
   },
   {
     match: "craigslist.org",
@@ -111,18 +198,62 @@ export const SITE_RULES: SiteRule[] = [
   },
 ];
 
-/**
- * Returns selectors for elements to remove from the DOM for the given URL.
- */
-export function getSiteRemoveSelectors(url: string): string[] {
+function getMatchingSiteRules(url?: string): SiteRule[] {
+  if (!url) return [];
+
   let hostname: string;
   try {
     hostname = new URL(url).hostname;
   } catch {
     return [];
   }
-  return SITE_RULES
-    .filter((r) => hostname.includes(r.match))
+
+  return SITE_RULES.filter((r) => hostname.includes(r.match));
+}
+
+function isTextSceneElement(
+  sceneElement: SceneElement | null
+): sceneElement is SceneElement & { type: "paragraph" | "heading" } {
+  return (
+    sceneElement?.type === "paragraph" || sceneElement?.type === "heading"
+  );
+}
+
+function getSnapshotPretextRule(url?: string): {
+  pretextTags: Set<string> | null;
+  neverPretextWithin: string;
+} | null {
+  const rules = getMatchingSiteRules(url)
+    .map((rule) => rule.snapshotPretext)
+    .filter((rule): rule is SnapshotPretextRule => Boolean(rule));
+
+  if (rules.length === 0) return null;
+
+  const pretextTags = rules.some((rule) => rule.pretextTags?.length)
+    ? new Set(rules.flatMap((rule) => rule.pretextTags ?? []))
+    : null;
+
+  return {
+    pretextTags,
+    neverPretextWithin: rules
+      .map((rule) => rule.neverPretextWithin)
+      .filter((selector): selector is string => Boolean(selector))
+      .join(", "),
+  };
+}
+
+function getSnapshotSolidSelectors(url?: string): string {
+  return getMatchingSiteRules(url)
+    .map((rule) => rule.snapshotSolid?.solidSelectors ?? [])
+    .flat()
+    .join(", ");
+}
+
+/**
+ * Returns selectors for elements to remove from the DOM for the given URL.
+ */
+export function getSiteRemoveSelectors(url: string): string[] {
+  return getMatchingSiteRules(url)
     .flatMap((r) => r.removeSelectors ?? []);
 }
 
@@ -131,14 +262,7 @@ export function getSiteRemoveSelectors(url: string): string[] {
  * These are for sites that load CSS via JavaScript (e.g., craigslist).
  */
 export function getSiteCssLinks(url: string): string[] {
-  let hostname: string;
-  try {
-    hostname = new URL(url).hostname;
-  } catch {
-    return [];
-  }
-  return SITE_RULES
-    .filter((r) => hostname.includes(r.match))
+  return getMatchingSiteRules(url)
     .flatMap((r) => r.cssLinks ?? []);
 }
 
@@ -146,13 +270,34 @@ export function getSiteCssLinks(url: string): string[] {
  * Returns combined CSS for all matching site rules, or empty string if none match.
  */
 export function getSiteCSS(url: string): string {
-  let hostname: string;
-  try {
-    hostname = new URL(url).hostname;
-  } catch {
-    return "";
-  }
-  const matches = SITE_RULES.filter((r) => hostname.includes(r.match) && r.css);
+  const matches = getMatchingSiteRules(url).filter((r) => r.css);
   if (matches.length === 0) return "";
   return matches.map((r) => r.css).join("\n");
+}
+
+export function isPretextBlockEligible(
+  node: HTMLElement,
+  sceneElement: SceneElement | null,
+  sourceUrl?: string
+): boolean {
+  if (!isTextSceneElement(sceneElement)) return false;
+
+  const rule = getSnapshotPretextRule(sourceUrl);
+  if (!rule) return true;
+
+  if (rule.pretextTags && !rule.pretextTags.has(node.tagName)) {
+    return false;
+  }
+
+  if (rule.neverPretextWithin && node.closest(rule.neverPretextWithin)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function isSolidBlock(node: HTMLElement, sourceUrl?: string): boolean {
+  const solidSelectors = getSnapshotSolidSelectors(sourceUrl);
+  if (!solidSelectors) return false;
+  return node.matches(solidSelectors);
 }

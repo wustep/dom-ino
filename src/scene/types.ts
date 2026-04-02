@@ -40,6 +40,7 @@ export interface SceneElement {
   backgroundColor?: string;
   borderRadius?: number;
   padding?: number;
+  paddingVertical?: number;
   border?: string;
   imageSrc?: string;
   imageAlt?: string;

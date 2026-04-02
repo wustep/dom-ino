@@ -15,6 +15,7 @@ function defaultSettings(): DebugSettings {
     paused: false,
     pretextEnabled: true,
     allowWordBreaks: true,
+    restitution: 0.3,
   };
 }
 

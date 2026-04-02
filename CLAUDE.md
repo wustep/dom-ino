@@ -47,6 +47,13 @@ src/
     presets/                 # Scene preset definitions and registry
 ```
 
+## Terminology (for communicating with the user)
+
+- **Live text** / **pretext'd**: Text elements rendered via Pretext's layout engine (`TextFlowRegion`) that reflow around obstacles in real-time. In code these are non-throwable `paragraph` or `heading` elements with `text`.
+- **Throwable** / **physics-enabled**: Elements with `throwable: true` that are registered as Matter.js bodies and can be grabbed/thrown by the user. These act as obstacles that live text reflows around.
+
+These terms are for understanding user instructions — don't rename code symbols to match.
+
 ## Code Conventions
 
 - Functional components only, no class components

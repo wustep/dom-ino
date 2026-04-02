@@ -48,7 +48,10 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
             width: "100%", height: "100%",
             ...getBackgroundStyle(element.backgroundColor ?? "#fff"),
             borderRadius: element.borderRadius ?? 8,
-            padding: element.padding ?? 16,
+            paddingLeft: element.padding ?? 16,
+            paddingRight: element.padding ?? 16,
+            paddingTop: element.paddingVertical ?? element.padding ?? 16,
+            paddingBottom: element.paddingVertical ?? element.padding ?? 16,
             border: element.border ?? "1px solid #e5e5e5",
             boxShadow: element.boxShadow ?? "0 1px 4px rgba(0,0,0,0.06)",
             ...(element.backdropFilter

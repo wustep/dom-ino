@@ -11,7 +11,13 @@ import type { ObstacleRect } from "../scene/types";
 import { QuickSavePicker } from "./QuickSavePicker";
 import { ImportedPhysicsClone } from "./ImportedPhysicsClone";
 import { computeTextFlow, type TextFlowResult } from "../textflow/useTextFlow";
-import { hasMovedImportedElement, isImportedTextBlockEligible, toStageRect } from "./snapshotViewUtils";
+import { isPretextBlockEligible } from "../scene/siteStyles";
+import {
+  hasMovedImportedElement,
+  hasRenderableImportedText,
+  toStageRect,
+  type ViewportRectLike,
+} from "./snapshotViewUtils";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -94,6 +100,17 @@ function getStableNodeId(root: HTMLElement, node: HTMLElement): string {
 
 function textOf(el: HTMLElement): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+function hasSignificantMediaDescendants(el: HTMLElement): boolean {
+  const mediaNodes = Array.from(
+    el.querySelectorAll("img, picture, video, svg, canvas")
+  ) as HTMLElement[];
+
+  return mediaNodes.some((mediaNode) => {
+    const mediaRect = mediaNode.getBoundingClientRect();
+    return mediaRect.width > 48 || mediaRect.height > 48;
+  });
 }
 
 function bodyPositionsChanged(
@@ -364,6 +381,7 @@ export function SnapshotPageView({
     paused: false,
     pretextEnabled: true,
     allowWordBreaks: true,
+    restitution: 0.3,
   });
 
   const savedIds = useMemo(() => new Set(savedElements.map((s) => s.element.id)), [savedElements]);
@@ -432,15 +450,17 @@ export function SnapshotPageView({
         const dominoId = getStableNodeId(root, childEl) || `snapshot-node-${counter++}`;
         childEl.dataset.dominoId = dominoId;
         const sceneElement = elementToSceneElement(childEl, viewportRect, cs, rect, text);
-        const hasMediaDescendants = childEl.querySelector("img, picture, video, svg, canvas") !== null;
+        const textSceneElement = isTextSceneElement(sceneElement) ? sceneElement : null;
+        const hasMediaDescendants = hasSignificantMediaDescendants(childEl);
         nodes.set(dominoId, childEl);
         const isTextBlock =
-          isImportedTextBlockEligible(childEl, sceneElement, page.sourceUrl) &&
+          textSceneElement !== null &&
+          isPretextBlockEligible(childEl, textSceneElement, page.sourceUrl) &&
           text.length > 0 &&
           (!hasMediaDescendants || tag === "FIGCAPTION");
         if (isTextBlock && !insideTextBlock) {
           textNodes.set(dominoId, childEl);
-          nextTextBlocks.push({ id: dominoId, sceneElement, node: childEl });
+          nextTextBlocks.push({ id: dominoId, sceneElement: textSceneElement, node: childEl });
         }
         const stageRect = toStageRect(rect);
         next.push({
@@ -536,14 +556,17 @@ export function SnapshotPageView({
       const cls = (c.node.className || "").toString().toLowerCase();
       const id = (c.node.id || "").toLowerCase();
       const tag = c.node.tagName;
+      const isNoticeBox =
+        cls.includes("ambox") ||
+        cls.includes("tmbox") ||
+        cls.includes("ombox");
       const isInfobox =
         cls.includes("infobox") ||
         cls.includes("sidebar") ||
-        cls.includes("navbox") ||
-        cls.includes("tmbox") ||
-        cls.includes("ambox");
+        cls.includes("navbox");
       const isGallery = cls.includes("gallery") || cls.includes("thumb") || cls.includes("trow");
       const isTable = tag === "TABLE" || tag === "TBODY" || tag === "THEAD";
+      const isMediaWrapper = t === "image" && (tag === "FIGURE" || isGallery);
       const isFloatAnchor = (() => {
         try {
           const styles = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
@@ -552,9 +575,11 @@ export function SnapshotPageView({
           return false;
         }
       })();
-      if (isInfobox || isGallery || isTable || id.includes("infobox")) continue;
+      if (isInfobox || id.includes("infobox")) continue;
+      if ((isGallery || isTable) && !isMediaWrapper && !isNoticeBox) continue;
       if (isFloatAnchor && t !== "image" && (c.width > 200 || c.height > 200)) continue;
-      if (t === "card" && (c.width > 400 || c.height > 300)) continue;
+      if (t === "card" && !isNoticeBox && (c.width > 400 || c.height > 300)) continue;
+      if (isNoticeBox && (c.width > 980 || c.height > 320)) continue;
       if (picked.some((p) => p.node.contains(c.node))) continue;
       picked.push(c);
       if (picked.length >= 200) break;
@@ -716,12 +741,6 @@ export function SnapshotPageView({
     settings.pretextEnabled &&
     textBlocks.length > 0 &&
     (hasMovedSelectedElements || droppedElements.length > 0);
-  useLayoutEffect(() => {
-    const desiredNodes = importedTextFlowActive
-      ? Array.from(textNodesRef.current.values())
-      : [];
-    syncHiddenNodes(hiddenTextNodesRef.current, desiredNodes);
-  }, [importedTextFlowActive, textBlocks]);
 
   useEffect(() => {
     const hiddenTextNodes = hiddenTextNodesRef.current;
@@ -836,6 +855,16 @@ export function SnapshotPageView({
     return layouts;
   }, [iframeHeight, importedObstacles, importedTextFlowActive, textBlocks]);
 
+  useLayoutEffect(() => {
+    const desiredNodes = importedTextFlowActive
+      ? importedTextLayouts
+          .filter((layout) => hasRenderableImportedText(layout.flow))
+          .map((layout) => textNodesRef.current.get(layout.id))
+          .filter((node): node is HTMLElement => Boolean(node))
+      : [];
+    syncHiddenNodes(hiddenTextNodesRef.current, desiredNodes);
+  }, [importedTextFlowActive, importedTextLayouts]);
+
   // Only include dynamic (throwable) elements in the physics scene to avoid
   // recreating the engine when static obstacle lists change. Static obstacles
   // are still tracked for Pretext reflow but don't need physics bodies.
@@ -895,6 +924,7 @@ export function SnapshotPageView({
   }, [settings.physicsEnabled]);
 
   useEffect(() => { physicsRef.current?.setGravity(settings.gravityX, settings.gravityY); }, [settings.gravityX, settings.gravityY]);
+  useEffect(() => { physicsRef.current?.setRestitution(settings.restitution); }, [settings.restitution]);
   useEffect(() => {
     const engine = physicsRef.current;
     if (!engine) return;
