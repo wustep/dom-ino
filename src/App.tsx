@@ -230,7 +230,15 @@ export default function App({ initialFetchUrl = null }: AppProps) {
 	const handleFetchUrl = useCallback(
 		async (url: string) => {
 			const result = await fetchPageHtml(url)
-			let name = url.replace(/^https?:\/\//, "").split("/")[0]
+			let name = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
+			// For long URLs, use the last path segment for a shorter, distinguishable name
+			if (name.length > 25) {
+				const parts = name.split("/")
+				const last = parts[parts.length - 1]
+				if (last && parts.length > 1) {
+					name = decodeURIComponent(last).replace(/_/g, " ")
+				}
+			}
 			if (name.length > 25) name = name.slice(0, 25) + "..."
 			await handleImportHtml(result.html, name, result.url)
 		},

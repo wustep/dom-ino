@@ -52,6 +52,11 @@ type TooltipAnchor = {
 // Survives component remounts (scene key changes)
 let _pendingPanel: FlyoutPanel = null;
 
+const WEBSITE_PRESETS = [
+  { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/History_of_art" },
+  { label: "NYTimes", url: "https://www.nytimes.com" },
+] as const;
+
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const {
     settings, onSettingsChange, onExplode, onReset,
@@ -156,22 +161,33 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                 <button key={key} onClick={() => { onSelectPreset(key); setOpenPanel(null); }}
                   style={{ ...chipStyle, ...(currentPreset === key && !activeCustomId ? chipActiveStyle : {}) }}>{label}</button>
               ))}
-              <button
-                onClick={async () => {
-                  setFetchStatus("loading"); setFetchError("");
-                  try {
-                    await onFetchUrl("https://en.wikipedia.org/wiki/History_of_art");
-                    setFetchStatus("idle");
-                    setOpenPanel(null);
-                  } catch (e) {
-                    setFetchStatus("error");
-                    setFetchError(e instanceof Error ? e.message : "Could not fetch.");
-                  }
-                }}
-                disabled={fetchStatus === "loading"}
-                style={{ ...chipStyle }}
-              >Wikipedia</button>
-              {customPages.map((cp) => (
+              {WEBSITE_PRESETS.map(({ label, url }) => {
+                const existing = customPages.find((cp) => cp.kind === "snapshot" && cp.sourceUrl === url);
+                return (
+                  <button
+                    key={label}
+                    onClick={async () => {
+                      if (existing) {
+                        onSelectCustomPage(existing.id);
+                        setOpenPanel(null);
+                        return;
+                      }
+                      setFetchStatus("loading"); setFetchError("");
+                      try {
+                        await onFetchUrl(url);
+                        setFetchStatus("idle");
+                        setOpenPanel(null);
+                      } catch (e) {
+                        setFetchStatus("error");
+                        setFetchError(e instanceof Error ? e.message : "Could not fetch.");
+                      }
+                    }}
+                    disabled={fetchStatus === "loading"}
+                    style={{ ...chipStyle, ...(existing && activeCustomId === existing.id ? chipActiveStyle : {}) }}
+                  >{label}</button>
+                );
+              })}
+              {customPages.filter((cp) => cp.kind !== "snapshot" || !WEBSITE_PRESETS.some((wp) => wp.url === cp.sourceUrl)).map((cp) => (
                 <button key={cp.id} onClick={() => { onSelectCustomPage(cp.id); setOpenPanel(null); }}
                   style={{ ...chipStyle, ...(activeCustomId === cp.id ? chipActiveStyle : {}), maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{cp.name}</button>
               ))}
