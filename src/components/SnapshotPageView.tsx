@@ -92,10 +92,18 @@ function textOf(el: HTMLElement): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+const INLINE_TAGS = new Set([
+  "SPAN", "EM", "STRONG", "B", "I", "A", "SMALL", "SUB", "SUP",
+  "MARK", "ABBR", "CODE", "TIME", "BR", "WBR", "S", "U", "Q",
+  "CITE", "DFN", "KBD", "SAMP", "VAR", "DATA", "INS", "DEL",
+]);
+
 function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): SceneElement["type"] {
   const tag = el.tagName;
   if (/^H[1-6]$/.test(tag)) return "heading";
-  if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION" || tag === "LI") return "paragraph";
+  if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION" || tag === "LI"
+    || tag === "DD" || tag === "DT" || tag === "TD" || tag === "TH"
+    || tag === "CAPTION" || tag === "PRE" || tag === "ADDRESS" || tag === "LABEL") return "paragraph";
   if (tag === "BUTTON") return "button";
   if (tag === "A") return cs.display === "inline" ? "link" : "button";
   if (tag === "IMG" || tag === "PICTURE" || tag === "VIDEO" || tag === "SVG") return "image";
@@ -114,11 +122,21 @@ function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): Sce
       if (imgRect.width > elRect.width * 0.6 && imgRect.height > elRect.height * 0.4) return "image";
     }
   }
+  // Generic elements (div, span, section, etc.) that are primarily text containers
+  // — all children are inline elements and there is meaningful text content
+  const text = textOf(el);
+  if (text.length > 20) {
+    const children = Array.from(el.children);
+    const allInline = children.length === 0 || children.every(
+      (c) => INLINE_TAGS.has(c.tagName)
+    );
+    if (allInline) return "paragraph";
+  }
   const bg = cs.backgroundColor;
   const hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
   const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
   const hasShadow = cs.boxShadow && cs.boxShadow !== "none";
-  const shortText = textOf(el).length > 0 && textOf(el).length < 40;
+  const shortText = text.length > 0 && text.length < 40;
   const small = el.offsetWidth < 300 && el.offsetHeight < 120;
   if (shortText && small && (hasBg || hasBorder || hasShadow)) return "badge";
   if (hasBg || hasBorder || hasShadow) return "card";
@@ -245,6 +263,32 @@ function pickContentRoot(doc: Document): HTMLElement {
   return doc.body as HTMLElement;
 }
 
+function syncHiddenNodes(
+  hiddenNodes: Map<HTMLElement, string>,
+  desiredNodes: Iterable<HTMLElement>
+) {
+  const desired = new Set(desiredNodes);
+
+  for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
+    if (desired.has(node)) continue;
+    node.style.visibility = originalVisibility;
+    hiddenNodes.delete(node);
+  }
+
+  for (const node of desired) {
+    if (hiddenNodes.has(node)) continue;
+    hiddenNodes.set(node, node.style.visibility || "");
+    node.style.visibility = "hidden";
+  }
+}
+
+function restoreHiddenNodes(hiddenNodes: Map<HTMLElement, string>) {
+  for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
+    node.style.visibility = originalVisibility;
+  }
+  hiddenNodes.clear();
+}
+
 export function SnapshotPageView({
   page,
   currentPreset,
@@ -268,6 +312,8 @@ export function SnapshotPageView({
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const rafRef = useRef<number>(0);
   const fpsFrames = useRef<number[]>([]);
+  const hiddenSelectedNodesRef = useRef<Map<HTMLElement, string>>(new Map());
+  const hiddenTextNodesRef = useRef<Map<HTMLElement, string>>(new Map());
   const [iframeHeight, setIframeHeight] = useState(1600);
   const [pickerMode, setPickerMode] = useState(false);
   const [savePickerMode, setSavePickerMode] = useState(false);
@@ -311,7 +357,7 @@ export function SnapshotPageView({
 
     let counter = 0;
     const walk = (el: HTMLElement, depth: number, insideTextBlock: boolean) => {
-      if (depth > 20) return;
+      if (depth > 40) return;
       for (const child of Array.from(el.children)) {
         if (child.nodeType !== Node.ELEMENT_NODE) continue;
         const childEl = child as HTMLElement;
@@ -340,8 +386,10 @@ export function SnapshotPageView({
         const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
         const hasShadow = cs.boxShadow && cs.boxShadow !== "none";
         const semantic = /^(BUTTON|A|IMG|PICTURE|VIDEO|SVG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION|TABLE|FIGURE)$/.test(tag);
+        const mediaElement = /^(IMG|PICTURE|VIDEO|SVG|FIGURE)$/.test(tag);
         const sizableBlock = rect.width >= 48 && rect.height >= 24;
-        if (inlineish && !hasBg && !hasBorder && !hasShadow) {
+        // Skip inline non-media elements — but always keep images/videos as candidates
+        if (inlineish && !mediaElement && !hasBg && !hasBorder && !hasShadow) {
           walk(childEl, depth + 1, insideTextBlock);
           continue;
         }
@@ -395,8 +443,8 @@ export function SnapshotPageView({
       c.sceneElement &&
       c.sceneElement.type !== "paragraph" &&
       c.sceneElement.type !== "heading" &&
-      c.display !== "inline" &&
-      c.display !== "contents" &&
+      // Allow inline images/videos — they're valid throwable targets
+      (c.sceneElement.type === "image" || (c.display !== "inline" && c.display !== "contents")) &&
       c.width >= 40 &&
       c.height >= 20
     ),
@@ -421,7 +469,13 @@ export function SnapshotPageView({
       if (!c.sceneElement) continue;
       const t = c.sceneElement.type;
       if (!throwableTypes.has(t)) continue;
-      if (c.width > 500 || c.height > 400) continue;
+      // Keep startup selection conservative. Inline media is still available
+      // in picker mode, but auto-selecting it makes Wikipedia pages much noisier.
+      if (c.display === "inline" || c.display === "contents") continue;
+      // Allow larger images/videos as throwables (hero media, video embeds)
+      const maxW = t === "image" ? 900 : 500;
+      const maxH = t === "image" ? 700 : 400;
+      if (c.width > maxW || c.height > maxH) continue;
       if (c.width < 30 || c.height < 16) continue;
       if (c.y < 40) continue;
 
@@ -463,6 +517,57 @@ export function SnapshotPageView({
     const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, 1200);
     setIframeHeight(h);
     scanCandidates();
+
+    // Copy @font-face rules from iframe to the parent document so the
+    // Pretext text overlay can render with the same custom fonts.
+    try {
+      const fontRules: string[] = [];
+      for (const sheet of Array.from(doc.styleSheets)) {
+        try {
+          for (const rule of Array.from(sheet.cssRules)) {
+            if (rule instanceof CSSFontFaceRule) {
+              fontRules.push(rule.cssText);
+            }
+          }
+        } catch { /* cross-origin sheet, skip */ }
+      }
+      if (fontRules.length > 0) {
+        const id = "domino-iframe-fonts";
+        let fontStyle = document.getElementById(id) as HTMLStyleElement | null;
+        if (!fontStyle) {
+          fontStyle = document.createElement("style");
+          fontStyle.id = id;
+          document.head.appendChild(fontStyle);
+        }
+        fontStyle.textContent = fontRules.join("\n");
+      }
+    } catch { /* ignore font extraction errors */ }
+
+    // Wait for images to finish loading, then re-measure height and re-scan.
+    // Images may still be downloading when the iframe fires onload.
+    const images = Array.from(doc.querySelectorAll("img")) as HTMLImageElement[];
+    const pending = images.filter((img) => img.src && !img.complete);
+    if (pending.length > 0) {
+      const settled = Promise.allSettled(
+        pending.map((img) => new Promise<void>((resolve) => {
+          if (img.complete) { resolve(); return; }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        }))
+      );
+      // Also add a hard timeout so we don't wait forever
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, 8000));
+      Promise.race([settled, timeout]).then(() => {
+        if (!iframeRef.current?.contentDocument?.body) return;
+        const newH = Math.max(
+          iframeRef.current.contentDocument.body.scrollHeight,
+          iframeRef.current.contentDocument.documentElement?.scrollHeight || 0,
+          1200
+        );
+        setIframeHeight(newH);
+        scanCandidates();
+      });
+    }
   }, [scanCandidates]);
 
   const saveNode = useCallback((id: string) => {
@@ -500,30 +605,19 @@ export function SnapshotPageView({
     [selectedCandidates]
   );
 
-  // Hide originals for active selected DOM nodes so overlay clones replace them visually.
-  // In picker mode, show originals so the user sees what they're selecting.
   useEffect(() => {
-    const current = nodesRef.current;
-    current.forEach((node, id) => {
-      if (activeSelectedIds.has(id) && !pickerMode) {
-        if (!node.dataset.dominoOriginalVisibility) {
-          node.dataset.dominoOriginalVisibility = node.style.visibility || "";
-        }
-        node.style.visibility = "hidden";
-      } else if (node.dataset.dominoOriginalVisibility !== undefined) {
-        node.style.visibility = node.dataset.dominoOriginalVisibility;
-        delete node.dataset.dominoOriginalVisibility;
-      }
-    });
-    return () => {
-      current.forEach((node) => {
-        if (node.dataset.dominoOriginalVisibility !== undefined) {
-          node.style.visibility = node.dataset.dominoOriginalVisibility;
-          delete node.dataset.dominoOriginalVisibility;
-        }
-      });
-    };
+    const desiredNodes =
+      pickerMode
+        ? []
+        : Array.from(activeSelectedIds)
+            .map((id) => nodesRef.current.get(id))
+            .filter((node): node is HTMLElement => Boolean(node));
+    syncHiddenNodes(hiddenSelectedNodesRef.current, desiredNodes);
   }, [activeSelectedIds, candidates, pickerMode]);
+
+  useEffect(() => {
+    return () => restoreHiddenNodes(hiddenSelectedNodesRef.current);
+  }, []);
 
   const selectedElements = useMemo(() => {
     return selectedCandidates
@@ -553,33 +647,20 @@ export function SnapshotPageView({
     return obstacleCandidates;
   }, [candidates, selectedCandidates]);
 
-  // Hide original text nodes when Pretext overlay is active.
   const importedTextFlowActive =
     settings.pretextEnabled &&
     textBlocks.length > 0 &&
     (selectedElements.length > 0 || droppedElements.length > 0);
   useEffect(() => {
-    const current = textNodesRef.current;
-    current.forEach((node) => {
-      if (importedTextFlowActive) {
-        if (!node.dataset.dominoOriginalVisibility) {
-          node.dataset.dominoOriginalVisibility = node.style.visibility || "";
-        }
-        node.style.visibility = "hidden";
-      } else if (node.dataset.dominoOriginalVisibility !== undefined) {
-        node.style.visibility = node.dataset.dominoOriginalVisibility;
-        delete node.dataset.dominoOriginalVisibility;
-      }
-    });
-    return () => {
-      current.forEach((node) => {
-        if (node.dataset.dominoOriginalVisibility !== undefined) {
-          node.style.visibility = node.dataset.dominoOriginalVisibility;
-          delete node.dataset.dominoOriginalVisibility;
-        }
-      });
-    };
+    const desiredNodes = importedTextFlowActive
+      ? Array.from(textNodesRef.current.values())
+      : [];
+    syncHiddenNodes(hiddenTextNodesRef.current, desiredNodes);
   }, [importedTextFlowActive, textBlocks]);
+
+  useEffect(() => {
+    return () => restoreHiddenNodes(hiddenTextNodesRef.current);
+  }, []);
 
   const importedObstacles: ObstacleRect[] = useMemo(() => {
     // When the Pretext text overlay is active (original text hidden), ALL
@@ -1054,8 +1135,8 @@ export function SnapshotPageView({
             pinned: false,
             rect: {
               ...saved.element.rect,
-              x: x != null ? x - saved.element.rect.width / 2 : (stageRef.current?.clientWidth || 1000) / 2 - saved.element.rect.width / 2,
-              y: y != null ? y - saved.element.rect.height / 2 : iframeHeight / 2 - saved.element.rect.height / 2,
+              x: x != null ? x - saved.element.rect.width / 2 : (stageRef.current?.clientWidth || 1000) / 2 - saved.element.rect.width / 2 + (Math.random() - 0.5) * 120,
+              y: y != null ? y - saved.element.rect.height / 2 : window.scrollY + window.innerHeight / 2 - saved.element.rect.height / 2 + (Math.random() - 0.5) * 60,
             },
           };
           setDroppedElements((prev) => [...prev, el]);

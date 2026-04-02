@@ -16,6 +16,32 @@ interface SiteRule {
 
 export const SITE_RULES: SiteRule[] = [
   {
+    match: "wikipedia.org",
+    removeSelectors: [
+      ".navbox",
+      ".vertical-navbox",
+      "#catlinks",
+      ".mw-footer-container",
+      ".vector-sticky-header-container",
+      ".mw-editsection",
+      ".mw-jump-link",
+      ".mw-portlet-dock-bottom",
+      ".authority-control",
+    ],
+    css: `
+      /* Keep imported Wikipedia pages focused on article content. */
+      #toc,
+      .toc,
+      .vector-toc,
+      .shortdescription,
+      .mw-indicators,
+      .sistersitebox,
+      .portal {
+        display: none !important;
+      }
+    `,
+  },
+  {
     match: "nytimes.com",
     removeSelectors: [
       '[data-testid="StandardAd"]',

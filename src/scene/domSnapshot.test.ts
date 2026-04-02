@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { autoSelectThrowables, fetchPageHtml } from "./domSnapshot";
+import { autoSelectThrowables, fetchPageHtml, prepareHtmlForViewer } from "./domSnapshot";
 import type { SceneDescription, SceneElement } from "./types";
 
 function makeElement(overrides: Partial<SceneElement> = {}): SceneElement {
@@ -214,6 +214,110 @@ describe("fetchPageHtml", () => {
   });
 });
 
+// ── prepareHtmlForViewer (noscript image promotion) ──
+
+describe("prepareHtmlForViewer", () => {
+  it("promotes noscript img src to empty sibling img and forces opacity (NYTimes pattern)", async () => {
+    const html = `<html><head><title>T</title></head><body>
+      <picture>
+        <source media="(min-width: 601px)"/>
+        <img class="lazy" alt="Photo" loading="lazy"/>
+        <noscript><img src="https://static.nyt.com/image.jpg" alt="Photo" class="full"/></noscript>
+      </picture>
+    </body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.nytimes.com/article");
+    // The empty sibling img should now have the noscript's src
+    expect(result).toContain('src="https://static.nyt.com/image.jpg"');
+    // Should force opacity:1 to override JS-dependent opacity:0 CSS
+    expect(result).toContain("opacity: 1");
+    // The noscript tag itself should be removed
+    expect(result).not.toContain("<noscript>");
+  });
+
+  it("does NOT duplicate images when sibling img already has src", async () => {
+    const html = `<html><head><title>T</title></head><body>
+      <picture>
+        <img src="https://example.com/existing.jpg" alt="Photo"/>
+        <noscript><img src="https://example.com/fallback.jpg" alt="Photo"/></noscript>
+      </picture>
+    </body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.example.com/page");
+    // Should keep existing src and remove noscript (original behavior)
+    expect(result).toContain("existing.jpg");
+    expect(result).not.toContain("<noscript>");
+  });
+
+  it("unwraps noscript when no sibling media exists", async () => {
+    const html = `<html><head><title>T</title></head><body>
+      <div>
+        <noscript><img src="https://example.com/only.jpg" alt="Only image"/></noscript>
+      </div>
+    </body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.example.com/page");
+    // Should unwrap the noscript (original behavior)
+    expect(result).toContain('src="https://example.com/only.jpg"');
+    expect(result).not.toContain("<noscript>");
+  });
+
+  it("converts loading=lazy to loading=eager", async () => {
+    const html = `<html><head><title>T</title></head><body>
+      <img src="https://example.com/img.jpg" loading="lazy" alt="test"/>
+    </body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.example.com/page");
+    expect(result).toContain('loading="eager"');
+    expect(result).not.toContain('loading="lazy"');
+  });
+
+  it("promotes data-src to src on images without src", async () => {
+    const html = `<html><head><title>T</title></head><body>
+      <img data-src="https://example.com/lazy.jpg" alt="lazy"/>
+    </body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.example.com/page");
+    expect(result).toContain('src="https://example.com/lazy.jpg"');
+  });
+
+  it("removes scripts from HTML", async () => {
+    const html = `<html><head><title>T</title></head><body>
+      <script>alert("xss")</script>
+      <p>safe content</p>
+    </body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.example.com/page");
+    expect(result).not.toContain("<script");
+    expect(result).toContain("safe content");
+  });
+
+  it("replaces position:fixed with position:relative", async () => {
+    const html = `<html><head><title>T</title></head><body>
+      <header style="position: fixed; top: 0;">Header</header>
+    </body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.example.com/page");
+    expect(result).toContain("position: relative");
+    expect(result).not.toContain("position: fixed");
+  });
+
+  it("rewrites CSS url() paths using the CSS file origin, not page origin", async () => {
+    // Simulate: page is on nytimes.com, CSS is on g1.nyt.com CDN
+    const fontCSS = `@font-face { font-family: 'nyt-cheltenham'; src: url('/fonts/cheltenham.woff2'); }`;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
+      if (String(url).includes("g1.nyt.com")) {
+        return new Response(fontCSS, { status: 200 });
+      }
+      return new Response("", { status: 404 });
+    }));
+
+    const html = `<html><head><title>T</title>
+      <link href="https://g1.nyt.com/fonts/css/web-fonts.css" rel="stylesheet" />
+    </head><body><p>text</p></body></html>`;
+    const result = await prepareHtmlForViewer(html, "https://www.nytimes.com/article");
+
+    // Font URL should resolve to g1.nyt.com, NOT nytimes.com
+    expect(result).toContain('url("https://g1.nyt.com/fonts/cheltenham.woff2")');
+    expect(result).not.toContain("nytimes.com/fonts/cheltenham");
+
+    vi.unstubAllGlobals();
+  });
+});
+
 // ── snapshotHtmlToScene (structure-based fallback) ──
 
 // In jsdom, iframe.sandbox is not a DOMTokenList — we patch it so
@@ -236,7 +340,8 @@ describe("snapshotHtmlToScene (structure-based fallback)", () => {
         const el = origCreateElement(tag, options);
         if (tag === "iframe") {
           // Provide a fake DOMTokenList for sandbox
-          (el as HTMLIFrameElement).sandbox = { add: vi.fn() } as unknown as DOMTokenList;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (el as any).sandbox = { add: vi.fn() };
           // Make the iframe immediately error so we skip the 10s timeout
           setTimeout(() => (el as HTMLIFrameElement).onerror?.(new Event("error")), 0);
         }

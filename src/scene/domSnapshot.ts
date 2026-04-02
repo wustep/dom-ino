@@ -68,6 +68,36 @@ function rewriteFetchedDocumentMarkup(html: string): string {
     });
 
     if (hasMediaFallback && hasSiblingMedia) {
+      // Check if sibling media elements actually have source URLs.
+      // NYTimes (and similar) ship <img> with opacity:0 and no src, relying
+      // on JS to populate src and reveal it. The only real URL + visible
+      // styling lives inside <noscript>. Promote the noscript src to the
+      // empty sibling img and force it visible (override JS-dependent
+      // opacity:0 CSS). We keep the sibling img for layout since it provides
+      // sizing via width/vertical-align, while the noscript img uses
+      // position:absolute and would collapse its container.
+      const siblingImgs = Array.from(parent.querySelectorAll(":scope > img, :scope > picture img")) as HTMLImageElement[];
+      const allSiblingsEmpty = siblingImgs.length > 0 && siblingImgs.every(
+        (img) => !img.getAttribute("src") && !img.getAttribute("data-src")
+      );
+      if (allSiblingsEmpty) {
+        const noscriptDoc = parser.parseFromString(`<body>${raw}</body>`, "text/html");
+        const noscriptImg = noscriptDoc.querySelector("img");
+        if (noscriptImg) {
+          const noscriptSrc = noscriptImg.getAttribute("src");
+          if (noscriptSrc && siblingImgs.length > 0) {
+            const target = siblingImgs[0];
+            target.setAttribute("src", noscriptSrc);
+            // Force visible — the original class likely has opacity:0 for
+            // JS-based reveal that won't run without scripts
+            target.style.opacity = "1";
+            const noscriptAlt = noscriptImg.getAttribute("alt");
+            if (noscriptAlt && !target.getAttribute("alt")) {
+              target.setAttribute("alt", noscriptAlt);
+            }
+          }
+        }
+      }
       noscript.remove();
       continue;
     }
@@ -138,11 +168,15 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
       if (res.ok) {
         let css = await res.text();
         if (css.length > 10 && css.length < 1000000) {
-          // Rewrite url() references in CSS to absolute
+          // Rewrite url() references in CSS to absolute.
+          // Use the CSS file's own origin for absolute paths (/foo),
+          // not the page origin — fonts often live on a different CDN.
           const cssBase = cssUrl.replace(/[^/]*$/, "");
+          let cssOrigin: string;
+          try { cssOrigin = new URL(cssUrl).origin; } catch { cssOrigin = origin; }
           css = css.replace(/url\(\s*['"]?(?!data:|https?:|\/\/)([^'")]+)['"]?\s*\)/gi,
             (_, ref: string) => {
-              const abs = ref.startsWith("/") ? origin + ref : cssBase + ref;
+              const abs = ref.startsWith("/") ? cssOrigin + ref : cssBase + ref;
               return `url("${abs}")`;
             });
           return { linkTag, css };
