@@ -17,6 +17,8 @@ DOMino is a physics-driven text layout experiment. Users grab interactive DOM el
 npm run dev       # Dev server on http://localhost:5173
 npm run build     # TypeScript check + Vite build → dist/
 npm run lint      # ESLint on .ts/.tsx files
+npm run test      # Vitest run (all tests)
+npm run test:watch # Vitest watch mode
 npm run preview   # Preview production build
 ```
 
@@ -98,3 +100,24 @@ setLocale(locale?) // Configure locale for text segmentation
 - **Text flow** (`textflow/useTextFlow.ts`): Row-by-row downward scan, obstacle avoidance via AABB projection, widest-first segment picking. Bails after 5 consecutive fully-blocked rows.
 - **Fetch proxy** (`vite.config.ts`): Dev middleware at `/api/fetch-page?url=` proxies page fetches with User-Agent spoofing.
 - **DOM snapshotting** (`scene/domSnapshot.ts`): Inlines computed CSS, fixes visibility, sanitizes HTML for viewer rendering.
+- **Site rules** (`scene/siteStyles.ts`): Per-site CSS overrides and element removal selectors for known sites (NYTimes, Wikipedia).
+
+## Testing
+
+- **Vitest** + **jsdom** environment with `@testing-library/react` and `@testing-library/user-event`
+- Setup: `vitest.config.ts` (root) + `src/test/setup.ts` (jest-dom matchers)
+- Test files colocated with source: `*.test.ts` / `*.test.tsx`
+- Key test areas: obstacles (geometry), domSnapshot (fetch pipeline, noscript handling, CSS rewriting), Toolbar (rendering, interactions, panels), physics engine (bodies, methods), presets (scene generation)
+- `iframe.sandbox` is not a DOMTokenList in jsdom — tests mock it via `document.createElement` spy
+- `fetchPageHtml` tests need `vi.stubGlobal("fetch", ...)` and response bodies >100 chars (the function rejects short proxy responses)
+
+## Snapshot Pipeline Pitfalls
+
+When debugging fetched page rendering issues, check these in order:
+
+1. **CSS `url()` rewriting**: External CSS `url(/path)` must resolve against the CSS file's origin, not the page origin (fonts on CDNs like `g1.nyt.com` break otherwise)
+2. **Noscript image pattern**: Sites like NYTimes ship `<img>` with no `src` + `opacity:0` (JS fills it), with the real URL only in `<noscript>`. The pipeline promotes src and forces `opacity:1`
+3. **DOM depth**: Modern CSS-in-JS sites nest 25-35+ div levels deep. Walker depth limit is 40
+4. **Inline media elements**: `<img>` and `<video>` default to `display:inline` — the walker and selectable-candidates filter must exempt media from inline-skip logic
+5. **Font propagation**: `@font-face` rules from the iframe must be copied to the parent document for the Pretext text overlay to use the same fonts
+6. **Position regex**: `position:fixed/sticky` replacement runs on the full HTML string including `<style>` blocks — this is intentional but aggressive
