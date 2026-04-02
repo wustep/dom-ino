@@ -1,332 +1,426 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { DominoScene } from "./components/DominoScene";
-import { SnapshotPageView } from "./components/SnapshotPageView";
-import type { SceneDescription, SceneElement, SavedElement } from "./scene/types";
-import type { PresetKey } from "./scene/presets";
-import { getPresetScene, isPresetKey } from "./scene/presets";
-import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { DominoScene } from "./components/DominoScene"
+import { SnapshotPageView } from "./components/SnapshotPageView"
+import type {
+	SceneDescription,
+	SceneElement,
+	SavedElement,
+} from "./scene/types"
+import type { PresetKey } from "./scene/presets"
+import { DEFAULT_PRESET, getPresetScene, isPresetKey } from "./scene/presets"
+import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot"
 
 export interface SceneCustomPage {
-  id: string;
-  name: string;
-  kind: "scene";
-  scene: SceneDescription;
+	id: string
+	name: string
+	kind: "scene"
+	scene: SceneDescription
 }
 
 export interface SnapshotCustomPage {
-  id: string;
-  name: string;
-  kind: "snapshot";
-  preparedHtml: string;
-  sourceUrl?: string;
+	id: string
+	name: string
+	kind: "snapshot"
+	preparedHtml: string
+	sourceUrl?: string
 }
 
-export type CustomPage = SceneCustomPage | SnapshotCustomPage;
+export type CustomPage = SceneCustomPage | SnapshotCustomPage
 
-const LS_KEY = "domino-state";
+const LS_KEY = "domino-state"
 
 interface PersistedState {
-  currentPreset: PresetKey | "custom";
-  activeCustomId: string | null;
-  savedElements: SavedElement[];
-  customPages: CustomPage[];
+	currentPreset: PresetKey | "custom"
+	activeCustomId: string | null
+	savedElements: SavedElement[]
+	customPages: CustomPage[]
 }
 
 interface AppProps {
-  initialFetchUrl?: string | null;
+	initialFetchUrl?: string | null
 }
 
-let consumedInitialFetchUrl: string | null = null;
+let consumedInitialFetchUrl: string | null = null
 
 function normalizeCustomPages(pages: unknown): CustomPage[] {
-  if (!Array.isArray(pages)) return [];
-  return pages.reduce<CustomPage[]>((acc, page) => {
-    if (!page || typeof page !== "object") return acc;
-    const p = page as Record<string, unknown>;
-    if (typeof p.id !== "string" || typeof p.name !== "string") return acc;
-    if (p.kind === "snapshot" && typeof p.preparedHtml === "string") {
-      acc.push({
-        id: p.id,
-        name: p.name,
-        kind: "snapshot" as const,
-        preparedHtml: p.preparedHtml,
-        sourceUrl: typeof p.sourceUrl === "string" ? p.sourceUrl : undefined,
-      });
-      return acc;
-    }
-    if (p.kind === "scene" && p.scene && typeof p.scene === "object") {
-      acc.push({
-        id: p.id,
-        name: p.name,
-        kind: "scene" as const,
-        scene: p.scene as SceneDescription,
-      });
-      return acc;
-    }
-    // Back-compat for older persisted shape
-    if (p.scene && typeof p.scene === "object") {
-      acc.push({
-        id: p.id,
-        name: p.name,
-        kind: "scene" as const,
-        scene: p.scene as SceneDescription,
-      });
-      return acc;
-    }
-    return acc;
-  }, []);
+	if (!Array.isArray(pages)) return []
+	return pages.reduce<CustomPage[]>((acc, page) => {
+		if (!page || typeof page !== "object") return acc
+		const p = page as Record<string, unknown>
+		if (typeof p.id !== "string" || typeof p.name !== "string") return acc
+		if (p.kind === "snapshot" && typeof p.preparedHtml === "string") {
+			acc.push({
+				id: p.id,
+				name: p.name,
+				kind: "snapshot" as const,
+				preparedHtml: p.preparedHtml,
+				sourceUrl: typeof p.sourceUrl === "string" ? p.sourceUrl : undefined,
+			})
+			return acc
+		}
+		if (p.kind === "scene" && p.scene && typeof p.scene === "object") {
+			acc.push({
+				id: p.id,
+				name: p.name,
+				kind: "scene" as const,
+				scene: p.scene as SceneDescription,
+			})
+			return acc
+		}
+		// Back-compat for older persisted shape
+		if (p.scene && typeof p.scene === "object") {
+			acc.push({
+				id: p.id,
+				name: p.name,
+				kind: "scene" as const,
+				scene: p.scene as SceneDescription,
+			})
+			return acc
+		}
+		return acc
+	}, [])
 }
 
 function loadState(): Partial<PersistedState> {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<PersistedState> & { customPages?: unknown };
-      const customPages = normalizeCustomPages(parsed.customPages).filter(
-        (page) => page.kind !== "scene" || page.scene.id !== "breakout"
-      );
-      const activeCustomId =
-        typeof parsed.activeCustomId === "string" && customPages.some((page) => page.id === parsed.activeCustomId)
-          ? parsed.activeCustomId
-          : null;
-      let currentPreset: PresetKey | "custom" | undefined =
-        parsed.currentPreset === "custom"
-          ? "custom"
-          : isPresetKey(parsed.currentPreset)
-            ? parsed.currentPreset
-            : undefined;
-      if (currentPreset === "custom" && !activeCustomId) {
-        currentPreset = undefined;
-      }
-      return {
-        ...parsed,
-        activeCustomId,
-        currentPreset,
-        customPages,
-      };
-    }
-  } catch { /* ignore */ }
-  return {};
+	try {
+		const raw = localStorage.getItem(LS_KEY)
+		if (raw) {
+			const parsed = JSON.parse(raw) as Partial<PersistedState> & {
+				customPages?: unknown
+			}
+			const customPages = normalizeCustomPages(parsed.customPages).filter(
+				(page) => page.kind !== "scene" || page.scene.id !== "breakout"
+			)
+			const activeCustomId =
+				typeof parsed.activeCustomId === "string" &&
+				customPages.some((page) => page.id === parsed.activeCustomId)
+					? parsed.activeCustomId
+					: null
+			let currentPreset: PresetKey | "custom" | undefined =
+				parsed.currentPreset === "custom"
+					? "custom"
+					: isPresetKey(parsed.currentPreset)
+						? parsed.currentPreset
+						: undefined
+			if (currentPreset === "custom" && !activeCustomId) {
+				currentPreset = undefined
+			}
+			return {
+				...parsed,
+				activeCustomId,
+				currentPreset,
+				customPages,
+			}
+		}
+	} catch {
+		/* ignore */
+	}
+	return {}
 }
 
 function saveState(s: PersistedState) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(s));
-  } catch { /* quota exceeded etc */ }
+	try {
+		localStorage.setItem(LS_KEY, JSON.stringify(s))
+	} catch {
+		/* quota exceeded etc */
+	}
 }
 
 export default function App({ initialFetchUrl = null }: AppProps) {
-  const persisted = useRef(loadState());
+	const persisted = useRef(loadState())
 
-  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const [currentPreset, setCurrentPreset] = useState<PresetKey | "custom">(persisted.current.currentPreset ?? "article");
-  const [customPages, setCustomPages] = useState<CustomPage[]>(persisted.current.customPages ?? []);
-  const [activeCustomId, setActiveCustomId] = useState<string | null>(persisted.current.activeCustomId ?? null);
-  const [showHint, setShowHint] = useState(true);
-  const [sceneKey, setSceneKey] = useState(0);
-  const [savedElements, setSavedElements] = useState<SavedElement[]>(persisted.current.savedElements ?? []);
+	const [windowSize, setWindowSize] = useState({
+		width: window.innerWidth,
+		height: window.innerHeight,
+	})
+	const [currentPreset, setCurrentPreset] = useState<PresetKey | "custom">(
+		persisted.current.currentPreset ?? DEFAULT_PRESET
+	)
+	const [customPages, setCustomPages] = useState<CustomPage[]>(
+		persisted.current.customPages ?? []
+	)
+	const [activeCustomId, setActiveCustomId] = useState<string | null>(
+		persisted.current.activeCustomId ?? null
+	)
+	const [showHint, setShowHint] = useState(
+		() => !localStorage.getItem("domino-hint-seen")
+	)
+	const [sceneKey, setSceneKey] = useState(0)
+	const [savedElements, setSavedElements] = useState<SavedElement[]>(
+		persisted.current.savedElements ?? []
+	)
 
-  // Persist state on changes
-  useEffect(() => {
-    saveState({ currentPreset, activeCustomId, savedElements, customPages });
-  }, [currentPreset, activeCustomId, savedElements, customPages]);
+	// Persist state on changes
+	useEffect(() => {
+		saveState({ currentPreset, activeCustomId, savedElements, customPages })
+	}, [currentPreset, activeCustomId, savedElements, customPages])
 
-  useEffect(() => {
-    const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener("resize", h);
-    return () => window.removeEventListener("resize", h);
-  }, []);
+	useEffect(() => {
+		const h = () =>
+			setWindowSize({ width: window.innerWidth, height: window.innerHeight })
+		window.addEventListener("resize", h)
+		return () => window.removeEventListener("resize", h)
+	}, [])
 
-  useEffect(() => {
-    if (!showHint) return;
-    const dismiss = () => setShowHint(false);
-    window.addEventListener("mousedown", dismiss, { once: true });
-    const timer = setTimeout(dismiss, 8000);
-    return () => { window.removeEventListener("mousedown", dismiss); clearTimeout(timer); };
-  }, [showHint]);
+	useEffect(() => {
+		if (!showHint) return
+		const dismiss = () => {
+			setShowHint(false)
+			localStorage.setItem("domino-hint-seen", "1")
+		}
+		window.addEventListener("mousedown", dismiss, { once: true })
+		const timer = setTimeout(dismiss, 8000)
+		return () => {
+			window.removeEventListener("mousedown", dismiss)
+			clearTimeout(timer)
+		}
+	}, [showHint])
 
-  const activeCustomPage = useMemo(
-    () => currentPreset === "custom" && activeCustomId
-      ? customPages.find((p) => p.id === activeCustomId) ?? null
-      : null,
-    [currentPreset, activeCustomId, customPages]
-  );
+	const activeCustomPage = useMemo(
+		() =>
+			currentPreset === "custom" && activeCustomId
+				? (customPages.find((p) => p.id === activeCustomId) ?? null)
+				: null,
+		[currentPreset, activeCustomId, customPages]
+	)
 
-  const scene = useMemo(() => {
-    if (activeCustomPage?.kind === "scene") {
-      return { ...activeCustomPage.scene, width: windowSize.width };
-    }
-    if (currentPreset !== "custom") {
-      return getPresetScene(currentPreset, windowSize.width, windowSize.height);
-    }
-    return null;
-  }, [activeCustomPage, currentPreset, windowSize.width, windowSize.height]);
+	const scene = useMemo(() => {
+		if (activeCustomPage?.kind === "scene") {
+			return { ...activeCustomPage.scene, width: windowSize.width }
+		}
+		if (currentPreset !== "custom") {
+			return getPresetScene(currentPreset, windowSize.width, windowSize.height)
+		}
+		return null
+	}, [activeCustomPage, currentPreset, windowSize.width, windowSize.height])
 
-  const handleSelectPreset = useCallback((key: PresetKey) => {
-    setCurrentPreset(key);
-    setActiveCustomId(null);
-    setSceneKey((k) => k + 1);
-    setShowHint(false);
-  }, []);
+	const handleSelectPreset = useCallback((key: PresetKey) => {
+		setCurrentPreset(key)
+		setActiveCustomId(null)
+		setSceneKey((k) => k + 1)
+		setShowHint(false)
+	}, [])
 
-  const handleSelectCustomPage = useCallback((id: string) => {
-    setCurrentPreset("custom");
-    setActiveCustomId(id);
-    setSceneKey((k) => k + 1);
-    setShowHint(false);
-  }, []);
+	const handleSelectCustomPage = useCallback((id: string) => {
+		setCurrentPreset("custom")
+		setActiveCustomId(id)
+		setSceneKey((k) => k + 1)
+		setShowHint(false)
+	}, [])
 
-  const handleImportHtml = useCallback(async (html: string, name: string, sourceUrl?: string) => {
-    const preparedHtml = await prepareHtmlForViewer(html, sourceUrl);
-    const page: SnapshotCustomPage = {
-      id: `custom-${Date.now()}`,
-      name,
-      kind: "snapshot",
-      preparedHtml,
-      sourceUrl,
-    };
-    setCustomPages((prev) => [...prev, page]);
-    setActiveCustomId(page.id);
-    setCurrentPreset("custom");
-    setSceneKey((k) => k + 1);
-    setShowHint(false);
-  }, [windowSize.width]);
+	const handleImportHtml = useCallback(
+		async (html: string, name: string, sourceUrl?: string) => {
+			const preparedHtml = await prepareHtmlForViewer(html, sourceUrl)
+			const page: SnapshotCustomPage = {
+				id: `custom-${Date.now()}`,
+				name,
+				kind: "snapshot",
+				preparedHtml,
+				sourceUrl,
+			}
+			setCustomPages((prev) => [...prev, page])
+			setActiveCustomId(page.id)
+			setCurrentPreset("custom")
+			setSceneKey((k) => k + 1)
+			setShowHint(false)
+		},
+		[windowSize.width]
+	)
 
-  const handleFetchUrl = useCallback(async (url: string) => {
-    const result = await fetchPageHtml(url);
-    let name = url.replace(/^https?:\/\//, "").split("/")[0];
-    if (name.length > 25) name = name.slice(0, 25) + "...";
-    await handleImportHtml(result.html, name, result.url);
-  }, [handleImportHtml]);
+	const handleFetchUrl = useCallback(
+		async (url: string) => {
+			const result = await fetchPageHtml(url)
+			let name = url.replace(/^https?:\/\//, "").split("/")[0]
+			if (name.length > 25) name = name.slice(0, 25) + "..."
+			await handleImportHtml(result.html, name, result.url)
+		},
+		[handleImportHtml]
+	)
 
-  useEffect(() => {
-    if (!initialFetchUrl || consumedInitialFetchUrl === initialFetchUrl) return;
-    consumedInitialFetchUrl = initialFetchUrl;
-    void handleFetchUrl(initialFetchUrl).catch((error) => {
-      console.error("Failed to import bootstrap fetch URL.", error);
-    });
-  }, [initialFetchUrl, handleFetchUrl]);
+	useEffect(() => {
+		if (!initialFetchUrl || consumedInitialFetchUrl === initialFetchUrl) return
+		consumedInitialFetchUrl = initialFetchUrl
+		void handleFetchUrl(initialFetchUrl).catch((error) => {
+			console.error("Failed to import bootstrap fetch URL.", error)
+		})
+	}, [initialFetchUrl, handleFetchUrl])
 
-  // Ensures modifying a preset creates exactly one scene-backed custom page fork
-  const ensureCustomScenePage = useCallback((newScene: SceneDescription): string => {
-    if (activeCustomPage?.kind === "scene") {
-      setCustomPages((prev) => prev.map((p) => p.id === activeCustomPage.id ? { ...p, scene: newScene } : p));
-      return activeCustomPage.id;
-    }
-    const id = `custom-${Date.now()}`;
-    const page: SceneCustomPage = { id, name: newScene.name || "Modified", kind: "scene", scene: newScene };
-    setCustomPages((prev) => [...prev, page]);
-    setActiveCustomId(id);
-    setCurrentPreset("custom");
-    return id;
-  }, [activeCustomPage]);
+	// Ensures modifying a preset creates exactly one scene-backed custom page fork
+	const ensureCustomScenePage = useCallback(
+		(newScene: SceneDescription): string => {
+			if (activeCustomPage?.kind === "scene") {
+				setCustomPages((prev) =>
+					prev.map((p) =>
+						p.id === activeCustomPage.id ? { ...p, scene: newScene } : p
+					)
+				)
+				return activeCustomPage.id
+			}
+			const id = `custom-${Date.now()}`
+			const page: SceneCustomPage = {
+				id,
+				name: newScene.name || "Modified",
+				kind: "scene",
+				scene: newScene,
+			}
+			setCustomPages((prev) => [...prev, page])
+			setActiveCustomId(id)
+			setCurrentPreset("custom")
+			return id
+		},
+		[activeCustomPage]
+	)
 
-  const handleSceneChange = useCallback((newScene: SceneDescription, remount = true) => {
-    ensureCustomScenePage(newScene);
-    if (remount) setSceneKey((k) => k + 1);
-  }, [ensureCustomScenePage]);
+	const handleSceneChange = useCallback(
+		(newScene: SceneDescription, remount = true) => {
+			ensureCustomScenePage(newScene)
+			if (remount) setSceneKey((k) => k + 1)
+		},
+		[ensureCustomScenePage]
+	)
 
-  const handleSaveElement = useCallback((el: SceneElement) => {
-    setSavedElements((prev) => {
-      const sourceName = activeCustomPage?.name ?? scene?.name ?? "Imported Page";
-      if (prev.some((s) => s.element.id === el.id && s.sourceScene === sourceName)) return prev;
-      return [...prev, { element: { ...el }, savedAt: Date.now(), sourceScene: sourceName }];
-    });
-  }, [activeCustomPage, scene?.name]);
+	const handleSaveElement = useCallback(
+		(el: SceneElement) => {
+			setSavedElements((prev) => {
+				const sourceName =
+					activeCustomPage?.name ?? scene?.name ?? "Imported Page"
+				if (
+					prev.some(
+						(s) => s.element.id === el.id && s.sourceScene === sourceName
+					)
+				)
+					return prev
+				return [
+					...prev,
+					{ element: { ...el }, savedAt: Date.now(), sourceScene: sourceName },
+				]
+			})
+		},
+		[activeCustomPage, scene?.name]
+	)
 
-  const handleUnsaveElement = useCallback((id: string) => {
-    setSavedElements((prev) => prev.filter((s) => s.element.id !== id));
-  }, []);
+	const handleUnsaveElement = useCallback((id: string) => {
+		setSavedElements((prev) => prev.filter((s) => s.element.id !== id))
+	}, [])
 
-  const handleDropSaved = useCallback((saved: SavedElement, dropX?: number, dropY?: number) => {
-    if (!scene) return;
-    const el = { ...saved.element };
-    el.id = `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    el.throwable = true; el.pinned = false;
-    el.rect = {
-      ...el.rect,
-      x: dropX != null ? dropX - el.rect.width / 2 : (windowSize.width - el.rect.width) / 2 + (Math.random() - 0.5) * 120,
-      y: dropY != null ? dropY - el.rect.height / 2 : window.scrollY + windowSize.height / 2 - el.rect.height / 2 + (Math.random() - 0.5) * 60,
-    };
-    const newScene = { ...scene, elements: [...scene.elements, el] };
-    ensureCustomScenePage(newScene);
-    setSceneKey((k) => k + 1);
-  }, [scene, ensureCustomScenePage, windowSize]);
+	const handleDropSaved = useCallback(
+		(saved: SavedElement, dropX?: number, dropY?: number) => {
+			if (!scene) return
+			const el = { ...saved.element }
+			el.id = `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+			el.throwable = true
+			el.pinned = false
+			el.rect = {
+				...el.rect,
+				x:
+					dropX != null
+						? dropX - el.rect.width / 2
+						: (windowSize.width - el.rect.width) / 2 +
+							(Math.random() - 0.5) * 120,
+				y:
+					dropY != null
+						? dropY - el.rect.height / 2
+						: window.scrollY +
+							windowSize.height / 2 -
+							el.rect.height / 2 +
+							(Math.random() - 0.5) * 60,
+			}
+			const newScene = { ...scene, elements: [...scene.elements, el] }
+			ensureCustomScenePage(newScene)
+			setSceneKey((k) => k + 1)
+		},
+		[scene, ensureCustomScenePage, windowSize]
+	)
 
-  const handleClearSaved = useCallback(() => setSavedElements([]), []);
-  const handleRemoveSaved = useCallback((index: number) => {
-    setSavedElements((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+	const handleClearSaved = useCallback(() => setSavedElements([]), [])
+	const handleRemoveSaved = useCallback((index: number) => {
+		setSavedElements((prev) => prev.filter((_, i) => i !== index))
+	}, [])
 
-  const handleResetAll = useCallback(() => {
-    localStorage.removeItem(LS_KEY);
-    setCurrentPreset("article");
-    setCustomPages([]);
-    setActiveCustomId(null);
-    setSavedElements([]);
-    setSceneKey((k) => k + 1);
-  }, []);
+	const handleResetAll = useCallback(() => {
+		localStorage.removeItem(LS_KEY)
+		setCurrentPreset(DEFAULT_PRESET)
+		setCustomPages([])
+		setActiveCustomId(null)
+		setSavedElements([])
+		setSceneKey((k) => k + 1)
+	}, [])
 
-  return (
-    <>
-      {activeCustomPage?.kind === "snapshot" ? (
-        <SnapshotPageView
-          key={sceneKey}
-          page={activeCustomPage}
-          currentPreset={currentPreset}
-          onSelectPreset={handleSelectPreset}
-          onImportHtml={handleImportHtml}
-          onFetchUrl={handleFetchUrl}
-          savedElements={savedElements}
-          onSaveElement={handleSaveElement}
-          onUnsaveElement={handleUnsaveElement}
-          onClearSaved={handleClearSaved}
-          onRemoveSaved={handleRemoveSaved}
-          customPages={customPages}
-          activeCustomId={activeCustomId}
-          onSelectCustomPage={handleSelectCustomPage}
-          onResetAll={handleResetAll}
-        />
-      ) : scene ? (
-        <DominoScene
-          key={sceneKey}
-          scene={scene}
-          onSceneChange={handleSceneChange}
-          currentPreset={currentPreset}
-          onSelectPreset={handleSelectPreset}
-          onImportHtml={handleImportHtml}
-          onFetchUrl={handleFetchUrl}
-          savedElements={savedElements}
-          onSaveElement={handleSaveElement}
-          onUnsaveElement={handleUnsaveElement}
-          onDropSaved={handleDropSaved}
-          onClearSaved={handleClearSaved}
-          onRemoveSaved={handleRemoveSaved}
-          customPages={customPages}
-          activeCustomId={activeCustomId}
-          onSelectCustomPage={handleSelectCustomPage}
-          onResetAll={handleResetAll}
-        />
-      ) : null}
-      {showHint && <Hint />}
-    </>
-  );
+	return (
+		<>
+			{activeCustomPage?.kind === "snapshot" ? (
+				<SnapshotPageView
+					key={sceneKey}
+					page={activeCustomPage}
+					currentPreset={currentPreset}
+					onSelectPreset={handleSelectPreset}
+					onImportHtml={handleImportHtml}
+					onFetchUrl={handleFetchUrl}
+					savedElements={savedElements}
+					onSaveElement={handleSaveElement}
+					onUnsaveElement={handleUnsaveElement}
+					onClearSaved={handleClearSaved}
+					onRemoveSaved={handleRemoveSaved}
+					customPages={customPages}
+					activeCustomId={activeCustomId}
+					onSelectCustomPage={handleSelectCustomPage}
+					onResetAll={handleResetAll}
+				/>
+			) : scene ? (
+				<DominoScene
+					key={sceneKey}
+					scene={scene}
+					onSceneChange={handleSceneChange}
+					currentPreset={currentPreset}
+					onSelectPreset={handleSelectPreset}
+					onImportHtml={handleImportHtml}
+					onFetchUrl={handleFetchUrl}
+					savedElements={savedElements}
+					onSaveElement={handleSaveElement}
+					onUnsaveElement={handleUnsaveElement}
+					onDropSaved={handleDropSaved}
+					onClearSaved={handleClearSaved}
+					onRemoveSaved={handleRemoveSaved}
+					customPages={customPages}
+					activeCustomId={activeCustomId}
+					onSelectCustomPage={handleSelectCustomPage}
+					onResetAll={handleResetAll}
+				/>
+			) : null}
+			{showHint && <Hint />}
+		</>
+	)
 }
 
 function Hint() {
-  return (
-    <div style={{
-      position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)",
-      zIndex: 10000, padding: "10px 20px", borderRadius: 10,
-      backgroundColor: "rgba(20,20,24,0.88)", backdropFilter: "blur(12px)",
-      color: "#ddd", fontSize: 13, fontFamily: '"DM Sans", sans-serif',
-      fontWeight: 500, boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
-      pointerEvents: "none", animation: "hintFade 0.5s ease both",
-      display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap",
-    }}>
-      <span style={{ fontSize: 15, opacity: 0.6 }}>&#8597;</span>
-      Grab any card, badge, or button and throw it
-      <style>{`@keyframes hintFade { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
-    </div>
-  );
+	return (
+		<div
+			style={{
+				position: "fixed",
+				bottom: 76,
+				left: "50%",
+				transform: "translateX(-50%)",
+				zIndex: 10000,
+				padding: "10px 20px",
+				borderRadius: 10,
+				backgroundColor: "rgba(20,20,24,0.88)",
+				backdropFilter: "blur(12px)",
+				color: "#ddd",
+				fontSize: 13,
+				fontFamily: '"DM Sans", sans-serif',
+				fontWeight: 500,
+				boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
+				pointerEvents: "none",
+				animation: "hintFade 0.5s ease both",
+				display: "flex",
+				alignItems: "center",
+				gap: 8,
+				whiteSpace: "nowrap",
+			}}
+		>
+			<span style={{ fontSize: 15, opacity: 0.6 }}>&#8597;</span>
+			Grab any card, badge, or button and throw it
+			<style>{`@keyframes hintFade { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
+		</div>
+	)
 }
