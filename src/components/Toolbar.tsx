@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useLayoutEffect, useRef, useEffect } from "react";
+import { memo, useState, useCallback, useLayoutEffect, useRef, useEffect, useEffectEvent } from "react";
 import type { PresetKey } from "../scene/presets";
 import { PRESET_LIST } from "../scene/presets";
 import type { SavedElement } from "../scene/types";
@@ -52,6 +52,7 @@ type TooltipAnchor = {
 
 // Survives component remounts (scene key changes)
 let _pendingPanel: FlyoutPanel = null;
+const COLLAPSED_REVEAL_PROXIMITY_PX = 128;
 
 const WEBSITE_PRESETS = [
   { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/History_of_art" },
@@ -79,6 +80,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const [tooltipPosition, setTooltipPosition] = useState<{ left: number; bottom: number } | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [hoveredStash, setHoveredStash] = useState<{ index: number; top: number } | null>(null);
+  const toolbarDockRef = useRef<HTMLDivElement | null>(null);
+  const [showCollapsedReveal, setShowCollapsedReveal] = useState(true);
+  const showCollapsedRevealRef = useRef(true);
 
   useLayoutEffect(() => {
     if (!_pendingPanel) return;
@@ -127,16 +131,38 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       width: rect.width,
     });
   }, []);
+  const setCollapsedRevealVisible = useCallback((next: boolean) => {
+    if (showCollapsedRevealRef.current === next) return;
+    showCollapsedRevealRef.current = next;
+    setShowCollapsedReveal(next);
+  }, []);
+  const updateCollapsedRevealVisibility = useEffectEvent((clientX: number, clientY: number) => {
+    const rect = toolbarDockRef.current?.getBoundingClientRect();
+    if (!rect) {
+      setCollapsedRevealVisible(false);
+      return;
+    }
+
+    const next =
+      clientX >= rect.left - COLLAPSED_REVEAL_PROXIMITY_PX &&
+      clientX <= rect.right + COLLAPSED_REVEAL_PROXIMITY_PX &&
+      clientY >= rect.top - COLLAPSED_REVEAL_PROXIMITY_PX &&
+      clientY <= rect.bottom + COLLAPSED_REVEAL_PROXIMITY_PX;
+
+    setCollapsedRevealVisible(next);
+  });
   const handleExpandToolbar = useCallback(() => {
     clearTooltip();
     setCollapsed(false);
-  }, [clearTooltip]);
+    setCollapsedRevealVisible(true);
+  }, [clearTooltip, setCollapsedRevealVisible]);
 
   const handleCollapseToolbar = useCallback(() => {
     clearTooltip();
     setOpenPanel(null);
     setCollapsed(true);
-  }, [clearTooltip]);
+    setCollapsedRevealVisible(true);
+  }, [clearTooltip, setCollapsedRevealVisible]);
 
   useLayoutEffect(() => {
     if (!activeTooltip || !tooltipRef.current) return;
@@ -177,6 +203,19 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [openPanel, collapsed]);
+
+  useEffect(() => {
+    if (!collapsed) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      updateCollapsedRevealVisibility(event.clientX, event.clientY);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+    };
+  }, [collapsed]);
 
   return (
     <>
@@ -409,8 +448,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         </div>
       )}
 
-      <div data-domino-toolbar-root="true" style={toolbarDockStyle}>
-        <div className="domino-toolbar-tooltip-wrap" style={{ ...toolbarOverlayItemStyle, pointerEvents: collapsed ? "auto" : "none" }}>
+      <div data-domino-toolbar-root="true" data-domino-toolbar-dock="true" ref={toolbarDockRef} style={toolbarDockStyle}>
+        <div className="domino-toolbar-tooltip-wrap" style={{ ...toolbarOverlayItemStyle, pointerEvents: collapsed && showCollapsedReveal ? "auto" : "none" }}>
           <button
             className="domino-toolbar-reveal"
             type="button"
@@ -418,12 +457,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             aria-label="Show toolbar"
             onMouseEnter={(e) => showTooltip("Show toolbar", e.currentTarget)}
             onMouseLeave={clearTooltip}
-            onFocus={(e) => showTooltip("Show toolbar", e.currentTarget)}
+            onFocus={(e) => {
+              setCollapsedRevealVisible(true);
+              showTooltip("Show toolbar", e.currentTarget);
+            }}
             onBlur={clearTooltip}
             style={{
               ...collapsedBtnStyle,
-              opacity: collapsed ? 0.86 : 0,
-              transform: collapsed ? "translateY(0) scale(1)" : "translateY(10px) scale(0.92)",
+              opacity: collapsed && showCollapsedReveal ? 0.86 : 0,
+              transform: collapsed && showCollapsedReveal ? "translateY(0) scale(1)" : "translateY(10px) scale(0.92)",
             }}
           >
             <ChevronUpIcon />
@@ -441,9 +483,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         >
           <Btn active={openPanel === "pages"} onClick={() => toggle("pages")} tip="Pages" onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><PageIcon /></Btn>
           <Sep />
-          <Btn onClick={() => update({ paused: !settings.paused })} tip={settings.paused ? "Resume physics" : "Pause physics"} accent={settings.paused ? "#fbbf24" : undefined} onShowTooltip={showTooltip} onHideTooltip={clearTooltip}>
-            {settings.paused ? <PlayIcon /> : <PauseIcon />}
-          </Btn>
           <Btn onClick={onExplode} tip="Explode scene" onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><ExplodeIcon /></Btn>
           <Btn onClick={onReset} tip="Reset scene" onShowTooltip={showTooltip} onHideTooltip={clearTooltip}><ResetIcon /></Btn>
           <Sep />
@@ -558,8 +597,6 @@ function Slider({ label, value, min, max, onValue, onReset, step = 0.1, resetLab
 
 // ─── Icons ───
 function PageIcon() { return <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="1.5" width="10" height="11" rx="1.5" /><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" /><line x1="4.5" y1="7" x2="8" y2="7" /><line x1="4.5" y1="9.5" x2="7" y2="9.5" /></svg>; }
-function PauseIcon() { return <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="2.5" width="3" height="9" rx="1" /><rect x="8" y="2.5" width="3" height="9" rx="1" /></svg>; }
-function PlayIcon() { return <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor"><path d="M4 2.5L11.5 7L4 11.5Z" /></svg>; }
 function ExplodeIcon() { return <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"><circle cx="7" cy="7" r="2" /><line x1="7" y1="1" x2="7" y2="3.5" /><line x1="7" y1="10.5" x2="7" y2="13" /><line x1="1" y1="7" x2="3.5" y2="7" /><line x1="10.5" y1="7" x2="13" y2="7" /><line x1="2.8" y1="2.8" x2="4.5" y2="4.5" /><line x1="9.5" y1="9.5" x2="11.2" y2="11.2" /><line x1="11.2" y1="2.8" x2="9.5" y2="4.5" /><line x1="4.5" y1="9.5" x2="2.8" y2="11.2" /></svg>; }
 function ResetIcon() { return <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7A5 5 0 1 1 4.3 11" /><polyline points="2,4 2,7 5,7" /></svg>; }
 function PickerIcon() { return <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1" /><rect x="8" y="1.5" width="4.5" height="4.5" rx="1" /><rect x="1.5" y="8" width="4.5" height="4.5" rx="1" /><circle cx="10.25" cy="10.25" r="2" /></svg>; }

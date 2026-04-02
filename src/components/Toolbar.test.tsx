@@ -53,24 +53,38 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   cleanup();
 });
+
+function mockToolbarDockRect() {
+  const dock = document.querySelector('[data-domino-toolbar-dock="true"]');
+  if (!(dock instanceof HTMLDivElement)) {
+    throw new Error("Toolbar dock not found");
+  }
+
+  vi.spyOn(dock, "getBoundingClientRect").mockReturnValue({
+    x: 1000,
+    y: 700,
+    left: 1000,
+    top: 700,
+    right: 1036,
+    bottom: 736,
+    width: 36,
+    height: 36,
+    toJSON: () => ({}),
+  } as DOMRect);
+}
 
 describe("Toolbar", () => {
   describe("rendering", () => {
     it("renders the toolbar buttons", () => {
       render(<Toolbar {...defaultProps()} />);
       expect(screen.getByLabelText("Pages")).toBeInTheDocument();
-      expect(screen.getByLabelText("Pause physics")).toBeInTheDocument();
       expect(screen.getByLabelText("Explode scene")).toBeInTheDocument();
       expect(screen.getByLabelText("Reset scene")).toBeInTheDocument();
       expect(screen.getByLabelText("Settings")).toBeInTheDocument();
       expect(screen.getByLabelText("Hide toolbar")).toBeInTheDocument();
-    });
-
-    it("shows play icon when paused", () => {
-      render(<Toolbar {...defaultProps({ settings: { ...defaultSettings(), paused: true } })} />);
-      expect(screen.getByLabelText("Resume physics")).toBeInTheDocument();
     });
 
     it("shows picker as active when pickerMode is true", () => {
@@ -94,24 +108,6 @@ describe("Toolbar", () => {
       expect(props.onReset).toHaveBeenCalledOnce();
     });
 
-    it("toggles pause via onSettingsChange", async () => {
-      const props = defaultProps();
-      render(<Toolbar {...props} />);
-      await userEvent.click(screen.getByLabelText("Pause physics"));
-      expect(props.onSettingsChange).toHaveBeenCalledWith(
-        expect.objectContaining({ paused: true })
-      );
-    });
-
-    it("toggles resume when paused", async () => {
-      const props = defaultProps({ settings: { ...defaultSettings(), paused: true } });
-      render(<Toolbar {...props} />);
-      await userEvent.click(screen.getByLabelText("Resume physics"));
-      expect(props.onSettingsChange).toHaveBeenCalledWith(
-        expect.objectContaining({ paused: false })
-      );
-    });
-
     it("calls onTogglePicker when component picker clicked", async () => {
       const props = defaultProps();
       render(<Toolbar {...props} />);
@@ -133,7 +129,20 @@ describe("Toolbar", () => {
       await userEvent.click(screen.getByLabelText("Hide toolbar"));
       // Then expand
       await userEvent.click(screen.getByLabelText("Show toolbar"));
-      expect(screen.getByLabelText("Pause physics")).toBeInTheDocument();
+      expect(screen.getByLabelText("Explode scene")).toBeInTheDocument();
+    });
+
+    it("hides the collapsed reveal until the pointer returns near the dock", async () => {
+      render(<Toolbar {...defaultProps()} />);
+      await userEvent.click(screen.getByLabelText("Hide toolbar"));
+      mockToolbarDockRect();
+
+      const revealButton = screen.getByLabelText("Show toolbar");
+      fireEvent.pointerMove(window, { clientX: 100, clientY: 100 });
+      expect(revealButton).toHaveStyle({ opacity: "0", pointerEvents: "none" });
+
+      fireEvent.pointerMove(window, { clientX: 930, clientY: 650 });
+      expect(revealButton).toHaveStyle({ opacity: "0.86", pointerEvents: "auto" });
     });
   });
 
