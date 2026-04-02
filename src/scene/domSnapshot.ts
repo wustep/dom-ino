@@ -1,4 +1,5 @@
 import type { SceneDescription, SceneElement, SceneElementType } from "./types";
+import { getSiteCSS, getSiteRemoveSelectors } from "./siteStyles";
 
 let snapshotCounter = 0;
 
@@ -101,12 +102,30 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
     .replace(/\bno-js\b/g, "js")
     .replace(/\bnojs\b/g, "js");
 
-  // 5. Add base tag for remaining relative URLs
+  // 6. Fix fixed/sticky positioning so headers flow naturally in the iframe
+  modified = modified.replace(/position\s*:\s*fixed/gi, 'position: relative');
+  modified = modified.replace(/position\s*:\s*sticky/gi, 'position: relative');
+
+  // 7. Add base tag for remaining relative URLs + header positioning fix + site-specific CSS
+  const siteCSS = getSiteCSS(sourceUrl);
+  const removeSelectors = getSiteRemoveSelectors(sourceUrl);
+  const removeCSS = removeSelectors.length > 0
+    ? removeSelectors.join(",\n    ") + " { display: none !important; }"
+    : "";
+  const headerFix = `<style data-domino-fix>
+    header, nav, [role="banner"], [role="navigation"],
+    [class*="header"], [class*="nav-"], [class*="navbar"],
+    [class*="sticky"], [class*="fixed-header"] {
+      position: relative !important;
+    }
+    ${removeCSS}
+    ${siteCSS}
+  </style>`;
   const base = `<base href="${origin}/">`;
   if (/<head[^>]*>/i.test(modified)) {
-    modified = modified.replace(/<head[^>]*>/i, (m) => m + base);
+    modified = modified.replace(/<head[^>]*>/i, (m) => m + base + headerFix);
   } else {
-    modified = `<head>${base}</head>` + modified;
+    modified = `<head>${base}${headerFix}</head>` + modified;
   }
 
   return modified;
@@ -382,7 +401,7 @@ export async function fetchPageHtml(url: string): Promise<{ html: string; url: s
       const text = await res.text();
       if (text.length > 100 && !text.startsWith('{"error')) return { html: text, url: normalizedUrl };
     }
-  } catch { /* try fallback */ }
+  } catch { /* try direct */ }
   try {
     const res = await fetch(normalizedUrl, { signal: AbortSignal.timeout(8000) });
     if (res.ok) return { html: await res.text(), url: normalizedUrl };
