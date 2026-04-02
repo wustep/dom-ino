@@ -32,7 +32,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
     width: element.rect.width, height: element.rect.height,
     transform: pa !== 0 ? `rotate(${pa}rad)` : undefined,
     transformOrigin: "center center",
-    zIndex: isThrowable ? 10 : 1,
+    zIndex: element.zIndex ?? (isThrowable ? 10 : 1),
     pointerEvents: "none", userSelect: "none",
     transition: live ? undefined : "left 0.35s ease, top 0.35s ease, transform 0.35s ease",
     borderRadius: element.borderRadius ?? 0,
@@ -57,7 +57,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
             textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined,
           }}>
             {element.text && (
-              <div style={{ fontSize: element.fontSize ?? 16, fontWeight: element.fontWeight ?? 600, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#1a1a1a", lineHeight: "1.3", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined }}>
+              <div style={{ fontSize: element.fontSize ?? 16, fontWeight: element.fontWeight ?? 600, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#1a1a1a", lineHeight: element.lineHeight ? `${element.lineHeight}px` : "1.3", letterSpacing: element.letterSpacing, textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined }}>
                 {element.text}
               </div>
             )}
@@ -109,7 +109,11 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 
   return (
     <>
-      <div style={wrapStyle}>{renderInner()}</div>
+      {element.href ? (
+        <a href={element.href} target="_blank" rel="noopener noreferrer" style={{ ...wrapStyle, pointerEvents: "auto", textDecoration: "none", color: "inherit" }}>{renderInner()}</a>
+      ) : (
+        <div style={wrapStyle}>{renderInner()}</div>
+      )}
       {showDebug && isThrowable && (
         <div style={{
           position: "absolute", left: px - 1, top: py - 1,
