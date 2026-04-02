@@ -847,247 +847,259 @@ export function SnapshotPageView({
 
   return (
     <div
-      ref={stageRef}
-      style={{ position: "relative", width: "100%", minHeight: iframeHeight, background: "#fff", cursor: settings.physicsEnabled ? "grab" : "default" }}
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-      onDrop={(e) => {
-        e.preventDefault();
-        try {
-          const data = JSON.parse(e.dataTransfer.getData("application/domino-saved")) as SavedElement;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          const y = e.clientY - rect.top;
-          const el = {
-            ...data.element,
-            id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            throwable: true,
-            pinned: false,
-            rect: {
-              ...data.element.rect,
-              x: x - data.element.rect.width / 2,
-              y: y - data.element.rect.height / 2,
-            },
-          };
-          setDroppedElements((prev) => [...prev, el]);
-        } catch { /* ignore */ }
-      }}
+      style={{ position: "relative", width: "100%", minHeight: iframeHeight, background: "#fff" }}
     >
-      <iframe
-        ref={iframeRef}
-        srcDoc={page.preparedHtml}
-        sandbox="allow-same-origin"
+      <div
+        ref={stageRef}
         style={{
+          position: "relative",
           width: "100%",
-          height: iframeHeight,
-          border: "none",
-          display: "block",
-          background: "#fff",
-          pointerEvents: pickerMode || settings.physicsEnabled ? "none" : "auto",
+          minHeight: iframeHeight,
+          cursor: settings.physicsEnabled ? "grab" : "default",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          touchAction: "none",
         }}
-        onLoad={handleIframeLoad}
-      />
-
-      {pickerMode && (
-        <>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.08)", pointerEvents: "none" }} />
-          {selectableCandidates.map((c) => {
-            const wide = c.width >= 80;
-            const selected = selectedIds.has(c.id);
-            return (
-              <div
-                key={c.id}
-                style={{
-                  position: "absolute",
-                  left: c.x - 2,
-                  top: c.y - 2,
-                  width: c.width + 4,
-                  height: c.height + 4,
-                  borderRadius: (c.borderRadius ?? 0) + 2,
-                  border: selected ? "2px solid rgba(59,130,246,0.8)" : "2px dashed rgba(59,130,246,0.45)",
-                  background: selected ? "rgba(59,130,246,0.08)" : "rgba(59,130,246,0.04)",
-                  boxSizing: "border-box",
-                  pointerEvents: "auto",
-                  zIndex: 100,
-                  cursor: "pointer",
-                }}
-                onClick={() => toggleSelected(c.id)}
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSelected(c.id);
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: -8,
-                    right: -8,
-                    height: 18,
-                    minWidth: 18,
-                    borderRadius: 9,
-                    padding: wide ? "0 7px" : "0 4px",
-                    border: "2px solid #fff",
-                    background: selected ? "#3b82f6" : "#aaa",
-                    color: "#fff",
-                    fontFamily: '"DM Sans", sans-serif',
-                    fontSize: 9,
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 3,
-                    cursor: "pointer",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                    pointerEvents: "auto",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {selected ? "✓" : ""}
-                  {wide && (selected ? " Physics" : "")}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (c.saved) {
-                      unsaveNode(c.id);
-                    } else {
-                      saveNode(c.id);
-                    }
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: -8,
-                    left: -8,
-                    height: 18,
-                    minWidth: 18,
-                    borderRadius: 9,
-                    padding: wide ? "0 7px" : "0 4px",
-                    border: "2px solid #fff",
-                    background: c.saved ? "#16a34a" : "#7c3aed",
-                    color: "#fff",
-                    fontFamily: '"DM Sans", sans-serif',
-                    fontSize: 9,
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 3,
-                    cursor: "pointer",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                    pointerEvents: "auto",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {c.saved ? "✓" : ""}
-                  {wide && (c.saved ? " Saved" : " Save")}
-                </button>
-              </div>
-            );
-          })}
-          <div
-            style={{
-              position: "fixed",
-              top: 12,
-              right: 12,
-              zIndex: 101,
-              padding: "6px 10px",
-              borderRadius: 999,
-              background: "rgba(20,20,24,0.75)",
-              color: "#ddd",
-              fontFamily: '"DM Sans", sans-serif',
-              fontSize: 11,
-              fontWeight: 500,
-              pointerEvents: "none",
-            }}
-          >
-            {selectableCandidates.length} selectable · {selectedIds.size} selected
-          </div>
-        </>
-      )}
-
-      {savePickerMode && (
-        <QuickSavePicker
-          candidates={selectableCandidates
-            .filter((candidate) => candidate.sceneElement)
-            .map((candidate) => ({
-              id: candidate.id,
-              element: candidate.sceneElement!,
-              x: candidate.x,
-              y: candidate.y,
-              width: candidate.width,
-              height: candidate.height,
-              borderRadius: candidate.borderRadius,
-              saved: candidate.saved,
-            }))}
-          onSave={onSaveElement}
-          onClose={() => {
-            setSavePickerMode(false);
-            if (!settings.paused) physicsRef.current?.resume();
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+        onDrop={(e) => {
+          e.preventDefault();
+          try {
+            const data = JSON.parse(e.dataTransfer.getData("application/domino-saved")) as SavedElement;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const el = {
+              ...data.element,
+              id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              throwable: true,
+              pinned: false,
+              rect: {
+                ...data.element.rect,
+                x: x - data.element.rect.width / 2,
+                y: y - data.element.rect.height / 2,
+              },
+            };
+            setDroppedElements((prev) => [...prev, el]);
+          } catch { /* ignore */ }
+        }}
+      >
+        <iframe
+          ref={iframeRef}
+          srcDoc={page.preparedHtml}
+          sandbox="allow-same-origin"
+          style={{
+            width: "100%",
+            height: iframeHeight,
+            border: "none",
+            display: "block",
+            background: "#fff",
+            pointerEvents: pickerMode || settings.physicsEnabled ? "none" : "auto",
           }}
+          onLoad={handleIframeLoad}
         />
-      )}
 
-      {/* Pretext text overlay for imported pages */}
-      {importedTextFlowActive && importedTextLayouts.map((layout) => {
-        const el = layout.sceneElement;
-        const fw = el.fontWeight ?? 400;
-        const fs = el.fontSize ?? 16;
-        const ff = el.fontFamily ?? '"DM Sans", sans-serif';
-        const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
-        return (
-          <TextFlowRegion
-            key={`imported-text-${layout.id}`}
-            text={el.text ?? ""}
-            font={font}
-            fontSize={fs}
-            lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
-            color={el.color ?? "#333"}
-            containerX={layout.containerX}
-            containerY={layout.containerY}
-            containerWidth={layout.containerWidth}
-            containerMaxHeight={layout.containerMaxHeight}
-            obstacles={importedObstacles}
-            showDebug={settings.showLineBounds}
-            generation={bodyPositions.size + selectedIds.size + droppedElements.length}
-          />
-        );
-      })}
+        {pickerMode && (
+          <>
+            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.08)", pointerEvents: "none" }} />
+            {selectableCandidates.map((c) => {
+              const wide = c.width >= 80;
+              const selected = selectedIds.has(c.id);
+              return (
+                <div
+                  key={c.id}
+                  style={{
+                    position: "absolute",
+                    left: c.x - 2,
+                    top: c.y - 2,
+                    width: c.width + 4,
+                    height: c.height + 4,
+                    borderRadius: (c.borderRadius ?? 0) + 2,
+                    border: selected ? "2px solid rgba(59,130,246,0.8)" : "2px dashed rgba(59,130,246,0.45)",
+                    background: selected ? "rgba(59,130,246,0.08)" : "rgba(59,130,246,0.04)",
+                    boxSizing: "border-box",
+                    pointerEvents: "auto",
+                    zIndex: 100,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => toggleSelected(c.id)}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelected(c.id);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: -8,
+                      right: -8,
+                      height: 18,
+                      minWidth: 18,
+                      borderRadius: 9,
+                      padding: wide ? "0 7px" : "0 4px",
+                      border: "2px solid #fff",
+                      background: selected ? "#3b82f6" : "#aaa",
+                      color: "#fff",
+                      fontFamily: '"DM Sans", sans-serif',
+                      fontSize: 9,
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 3,
+                      cursor: "pointer",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                      pointerEvents: "auto",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {selected ? "✓" : ""}
+                    {wide && (selected ? " Physics" : "")}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (c.saved) {
+                        unsaveNode(c.id);
+                      } else {
+                        saveNode(c.id);
+                      }
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: -8,
+                      left: -8,
+                      height: 18,
+                      minWidth: 18,
+                      borderRadius: 9,
+                      padding: wide ? "0 7px" : "0 4px",
+                      border: "2px solid #fff",
+                      background: c.saved ? "#16a34a" : "#7c3aed",
+                      color: "#fff",
+                      fontFamily: '"DM Sans", sans-serif',
+                      fontSize: 9,
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 3,
+                      cursor: "pointer",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                      pointerEvents: "auto",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {c.saved ? "✓" : ""}
+                    {wide && (c.saved ? " Saved" : " Save")}
+                  </button>
+                </div>
+              );
+            })}
+            <div
+              style={{
+                position: "fixed",
+                top: 12,
+                right: 12,
+                zIndex: 101,
+                padding: "6px 10px",
+                borderRadius: 999,
+                background: "rgba(20,20,24,0.75)",
+                color: "#ddd",
+                fontFamily: '"DM Sans", sans-serif',
+                fontSize: 11,
+                fontWeight: 500,
+                pointerEvents: "none",
+              }}
+            >
+              {selectableCandidates.length} selectable · {selectedIds.size} selected
+            </div>
+          </>
+        )}
 
-      {/* Physics overlay for selected/dropped imported-page components.
-          Hidden during picker mode so originals are visible for selection. */}
-      {!pickerMode && selectedElements.map((el) => {
-        const pos = bodyPositions.get(el.id);
-        const candidate = selectableCandidates.find((c) => c.id === el.id);
-        if (!candidate) return null;
-        return (
-          <ImportedPhysicsClone
-            key={el.id}
-            sourceNode={candidate.node}
-            sourceWindow={iframeRef.current?.contentWindow ?? window}
-            x={pos?.x ?? el.rect.x}
-            y={pos?.y ?? el.rect.y}
-            angle={pos?.angle ?? 0}
-            width={pos?.w ?? el.rect.width}
-            height={pos?.h ?? el.rect.height}
-            showDebug={settings.showObstacleBounds}
-            renderVersion={importedTextFlowActive}
+        {savePickerMode && (
+          <QuickSavePicker
+            candidates={selectableCandidates
+              .filter((candidate) => candidate.sceneElement)
+              .map((candidate) => ({
+                id: candidate.id,
+                element: candidate.sceneElement!,
+                x: candidate.x,
+                y: candidate.y,
+                width: candidate.width,
+                height: candidate.height,
+                borderRadius: candidate.borderRadius,
+                saved: candidate.saved,
+              }))}
+            onSave={onSaveElement}
+            onClose={() => {
+              setSavePickerMode(false);
+              if (!settings.paused) physicsRef.current?.resume();
+            }}
           />
-        );
-      })}
-      {!pickerMode && droppedElements.map((el) => {
-        const pos = bodyPositions.get(el.id);
-        return (
-          <PhysicsDomItem
-            key={el.id}
-            element={el}
-            x={pos?.x ?? el.rect.x}
-            y={pos?.y ?? el.rect.y}
-            angle={pos?.angle ?? 0}
-            isPhysicsEnabled={true}
-            showDebug={settings.showObstacleBounds}
-            isPinned={false}
-          />
-        );
-      })}
+        )}
+
+        {/* Pretext text overlay for imported pages */}
+        {importedTextFlowActive && importedTextLayouts.map((layout) => {
+          const el = layout.sceneElement;
+          const fw = el.fontWeight ?? 400;
+          const fs = el.fontSize ?? 16;
+          const ff = el.fontFamily ?? '"DM Sans", sans-serif';
+          const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
+          return (
+            <TextFlowRegion
+              key={`imported-text-${layout.id}`}
+              text={el.text ?? ""}
+              font={font}
+              fontSize={fs}
+              lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
+              color={el.color ?? "#333"}
+              containerX={layout.containerX}
+              containerY={layout.containerY}
+              containerWidth={layout.containerWidth}
+              containerMaxHeight={layout.containerMaxHeight}
+              obstacles={importedObstacles}
+              showDebug={settings.showLineBounds}
+              generation={bodyPositions.size + selectedIds.size + droppedElements.length}
+            />
+          );
+        })}
+
+        {/* Physics overlay for selected/dropped imported-page components.
+            Hidden during picker mode so originals are visible for selection. */}
+        {!pickerMode && selectedElements.map((el) => {
+          const pos = bodyPositions.get(el.id);
+          const candidate = selectableCandidates.find((c) => c.id === el.id);
+          if (!candidate) return null;
+          return (
+            <ImportedPhysicsClone
+              key={el.id}
+              sourceNode={candidate.node}
+              sourceWindow={iframeRef.current?.contentWindow ?? window}
+              x={pos?.x ?? el.rect.x}
+              y={pos?.y ?? el.rect.y}
+              angle={pos?.angle ?? 0}
+              width={pos?.w ?? el.rect.width}
+              height={pos?.h ?? el.rect.height}
+              showDebug={settings.showObstacleBounds}
+              renderVersion={importedTextFlowActive}
+            />
+          );
+        })}
+        {!pickerMode && droppedElements.map((el) => {
+          const pos = bodyPositions.get(el.id);
+          return (
+            <PhysicsDomItem
+              key={el.id}
+              element={el}
+              x={pos?.x ?? el.rect.x}
+              y={pos?.y ?? el.rect.y}
+              angle={pos?.angle ?? 0}
+              isPhysicsEnabled={true}
+              showDebug={settings.showObstacleBounds}
+              isPinned={false}
+            />
+          );
+        })}
+      </div>
 
       <Toolbar
         settings={settings}

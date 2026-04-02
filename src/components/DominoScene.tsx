@@ -269,7 +269,30 @@ export function DominoScene({
         } catch { /* not a valid drop */ }
       }}
     >
-      <div ref={containerRef} style={{ position: "absolute", inset: 0, width: scene.width, height: scene.height }}>
+      <div
+        ref={containerRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: scene.width,
+          height: scene.height,
+          cursor: "grab",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          touchAction: "none",
+        }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+        onDrop={(e) => {
+          e.preventDefault();
+          try {
+            const data = JSON.parse(e.dataTransfer.getData("application/domino-saved"));
+            if (data) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              onDropSaved(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top);
+            }
+          } catch { /* not a valid drop */ }
+        }}
+      >
         {staticElements.map((el) => (
           <PhysicsDomItem key={el.id} element={el} x={el.rect.x} y={el.rect.y} angle={0} isPhysicsEnabled={false} showDebug={false} isPinned={true} />
         ))}

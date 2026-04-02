@@ -45,6 +45,13 @@ export function createPhysicsEngine(
   scene: SceneDescription,
   container: HTMLElement
 ): PhysicsEngine {
+  type InternalMouse = Matter.Mouse & {
+    mousemove: (event: MouseEvent | TouchEvent) => void;
+    mousedown: (event: MouseEvent | TouchEvent) => void;
+    mouseup: (event: MouseEvent | TouchEvent) => void;
+    mousewheel?: EventListenerOrEventListenerObject;
+  };
+  const ownerWindow = container.ownerDocument.defaultView ?? window;
   const engine = Engine.create({
     gravity: { x: 0, y: 0 },
     // Sleeping disabled — with zero gravity, bodies only move when
@@ -160,10 +167,37 @@ export function createPhysicsEngine(
     addElementBody(el);
   }
 
-  const mouse = Mouse.create(container);
+  const mouse = Mouse.create(container) as InternalMouse;
   mouse.pixelRatio = 1;
-  const mouseWithWheel = mouse as Matter.Mouse & {
-    mousewheel?: EventListenerOrEventListenerObject;
+  const mouseWithWheel = mouse;
+  const isContainerEventTarget = (target: EventTarget | null): boolean =>
+    target instanceof Node && (target === container || container.contains(target));
+  const forwardMouseMove = (event: MouseEvent) => {
+    if (isContainerEventTarget(event.target)) return;
+    mouse.mousemove(event);
+  };
+  const forwardMouseUp = (event: MouseEvent) => {
+    if (isContainerEventTarget(event.target)) return;
+    mouse.mouseup(event);
+  };
+  const forwardTouchMove = (event: TouchEvent) => {
+    if (isContainerEventTarget(event.target)) return;
+    mouse.mousemove(event);
+  };
+  const forwardTouchEnd = (event: TouchEvent) => {
+    if (isContainerEventTarget(event.target)) return;
+    mouse.mouseup(event);
+  };
+  const removeMouseListeners = () => {
+    container.removeEventListener("mousemove", mouse.mousemove);
+    container.removeEventListener("mousedown", mouse.mousedown);
+    container.removeEventListener("mouseup", mouse.mouseup);
+    if (mouseWithWheel.mousewheel) {
+      container.removeEventListener("wheel", mouseWithWheel.mousewheel);
+    }
+    container.removeEventListener("touchmove", mouse.mousemove);
+    container.removeEventListener("touchstart", mouse.mousedown);
+    container.removeEventListener("touchend", mouse.mouseup);
   };
 
   // Matter's Mouse adds a non-passive 'wheel' listener that calls preventDefault(),
@@ -171,6 +205,11 @@ export function createPhysicsEngine(
   if (mouseWithWheel.mousewheel) {
     container.removeEventListener("wheel", mouseWithWheel.mousewheel);
   }
+
+  ownerWindow.addEventListener("mousemove", forwardMouseMove, { passive: true });
+  ownerWindow.addEventListener("mouseup", forwardMouseUp, { passive: true });
+  ownerWindow.addEventListener("touchmove", forwardTouchMove, { passive: false });
+  ownerWindow.addEventListener("touchend", forwardTouchEnd, { passive: false });
 
   const mouseConstraint = MouseConstraint.create(engine, {
     mouse,
@@ -189,8 +228,8 @@ export function createPhysicsEngine(
     Mouse.setOffset(mouse, { x: -rect.left, y: -rect.top });
   };
 
-  window.addEventListener("scroll", syncMouseOffset, { passive: true });
-  window.addEventListener("resize", syncMouseOffset, { passive: true });
+  ownerWindow.addEventListener("scroll", syncMouseOffset, { passive: true });
+  ownerWindow.addEventListener("resize", syncMouseOffset, { passive: true });
   // Also sync before each mouse interaction
   container.addEventListener("pointerdown", syncMouseOffset, { passive: true });
   syncMouseOffset();
@@ -232,8 +271,13 @@ export function createPhysicsEngine(
       Runner.stop(runner);
       World.clear(engine.world, false);
       Engine.clear(engine);
-      window.removeEventListener("scroll", syncMouseOffset);
-      window.removeEventListener("resize", syncMouseOffset);
+      removeMouseListeners();
+      ownerWindow.removeEventListener("mousemove", forwardMouseMove);
+      ownerWindow.removeEventListener("mouseup", forwardMouseUp);
+      ownerWindow.removeEventListener("touchmove", forwardTouchMove);
+      ownerWindow.removeEventListener("touchend", forwardTouchEnd);
+      ownerWindow.removeEventListener("scroll", syncMouseOffset);
+      ownerWindow.removeEventListener("resize", syncMouseOffset);
       container.removeEventListener("pointerdown", syncMouseOffset);
     },
 

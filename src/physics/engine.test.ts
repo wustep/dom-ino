@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Matter from "matter-js";
 import { createPhysicsEngine } from "./engine";
 import type { PhysicsEngine } from "./engine";
@@ -200,6 +200,44 @@ describe("createPhysicsEngine", () => {
       // Runner should be stopped (engine cleared)
       // Just verify it doesn't throw
       expect(true).toBe(true);
+    });
+
+    it("releases drag state when mouseup happens outside the container", () => {
+      const mouse = engine.mouseConstraint!.mouse;
+
+      container.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 140,
+        clientY: 120,
+      }));
+      expect(mouse.button).toBe(0);
+
+      window.dispatchEvent(new MouseEvent("mouseup", {
+        bubbles: true,
+        button: 0,
+        clientX: 900,
+        clientY: 700,
+      }));
+      expect(mouse.button).toBe(-1);
+    });
+
+    it("destroy removes Matter mouse listeners from the container", () => {
+      const removeSpy = vi.spyOn(container, "removeEventListener");
+
+      engine.destroy();
+
+      const removedEvents = removeSpy.mock.calls.map(([type]) => type);
+      expect(removedEvents).toEqual(expect.arrayContaining([
+        "mousemove",
+        "mousedown",
+        "mouseup",
+        "wheel",
+        "touchmove",
+        "touchstart",
+        "touchend",
+        "pointerdown",
+      ]));
     });
   });
 
