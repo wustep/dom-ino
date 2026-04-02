@@ -19,8 +19,9 @@ function getBackgroundStyle(background?: string): React.CSSProperties {
 }
 
 export const PhysicsDomItem = memo(function PhysicsDomItem({
-  element, x, y, angle, isPhysicsEnabled, showDebug, isPinned: _isPinned,
+  element, x, y, angle, isPhysicsEnabled, showDebug,   isPinned,
 }: PhysicsDomItemProps) {
+  void isPinned;
   const isThrowable = element.throwable;
   const live = isPhysicsEnabled && isThrowable;
   const px = live ? x : element.rect.x;
@@ -50,6 +51,9 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
             padding: element.padding ?? 16,
             border: element.border ?? "1px solid #e5e5e5",
             boxShadow: element.boxShadow ?? "0 1px 4px rgba(0,0,0,0.06)",
+            ...(element.backdropFilter
+              ? { backdropFilter: element.backdropFilter, WebkitBackdropFilter: element.backdropFilter }
+              : {}),
             display: "flex", flexDirection: "column",
             overflow: "hidden", boxSizing: "border-box",
             position: "relative",
@@ -77,7 +81,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
       case "badge": {
         const bg = element.backgroundColor ?? "#333";
         return (
-          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(bg), borderRadius: element.borderRadius ?? 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 11, fontWeight: element.fontWeight ?? 700, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: element.letterSpacing ?? "0.05em", textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxShadow: element.boxShadow }}>
+          <div style={{ width: "100%", height: "100%", ...getBackgroundStyle(bg), borderRadius: element.borderRadius ?? 12, border: element.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: element.fontSize ?? 11, fontWeight: element.fontWeight ?? 700, fontStyle: element.fontStyle ?? "normal", fontFamily: element.fontFamily, color: element.color ?? "#fff", letterSpacing: element.letterSpacing ?? "0.05em", textAlign: element.textAlign as React.CSSProperties["textAlign"] | undefined, boxShadow: element.boxShadow, boxSizing: "border-box" }}>
             {element.text}
           </div>
         );

@@ -291,26 +291,10 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
   const footerY = bodyY + totalTextH;
   const H = Math.max(vh, footerY + 210);
 
+  const aliceBackdrop =
+    "linear-gradient(180deg, #faf6f2 0%, #f2ecf4 36%, #ebe4f2 70%, #f7f1fa 100%), radial-gradient(circle at 12% 10%, rgba(212, 168, 48, 0.14) 0%, transparent 24%), radial-gradient(circle at 84% 16%, rgba(92, 148, 210, 0.16) 0%, transparent 26%), radial-gradient(circle at 70% 66%, rgba(188, 132, 218, 0.12) 0%, transparent 28%), radial-gradient(circle at 22% 80%, rgba(200, 88, 98, 0.1) 0%, transparent 24%)";
+
   const elements: SceneDescription["elements"] = [
-    {
-      id: "pg-bg",
-      type: "container",
-      rect: { x: 0, y: 0, width: vw, height: H },
-      throwable: false,
-      pinned: true,
-      physicsEnabled: false,
-      backgroundColor: "linear-gradient(180deg, #f8f0e8 0%, #f0eaf5 38%, #eae4f0 68%, #f5eff8 100%)",
-    },
-    {
-      id: "pg-atmosphere",
-      type: "container",
-      rect: { x: 0, y: 0, width: vw, height: H },
-      throwable: false,
-      pinned: true,
-      physicsEnabled: false,
-      backgroundColor: "radial-gradient(circle at 14% 12%, rgba(220, 175, 55, 0.16) 0%, transparent 22%), radial-gradient(circle at 82% 18%, rgba(100, 155, 215, 0.18) 0%, transparent 22%), radial-gradient(circle at 72% 68%, rgba(196, 144, 224, 0.14) 0%, transparent 26%), radial-gradient(circle at 24% 82%, rgba(205, 82, 90, 0.12) 0%, transparent 22%)",
-      opacity: 0.95,
-    },
     {
       id: "pg-title",
       type: "heading",
@@ -323,7 +307,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       fontFamily: SERIF,
       lineHeight: titleLineHeight,
       letterSpacing: "-0.035em",
-      color: "#2d1f3d",
+      color: "#261a36",
       minSegmentWidth: 140,
       allowWordBreaks: false,
     },
@@ -339,7 +323,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       fontStyle: "italic",
       fontFamily: SERIF,
       lineHeight: narrow ? 28 : 30,
-      color: "rgba(60, 40, 70, 0.78)",
+      color: "rgba(52, 36, 64, 0.72)",
       minSegmentWidth: 72,
       allowWordBreaks: false,
     },
@@ -363,7 +347,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
       fontWeight: 400,
       fontFamily: SERIF,
       lineHeight: copyLineHeight,
-      color: "#3a2840",
+      color: "#3d2c44",
       minSegmentWidth: 42,
       allowWordBreaks: false,
     });
@@ -591,7 +575,7 @@ export function createAliceScene(vw: number, vh: number): SceneDescription {
     name: "Alice",
     width: vw,
     height: H,
-    backgroundColor: "#f5eff8",
+    backgroundColor: aliceBackdrop,
     elements,
   };
 }

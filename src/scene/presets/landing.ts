@@ -5,23 +5,23 @@ const svgUri = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(sv
 
 const LANDING_UI = svgUri(`
 <svg xmlns="http://www.w3.org/2000/svg" width="420" height="360" viewBox="0 0 420 360" fill="none">
-  <rect width="420" height="360" rx="22" fill="#09111C"/>
-  <rect x="18" y="18" width="384" height="324" rx="18" fill="#0F172A" stroke="#233246"/>
-  <rect x="38" y="38" width="112" height="12" rx="6" fill="#CBD5E1"/>
-  <rect x="38" y="68" width="344" height="166" rx="16" fill="#111F34"/>
-  <path d="M60 184C88 164 118 152 144 156C176 160 192 116 226 116C258 116 274 146 306 146C330 146 348 136 364 122" stroke="#8B5CF6" stroke-width="4" stroke-linecap="round"/>
-  <path d="M60 198C94 192 122 182 154 186C186 190 212 170 236 170C274 170 304 192 364 172" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
-  <circle cx="226" cy="116" r="7" fill="#8B5CF6"/>
-  <circle cx="306" cy="146" r="7" fill="#38BDF8"/>
-  <rect x="38" y="254" width="112" height="66" rx="14" fill="#13253B"/>
-  <rect x="164" y="254" width="106" height="66" rx="14" fill="#13253B"/>
-  <rect x="284" y="254" width="98" height="66" rx="14" fill="#13253B"/>
-  <text x="56" y="282" fill="#E2E8F0" font-size="12" font-family="Arial, sans-serif">Layouts synced</text>
-  <text x="56" y="304" fill="#FFFFFF" font-size="22" font-family="Arial, sans-serif" font-weight="700">94</text>
-  <text x="182" y="282" fill="#E2E8F0" font-size="12" font-family="Arial, sans-serif">Live scenes</text>
-  <text x="182" y="304" fill="#FFFFFF" font-size="22" font-family="Arial, sans-serif" font-weight="700">12</text>
-  <text x="302" y="282" fill="#E2E8F0" font-size="12" font-family="Arial, sans-serif">Avg refresh</text>
-  <text x="302" y="304" fill="#FFFFFF" font-size="22" font-family="Arial, sans-serif" font-weight="700">0.08ms</text>
+  <rect width="420" height="360" rx="22" fill="#080d14"/>
+  <rect x="18" y="18" width="384" height="324" rx="18" fill="#0c1424" stroke="rgba(148,163,184,0.12)"/>
+  <rect x="38" y="38" width="112" height="12" rx="6" fill="rgba(148,163,184,0.35)"/>
+  <rect x="38" y="68" width="344" height="166" rx="16" fill="#0e1a2e"/>
+  <path d="M60 184C88 164 118 152 144 156C176 160 192 116 226 116C258 116 274 146 306 146C330 146 348 136 364 122" stroke="#a78bfa" stroke-width="3.5" stroke-linecap="round" opacity="0.95"/>
+  <path d="M60 198C94 192 122 182 154 186C186 190 212 170 236 170C274 170 304 192 364 172" stroke="#67e8f9" stroke-width="3.5" stroke-linecap="round" opacity="0.9"/>
+  <circle cx="226" cy="116" r="6" fill="#a78bfa"/>
+  <circle cx="306" cy="146" r="6" fill="#22d3ee"/>
+  <rect x="38" y="254" width="112" height="66" rx="14" fill="#111f33" stroke="rgba(124,58,237,0.15)"/>
+  <rect x="164" y="254" width="106" height="66" rx="14" fill="#111f33" stroke="rgba(56,189,248,0.12)"/>
+  <rect x="284" y="254" width="98" height="66" rx="14" fill="#111f33" stroke="rgba(148,163,184,0.1)"/>
+  <text x="56" y="282" fill="#94a3b8" font-size="11" font-family="Arial, sans-serif" letter-spacing="0.02em">Layouts synced</text>
+  <text x="56" y="304" fill="#f8fafc" font-size="22" font-family="Arial, sans-serif" font-weight="700">94</text>
+  <text x="182" y="282" fill="#94a3b8" font-size="11" font-family="Arial, sans-serif" letter-spacing="0.02em">Live scenes</text>
+  <text x="182" y="304" fill="#f8fafc" font-size="22" font-family="Arial, sans-serif" font-weight="700">12</text>
+  <text x="302" y="282" fill="#94a3b8" font-size="11" font-family="Arial, sans-serif" letter-spacing="0.02em">Avg refresh</text>
+  <text x="302" y="304" fill="#f8fafc" font-size="22" font-family="Arial, sans-serif" font-weight="700">0.08ms</text>
 </svg>
 `);
 
@@ -46,7 +46,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
   const H = Math.max(vh, footerY + (narrow ? 272 : 192) + 40);
 
   return {
-    id: "landing", name: "Landing Page", width: vw, height: H, backgroundColor: "#07111D",
+    id: "landing", name: "Landing Page", width: vw, height: H,
+    backgroundColor: "radial-gradient(ellipse 120% 80% at 50% -20%, rgba(124,58,237,0.14) 0%, transparent 50%), linear-gradient(180deg, #050a12 0%, #07111d 45%, #0a1624 100%)",
     elements: [
       // ── Nav ──
       {
@@ -54,45 +55,49 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: 18, width: 54, height: 54 },
         throwable: true, pinned: false,
         text: "DO", fontSize: 16, fontWeight: 800, fontFamily: MONO,
-        color: "#E2E8F0", backgroundColor: "rgba(124,58,237,0.18)", borderRadius: 16, padding: 8,
+        color: "#f1f5f9", backgroundColor: "rgba(124,58,237,0.22)", borderRadius: 16, padding: 8,
+        border: "1px solid rgba(167,139,250,0.25)",
         mass: 0.3,
       },
       {
         id: "l-brand", type: "heading",
         rect: { x: mx + 66, y: 22, width: 260, height: 32 },
         throwable: false, pinned: true,
-        text: "DOMino Studio", fontSize: 28, fontWeight: 700, fontFamily: SANS, lineHeight: 32, color: "#F8FAFC",
+        text: "DOMino Studio", fontSize: 28, fontWeight: 700, fontFamily: SANS, lineHeight: 32, color: "#fafbfc",
         backgroundColor: "transparent",
       },
       {
         id: "l-brand-sub", type: "heading",
         rect: { x: mx + 66, y: 54, width: 200, height: 16 },
         throwable: false, pinned: true,
-        text: "Interactive page systems", fontSize: 11, fontWeight: 600, fontFamily: MONO, lineHeight: 16, color: "#8CA0B8",
+        text: "Interactive page systems", fontSize: 11, fontWeight: 600, fontFamily: MONO, lineHeight: 16, color: "#7c8ea3",
         backgroundColor: "transparent",
       },
       {
         id: "l-n1", type: "button",
-        rect: { x: mx + w - 364, y: 28, width: 82, height: 28 },
+        rect: { x: mx + w - 364, y: 26, width: 82, height: 30 },
         throwable: true, pinned: false,
         text: "Use cases", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 4,
+        color: "#cbd5e1", backgroundColor: "rgba(148,163,184,0.06)", borderRadius: 8,
+        border: "1px solid transparent",
         mass: 0.12,
       },
       {
         id: "l-n2", type: "button",
-        rect: { x: mx + w - 274, y: 28, width: 64, height: 28 },
+        rect: { x: mx + w - 274, y: 26, width: 64, height: 30 },
         throwable: true, pinned: false,
         text: "Pricing", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 4,
+        color: "#cbd5e1", backgroundColor: "rgba(148,163,184,0.06)", borderRadius: 8,
+        border: "1px solid transparent",
         mass: 0.12,
       },
       {
         id: "l-n3", type: "button",
-        rect: { x: mx + w - 202, y: 28, width: 56, height: 28 },
+        rect: { x: mx + w - 202, y: 26, width: 56, height: 30 },
         throwable: true, pinned: false,
         text: "Docs", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 4,
+        color: "#cbd5e1", backgroundColor: "rgba(148,163,184,0.06)", borderRadius: 8,
+        border: "1px solid transparent",
         mass: 0.12,
       },
       {
@@ -100,8 +105,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + w - 138, y: 22, width: 68, height: 34 },
         throwable: true, pinned: false,
         text: "Sign in", fontSize: 13, fontWeight: 500, fontFamily: SANS,
-        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 8,
-        border: "1px solid #2A3B50",
+        color: "#e2e8f0", backgroundColor: "rgba(15,23,42,0.4)", borderRadius: 10,
+        border: "1px solid rgba(148,163,184,0.15)",
         mass: 0.2,
       },
       {
@@ -109,8 +114,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + w - 60, y: 22, width: 60, height: 34 },
         throwable: true, pinned: false,
         text: "Demo", fontSize: 13, fontWeight: 600, fontFamily: SANS,
-        color: "#fff", backgroundColor: "#7C3AED", borderRadius: 8,
-        boxShadow: "0 2px 12px rgba(124,58,237,0.3)",
+        color: "#fff", backgroundColor: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)", borderRadius: 10,
+        boxShadow: "0 4px 20px rgba(124,58,237,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset",
         mass: 0.3,
       },
 
@@ -120,7 +125,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: 114, width: 214, height: 28 },
         throwable: true, pinned: false,
         text: "NEW: richer preset library", fontSize: 11, fontWeight: 700, fontFamily: MONO,
-        color: "#C4B5FD", backgroundColor: "rgba(124,58,237,0.14)", borderRadius: 14, padding: 6,
+        color: "#ddd6fe", backgroundColor: "rgba(124,58,237,0.18)", borderRadius: 14, padding: 6,
+        border: "1px solid rgba(167,139,250,0.22)",
         mass: 0.12,
       },
       {
@@ -129,7 +135,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: false, pinned: true,
         text: "Design pages\nthat react like\nliving systems.",
         fontSize: narrow ? 44 : 68, fontWeight: 800, fontFamily: SANS,
-        lineHeight: narrow ? 50 : 74, color: "#F8FAFC",
+        lineHeight: narrow ? 50 : 74, color: "#fafbfc",
         backgroundColor: "transparent",
       },
       {
@@ -137,7 +143,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: narrow ? 360 : 394, width: heroTextW, height: 98 },
         throwable: false, pinned: true,
         text: "Prototype editorial layouts, launch pages, and dense operational views where every element responds to interaction — without sacrificing the craft that makes a page feel intentional.",
-        fontSize: 18, fontWeight: 400, fontFamily: SANS, lineHeight: 29, color: "#94ADC4",
+        fontSize: 18, fontWeight: 400, fontFamily: SANS, lineHeight: 29, color: "#8ba3b8",
         backgroundColor: "transparent",
       },
       {
@@ -145,8 +151,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: narrow ? 476 : 516, width: 174, height: 50 },
         throwable: true, pinned: false,
         text: "Get started", fontSize: 15, fontWeight: 700, fontFamily: SANS,
-        color: "#fff", backgroundColor: "#7C3AED", borderRadius: 12,
-        boxShadow: "0 4px 24px rgba(124,58,237,0.4)",
+        color: "#fff", backgroundColor: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)", borderRadius: 14,
+        boxShadow: "0 8px 32px rgba(124,58,237,0.42), 0 0 0 1px rgba(255,255,255,0.1) inset",
         mass: 0.6,
       },
       {
@@ -154,8 +160,8 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + 188, y: narrow ? 476 : 516, width: 150, height: 50 },
         throwable: true, pinned: false,
         text: "Watch demo", fontSize: 15, fontWeight: 500, fontFamily: SANS,
-        color: "#CBD5E1", backgroundColor: "transparent", borderRadius: 12,
-        border: "1px solid #2A394D",
+        color: "#e2e8f0", backgroundColor: "rgba(15,23,42,0.35)", borderRadius: 14,
+        border: "1px solid rgba(148,163,184,0.18)",
         mass: 0.5,
       },
 
@@ -212,7 +218,7 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         backgroundColor: "#0F172A", borderRadius: 22,
         imageAlt: "DOMino Studio product interface", imageSrc: LANDING_UI,
-        boxShadow: "0 24px 60px rgba(2,6,23,0.42), 0 0 0 1px rgba(124,58,237,0.1)",
+        boxShadow: "0 28px 70px rgba(2,6,23,0.48), 0 0 0 1px rgba(124,58,237,0.12), 0 0 80px rgba(124,58,237,0.08)",
         mass: 2.6,
       },
 
@@ -223,9 +229,10 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "Studio metrics", fontSize: 11, fontWeight: 700, fontFamily: MONO,
         color: "#8CA0B8",
-        backgroundColor: "#0D1A2A", borderRadius: 16, padding: 18,
-        border: "1px solid #1E2D3F",
-        boxShadow: "0 12px 32px rgba(2,6,23,0.32)",
+        backgroundColor: "rgba(13,26,42,0.92)", borderRadius: 18, padding: 18,
+        border: "1px solid rgba(56,189,248,0.12)",
+        backdropFilter: "blur(12px)",
+        boxShadow: "0 16px 40px rgba(2,6,23,0.38)",
         mass: 1.4,
         children: [
           {
@@ -270,9 +277,10 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: featureY, width: fW, height: 124 },
         throwable: true, pinned: false,
         text: "Launch surfaces", fontSize: 20, fontWeight: 700, fontFamily: SANS,
-        color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #1E2D42",
-        boxShadow: "0 8px 32px rgba(2,6,23,0.35)",
+        color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.88)", borderRadius: 20, padding: 22,
+        border: "1px solid rgba(148,163,184,0.12)",
+        backdropFilter: "blur(10px)",
+        boxShadow: "0 12px 36px rgba(2,6,23,0.4)",
         mass: 1.4,
         children: [{
           id: "l-f1-d", type: "paragraph",
@@ -287,9 +295,10 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + fW + 12, y: featureY, width: fW, height: 124 },
         throwable: true, pinned: false,
         text: "Editorial packages", fontSize: 20, fontWeight: 700, fontFamily: SANS,
-        color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #1E2D42",
-        boxShadow: "0 8px 32px rgba(2,6,23,0.35)",
+        color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.88)", borderRadius: 20, padding: 22,
+        border: "1px solid rgba(148,163,184,0.12)",
+        backdropFilter: "blur(10px)",
+        boxShadow: "0 12px 36px rgba(2,6,23,0.4)",
         mass: 1.4,
         children: [{
           id: "l-f2-d", type: "paragraph",
@@ -304,9 +313,10 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx + (fW + 12) * 2, y: featureY, width: fW, height: 124 },
         throwable: true, pinned: false,
         text: "Operational pages", fontSize: 20, fontWeight: 700, fontFamily: SANS,
-        color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #1E2D42",
-        boxShadow: "0 8px 32px rgba(2,6,23,0.35)",
+        color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.88)", borderRadius: 20, padding: 22,
+        border: "1px solid rgba(148,163,184,0.12)",
+        backdropFilter: "blur(10px)",
+        boxShadow: "0 12px 36px rgba(2,6,23,0.4)",
         mass: 1.4,
         children: [{
           id: "l-f3-d", type: "paragraph",
@@ -365,9 +375,10 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: quoteY, width: w, height: 154 },
         throwable: true, pinned: false,
         text: "From the teams using it", fontSize: 11, fontWeight: 700, fontFamily: MONO,
-        color: "#8CA0B8", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 24,
-        border: "1px solid #1E2D42",
-        boxShadow: "0 12px 36px rgba(2,6,23,0.35)",
+        color: "#94a3b8", backgroundColor: "rgba(13,26,42,0.9)", borderRadius: 20, padding: 24,
+        border: "1px solid rgba(167,139,250,0.15)",
+        backdropFilter: "blur(12px)",
+        boxShadow: "0 16px 44px rgba(2,6,23,0.42)",
         mass: 2,
         children: [
           {
@@ -393,9 +404,10 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: mx, y: pricingY, width: narrow ? w : 320, height: 228 },
         throwable: true, pinned: false,
         text: "Starter plan", fontSize: 20, fontWeight: 700, fontFamily: SANS,
-        color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #1E2D42",
-        boxShadow: "0 12px 36px rgba(2,6,23,0.35)",
+        color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.9)", borderRadius: 20, padding: 22,
+        border: "1px solid rgba(148,163,184,0.14)",
+        backdropFilter: "blur(10px)",
+        boxShadow: "0 14px 40px rgba(2,6,23,0.4)",
         mass: 1.8,
         children: [
           {
@@ -428,9 +440,10 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         rect: { x: narrow ? mx : mx + 336, y: narrow ? pricingY + 244 : pricingY, width: narrow ? w : w - 336, height: 228 },
         throwable: true, pinned: false,
         text: "Launch in one afternoon", fontSize: 20, fontWeight: 700, fontFamily: SANS,
-        color: "#F8FAFC", backgroundColor: "#0D1A2A", borderRadius: 18, padding: 22,
-        border: "1px solid #1E2D42",
-        boxShadow: "0 12px 36px rgba(2,6,23,0.35)",
+        color: "#f8fafc", backgroundColor: "rgba(13,26,42,0.9)", borderRadius: 20, padding: 22,
+        border: "1px solid rgba(148,163,184,0.14)",
+        backdropFilter: "blur(10px)",
+        boxShadow: "0 14px 40px rgba(2,6,23,0.4)",
         mass: 1.8,
         children: [
           {
@@ -478,8 +491,9 @@ export function createLandingScene(vw: number, vh: number): SceneDescription {
         throwable: true, pinned: false,
         text: "",
         fontSize: 15, fontWeight: 400, fontFamily: SANS,
-        color: "#8196AD", backgroundColor: "rgba(13,26,42,0.6)", borderRadius: 14, padding: 20,
-        border: "1px solid #1C2C3E",
+        color: "#94a3b8", backgroundColor: "rgba(13,26,42,0.55)", borderRadius: 16, padding: 20,
+        border: "1px solid rgba(148,163,184,0.12)",
+        backdropFilter: "blur(14px)",
         mass: 1.2,
         children: [{
           id: "l-bottom-p", type: "paragraph",

@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { isPresetKey, type PresetKey } from "./scene/presets";
 
 function getResetRedirectPath(pathname: string) {
   if (pathname === "/reset" || pathname === "/reset/") {
@@ -37,8 +38,14 @@ function getBootstrapFetchUrl(search: string) {
   return fetchUrl || null;
 }
 
+function getBootstrapPreset(search: string): PresetKey | null {
+  const raw = new URLSearchParams(search).get("preset")?.trim().toLowerCase();
+  return raw && isPresetKey(raw) ? raw : null;
+}
+
 const resetRedirectPath = getResetRedirectPath(window.location.pathname);
 const bootstrapFetchUrl = getBootstrapFetchUrl(window.location.search);
+const bootstrapPreset = getBootstrapPreset(window.location.search);
 
 if (resetRedirectPath) {
   try {
@@ -55,6 +62,6 @@ if (resetRedirectPath || bootstrapFetchUrl) {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App initialFetchUrl={bootstrapFetchUrl} />
+    <App initialFetchUrl={bootstrapFetchUrl} initialPreset={bootstrapPreset} />
   </StrictMode>
 );

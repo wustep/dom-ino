@@ -60,26 +60,10 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
   const orbFieldH = Math.min(H - 80, Math.max(vh, bodyY + (narrow ? 1000 : 700)));
   const orbScale = narrow ? 0.72 : 1;
 
+  const engineBackdrop =
+    "radial-gradient(ellipse at 50% 6%, #16161e 0%, #0c0c10 52%, #060608 100%), radial-gradient(circle at 16% 22%, rgba(196,163,90,0.1) 0%, transparent 36%), radial-gradient(circle at 80% 10%, rgba(150,100,220,0.09) 0%, transparent 34%), radial-gradient(circle at 68% 54%, rgba(232,100,130,0.08) 0%, transparent 32%)";
+
   const elements: SceneDescription["elements"] = [
-    {
-      id: "de-bg",
-      type: "container",
-      rect: { x: 0, y: 0, width: vw, height: H },
-      throwable: false,
-      pinned: true,
-      physicsEnabled: false,
-      backgroundColor: "radial-gradient(ellipse at 50% 8%, #121218 0%, #0a0a0c 58%, #070709 100%)",
-    },
-    {
-      id: "de-atmosphere",
-      type: "container",
-      rect: { x: 0, y: 0, width: vw, height: H },
-      throwable: false,
-      pinned: true,
-      physicsEnabled: false,
-      backgroundColor: "radial-gradient(circle at 18% 24%, rgba(196,163,90,0.08) 0%, transparent 34%), radial-gradient(circle at 82% 12%, rgba(150,100,220,0.08) 0%, transparent 32%), radial-gradient(circle at 70% 56%, rgba(232,100,130,0.07) 0%, transparent 30%)",
-      opacity: 0.9,
-    },
     {
       id: "de-headline",
       type: "heading",
@@ -92,7 +76,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
       fontFamily: PAL_SERIF,
       lineHeight: headlineLineHeight,
       letterSpacing: "-0.03em",
-      color: "#ffffff",
+      color: "#faf9f7",
     },
   ];
 
@@ -163,7 +147,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         fontWeight: 400,
         fontFamily: PAL_SERIF,
         lineHeight: bodyLH,
-        color: "#e8e4dc",
+        color: "#ebe7df",
       },
     );
   } else {
@@ -224,7 +208,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         fontWeight: 400,
         fontFamily: PAL_SERIF,
         lineHeight: bodyLH,
-        color: "#e8e4dc",
+        color: "#ebe7df",
       },
       {
         id: "de-col2",
@@ -238,7 +222,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         fontWeight: 400,
         fontFamily: PAL_SERIF,
         lineHeight: bodyLH,
-        color: "#e8e4dc",
+        color: "#ebe7df",
       },
       {
         id: "de-col3",
@@ -252,7 +236,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
         fontWeight: 400,
         fontFamily: PAL_SERIF,
         lineHeight: bodyLH,
-        color: "#e8e4dc",
+        color: "#ebe7df",
       },
     );
   }
@@ -267,7 +251,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     fontSize: 11,
     fontWeight: 400,
     fontFamily: UI_SANS,
-    color: "rgba(255,255,255,0.28)",
+    color: "rgba(255,255,255,0.34)",
     backgroundColor: "transparent",
     borderRadius: 0,
     textAlign: "center",
@@ -310,7 +294,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
     name: "Engine",
     width: vw,
     height: H,
-    backgroundColor: "#0a0a0c",
+    backgroundColor: engineBackdrop,
     elements: elements.map((element) => {
       if (element.type !== "paragraph" && element.type !== "heading") return element;
       return {

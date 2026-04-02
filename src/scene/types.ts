@@ -45,6 +45,8 @@ export interface SceneElement {
   imageAlt?: string;
   opacity?: number;
   boxShadow?: string;
+  /** e.g. blur(12px) for frosted cards over gradients */
+  backdropFilter?: string;
   children?: SceneElement[];
   textAlign?: string;
   letterSpacing?: string;

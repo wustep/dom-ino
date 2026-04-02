@@ -38,6 +38,8 @@ interface PersistedState {
 
 interface AppProps {
 	initialFetchUrl?: string | null
+	/** Deep-link for demos (e.g. `?preset=landing`); does not persist by itself */
+	initialPreset?: PresetKey | null
 }
 
 let consumedInitialFetchUrl: string | null = null
@@ -126,7 +128,10 @@ function saveState(s: PersistedState) {
 	}
 }
 
-export default function App({ initialFetchUrl = null }: AppProps) {
+export default function App({
+	initialFetchUrl = null,
+	initialPreset = null,
+}: AppProps) {
 	const persisted = useRef(loadState())
 
 	const [windowSize, setWindowSize] = useState({
@@ -134,7 +139,7 @@ export default function App({ initialFetchUrl = null }: AppProps) {
 		height: window.innerHeight,
 	})
 	const [currentPreset, setCurrentPreset] = useState<PresetKey | "custom">(
-		persisted.current.currentPreset ?? DEFAULT_PRESET
+		initialPreset ?? persisted.current.currentPreset ?? DEFAULT_PRESET
 	)
 	const [customPages, setCustomPages] = useState<CustomPage[]>(
 		persisted.current.customPages ?? []

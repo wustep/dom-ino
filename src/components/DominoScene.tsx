@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import type { CSSProperties } from "react";
 import type {
   ObstacleRect,
   SavedElement,
@@ -18,6 +19,12 @@ import type { DebugSettings } from "./Toolbar";
 import { getObstacleAABB } from "../textflow/obstacles";
 import { ThrowablePicker } from "./ThrowablePicker";
 import { QuickSavePicker } from "./QuickSavePicker";
+
+function sceneRootBackgroundStyle(backgroundColor: string): CSSProperties {
+  return backgroundColor.includes("gradient")
+    ? { background: backgroundColor }
+    : { backgroundColor };
+}
 
 interface DominoSceneProps {
   scene: SceneDescription;
@@ -249,7 +256,7 @@ export function DominoScene({
 
   return (
     <div
-      style={{ position: "relative", width: scene.width, height: scene.height, backgroundColor: scene.backgroundColor, overflow: "hidden", cursor: "grab" }}
+      style={{ position: "relative", width: scene.width, height: scene.height, ...sceneRootBackgroundStyle(scene.backgroundColor), overflow: "hidden", cursor: "grab" }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
       onDrop={(e) => {
         e.preventDefault();
