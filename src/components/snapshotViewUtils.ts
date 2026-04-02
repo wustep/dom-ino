@@ -1,5 +1,6 @@
 import type { SceneElement } from "../scene/types";
 import type { TextFlowResult } from "../textflow/useTextFlow";
+import type { BodyPos } from "../utils/physics";
 
 export type ViewportRectLike = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
@@ -11,8 +12,6 @@ export function toStageRect(rect: ViewportRectLike) {
     height: rect.height,
   };
 }
-
-type BodyPos = { x: number; y: number; angle: number; w: number; h: number };
 
 export function hasMovedImportedElement(
   sceneElement: SceneElement,
