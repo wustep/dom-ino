@@ -16,6 +16,32 @@ interface SiteRule {
 
 export const SITE_RULES: SiteRule[] = [
   {
+    match: "wikipedia.org",
+    removeSelectors: [
+      ".navbox",
+      ".vertical-navbox",
+      "#catlinks",
+      ".mw-footer-container",
+      ".vector-sticky-header-container",
+      ".mw-editsection",
+      ".mw-jump-link",
+      ".mw-portlet-dock-bottom",
+      ".authority-control",
+    ],
+    css: `
+      /* Keep imported Wikipedia pages focused on article content. */
+      #toc,
+      .toc,
+      .vector-toc,
+      .shortdescription,
+      .mw-indicators,
+      .sistersitebox,
+      .portal {
+        display: none !important;
+      }
+    `,
+  },
+  {
     match: "nytimes.com",
     removeSelectors: [
       '[data-testid="StandardAd"]',
@@ -25,9 +51,13 @@ export const SITE_RULES: SiteRule[] = [
       '[class*="expanded-dock"]',
     ],
     css: `
-      /* Collapse empty JS-dependent nav containers in the masthead */
+      /* Collapse ad wrapper parent containers (they retain fixed height even when ad is hidden) */
+      div:has(> div > [data-testid="StandardAd"]) { display: none !important; }
+      /* Collapse empty JS-dependent nav containers and spacer divs in the masthead */
       [data-testid="floating-desktop-nested-nav"],
-      [data-testid="masthead-nested-nav"] { display: none !important; }
+      [data-testid="masthead-nested-nav"],
+      [data-testid="desktop-nested-nav"],
+      [data-testid="masthead-container"] header > div:empty { display: none !important; }
       /* Remove empty source elements (JS fills srcset at runtime) */
       source:not([srcset]) { display: none !important; }
     `,

@@ -122,7 +122,17 @@ function loadState(): Partial<PersistedState> {
 
 function saveState(s: PersistedState) {
 	try {
-		localStorage.setItem(LS_KEY, JSON.stringify(s))
+		// Strip preparedHtml from snapshot pages to avoid localStorage quota issues.
+		// Pages with a sourceUrl will be re-fetched on reload.
+		const toSave: PersistedState = {
+			...s,
+			customPages: s.customPages.flatMap<CustomPage>((page) => {
+				if (page.kind !== "snapshot") return [page]
+				if (!page.sourceUrl) return [] // can't recover imported HTML, drop it
+				return [{ ...page, preparedHtml: "" }]
+			}),
+		}
+		localStorage.setItem(LS_KEY, JSON.stringify(toSave))
 	} catch {
 		/* quota exceeded etc */
 	}
@@ -258,6 +268,36 @@ export default function App({
 		})
 	}, [initialFetchUrl, handleFetchUrl])
 
+	// Re-fetch snapshot pages that were persisted without preparedHtml
+	const refetchedRef = useRef<Set<string>>(new Set())
+	const [refetchError, setRefetchError] = useState<string | null>(null)
+	useEffect(() => {
+		if (!activeCustomPage) return
+		if (activeCustomPage.kind !== "snapshot") return
+		if (activeCustomPage.preparedHtml) return
+		if (!activeCustomPage.sourceUrl) return
+		if (refetchedRef.current.has(activeCustomPage.id)) return
+		refetchedRef.current.add(activeCustomPage.id)
+		setRefetchError(null)
+		const pageId = activeCustomPage.id
+		void (async () => {
+			try {
+				const result = await fetchPageHtml(activeCustomPage.sourceUrl!)
+				const preparedHtml = await prepareHtmlForViewer(result.html, result.url)
+				setCustomPages((prev) =>
+					prev.map((p) =>
+						p.id === pageId && p.kind === "snapshot"
+							? { ...p, preparedHtml }
+							: p
+					)
+				)
+				setSceneKey((k) => k + 1)
+			} catch {
+				setRefetchError("Could not reload this page.")
+			}
+		})()
+	}, [activeCustomPage])
+
 	// Ensures modifying a preset creates exactly one scene-backed custom page fork
 	const ensureCustomScenePage = useCallback(
 		(newScene: SceneDescription): string => {
@@ -361,7 +401,22 @@ export default function App({
 
 	return (
 		<>
-			{activeCustomPage?.kind === "snapshot" ? (
+			{activeCustomPage?.kind === "snapshot" && !activeCustomPage.preparedHtml ? (
+				<PageReloadOverlay
+					url={activeCustomPage.sourceUrl}
+					error={refetchError}
+					onRetry={() => {
+						refetchedRef.current.delete(activeCustomPage.id)
+						setRefetchError(null)
+						setSceneKey((k) => k + 1)
+					}}
+					onBack={() => {
+						setCustomPages((prev) => prev.filter((p) => p.id !== activeCustomPage.id))
+						setActiveCustomId(null)
+						setCurrentPreset(DEFAULT_PRESET)
+					}}
+				/>
+			) : activeCustomPage?.kind === "snapshot" ? (
 				<SnapshotPageView
 					key={sceneKey}
 					page={activeCustomPage}
@@ -402,6 +457,61 @@ export default function App({
 			) : null}
 			{showHint && <Hint />}
 		</>
+	)
+}
+
+function PageReloadOverlay({ url, error, onRetry, onBack }: {
+	url?: string
+	error: string | null
+	onRetry: () => void
+	onBack: () => void
+}) {
+	const displayUrl = url
+		? url.replace(/^https?:\/\//, "").replace(/\/$/, "")
+		: "page"
+	return (
+		<div style={{
+			display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+			height: "100vh", fontFamily: '"DM Sans", sans-serif',
+			animation: "reloadFadeIn 0.3s ease both",
+		}}>
+			{!error ? (
+				<>
+					<svg width="24" height="24" viewBox="0 0 24 24" style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}>
+						<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
+						<circle cx="12" cy="12" r="10" fill="none" stroke="#999" strokeWidth="2.5"
+							strokeDasharray="20 43" strokeLinecap="round" />
+					</svg>
+					<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>
+						Reloading {displayUrl}
+					</div>
+				</>
+			) : (
+				<>
+					<div style={{ color: "#999", fontSize: 13, marginBottom: 12 }}>
+						{error}
+					</div>
+					<div style={{ display: "flex", gap: 8 }}>
+						<button onClick={onRetry} style={{
+							padding: "5px 14px", borderRadius: 6, border: "1px solid #ddd",
+							backgroundColor: "#fff", color: "#333",
+							fontSize: 12, fontWeight: 500, fontFamily: '"DM Sans", sans-serif',
+							cursor: "pointer",
+						}}>Retry</button>
+						<button onClick={onBack} style={{
+							padding: "5px 14px", borderRadius: 6, border: "1px solid #ddd",
+							backgroundColor: "#fff", color: "#999",
+							fontSize: 12, fontWeight: 500, fontFamily: '"DM Sans", sans-serif',
+							cursor: "pointer",
+						}}>Go back</button>
+					</div>
+				</>
+			)}
+			<style>{`
+				@keyframes reloadSpin { to { transform: rotate(360deg); } }
+				@keyframes reloadFadeIn { from { opacity: 0; } to { opacity: 1; } }
+			`}</style>
+		</div>
 	)
 }
 

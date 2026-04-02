@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CustomPage, SnapshotCustomPage } from "../App";
 import type { SavedElement, SceneElement } from "../scene/types";
 import type { PresetKey } from "../scene/presets";
@@ -10,6 +10,7 @@ import { TextFlowRegion } from "./TextFlowRegion";
 import type { ObstacleRect } from "../scene/types";
 import { QuickSavePicker } from "./QuickSavePicker";
 import { ImportedPhysicsClone } from "./ImportedPhysicsClone";
+import { computeTextFlow } from "../textflow/useTextFlow";
 
 interface SnapshotPageViewProps {
   page: SnapshotCustomPage;
@@ -47,6 +48,23 @@ type SnapshotTextBlock = {
   node: HTMLElement;
 };
 
+type ImportedTextLayout = {
+  id: string;
+  sceneElement: SceneElement;
+  containerX: number;
+  containerY: number;
+  containerWidth: number;
+  containerMaxHeight: number;
+};
+
+function isTextSceneElement(
+  sceneElement: SceneElement | null
+): sceneElement is SceneElement & { type: "paragraph" | "heading" } {
+  return (
+    sceneElement?.type === "paragraph" || sceneElement?.type === "heading"
+  );
+}
+
 function getStableNodeId(root: HTMLElement, node: HTMLElement): string {
   const existing = node.dataset.dominoId;
   if (existing) return existing;
@@ -74,10 +92,18 @@ function textOf(el: HTMLElement): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+const INLINE_TAGS = new Set([
+  "SPAN", "EM", "STRONG", "B", "I", "A", "SMALL", "SUB", "SUP",
+  "MARK", "ABBR", "CODE", "TIME", "BR", "WBR", "S", "U", "Q",
+  "CITE", "DFN", "KBD", "SAMP", "VAR", "DATA", "INS", "DEL",
+]);
+
 function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): SceneElement["type"] {
   const tag = el.tagName;
   if (/^H[1-6]$/.test(tag)) return "heading";
-  if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION" || tag === "LI") return "paragraph";
+  if (tag === "P" || tag === "BLOCKQUOTE" || tag === "FIGCAPTION" || tag === "LI"
+    || tag === "DD" || tag === "DT" || tag === "TD" || tag === "TH"
+    || tag === "CAPTION" || tag === "PRE" || tag === "ADDRESS" || tag === "LABEL") return "paragraph";
   if (tag === "BUTTON") return "button";
   if (tag === "A") return cs.display === "inline" ? "link" : "button";
   if (tag === "IMG" || tag === "PICTURE" || tag === "VIDEO" || tag === "SVG") return "image";
@@ -96,11 +122,21 @@ function inferSnapshotElementType(el: HTMLElement, cs: CSSStyleDeclaration): Sce
       if (imgRect.width > elRect.width * 0.6 && imgRect.height > elRect.height * 0.4) return "image";
     }
   }
+  // Generic elements (div, span, section, etc.) that are primarily text containers
+  // — all children are inline elements and there is meaningful text content
+  const text = textOf(el);
+  if (text.length > 20) {
+    const children = Array.from(el.children);
+    const allInline = children.length === 0 || children.every(
+      (c) => INLINE_TAGS.has(c.tagName)
+    );
+    if (allInline) return "paragraph";
+  }
   const bg = cs.backgroundColor;
   const hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
   const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
   const hasShadow = cs.boxShadow && cs.boxShadow !== "none";
-  const shortText = textOf(el).length > 0 && textOf(el).length < 40;
+  const shortText = text.length > 0 && text.length < 40;
   const small = el.offsetWidth < 300 && el.offsetHeight < 120;
   if (shortText && small && (hasBg || hasBorder || hasShadow)) return "badge";
   if (hasBg || hasBorder || hasShadow) return "card";
@@ -161,6 +197,49 @@ function elementToSceneElement(el: HTMLElement, rootRect: DOMRect, win: Window):
   };
 }
 
+function isStaticTextFlowObstacleCandidate(
+  candidate: SnapshotCandidate,
+  sourceWindow: Window | null
+): boolean {
+  if (!candidate.sceneElement || isTextSceneElement(candidate.sceneElement)) {
+    return false;
+  }
+  if (candidate.display === "inline" || candidate.display === "contents") {
+    return false;
+  }
+  if (candidate.width < 60 || candidate.height < 24) {
+    return false;
+  }
+
+  const cls = (candidate.node.className || "").toString().toLowerCase();
+  const id = (candidate.node.id || "").toLowerCase();
+  const tag = candidate.node.tagName;
+  const looksLikeMediaAnchor =
+    candidate.sceneElement.type === "image" ||
+    tag === "FIGURE" ||
+    tag === "TABLE" ||
+    tag === "TBODY" ||
+    tag === "THEAD";
+  const looksLikeLayoutAnchor =
+    cls.includes("infobox") ||
+    cls.includes("thumb") ||
+    cls.includes("gallery") ||
+    cls.includes("trow") ||
+    id.includes("infobox");
+
+  let isFloatAnchor = false;
+  try {
+    if (sourceWindow) {
+      const cs = sourceWindow.getComputedStyle(candidate.node);
+      isFloatAnchor = cs.float === "left" || cs.float === "right";
+    }
+  } catch {
+    // Ignore style lookup failures inside the sandboxed iframe.
+  }
+
+  return looksLikeMediaAnchor || looksLikeLayoutAnchor || isFloatAnchor;
+}
+
 function pickContentRoot(doc: Document): HTMLElement {
   const selectors = [
     "main article",
@@ -182,6 +261,32 @@ function pickContentRoot(doc: Document): HTMLElement {
     if (node instanceof HTMLElement) return node;
   }
   return doc.body as HTMLElement;
+}
+
+function syncHiddenNodes(
+  hiddenNodes: Map<HTMLElement, string>,
+  desiredNodes: Iterable<HTMLElement>
+) {
+  const desired = new Set(desiredNodes);
+
+  for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
+    if (desired.has(node)) continue;
+    node.style.visibility = originalVisibility;
+    hiddenNodes.delete(node);
+  }
+
+  for (const node of desired) {
+    if (hiddenNodes.has(node)) continue;
+    hiddenNodes.set(node, node.style.visibility || "");
+    node.style.visibility = "hidden";
+  }
+}
+
+function restoreHiddenNodes(hiddenNodes: Map<HTMLElement, string>) {
+  for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
+    node.style.visibility = originalVisibility;
+  }
+  hiddenNodes.clear();
 }
 
 export function SnapshotPageView({
@@ -207,6 +312,8 @@ export function SnapshotPageView({
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const rafRef = useRef<number>(0);
   const fpsFrames = useRef<number[]>([]);
+  const hiddenSelectedNodesRef = useRef<Map<HTMLElement, string>>(new Map());
+  const hiddenTextNodesRef = useRef<Map<HTMLElement, string>>(new Map());
   const [iframeHeight, setIframeHeight] = useState(1600);
   const [pickerMode, setPickerMode] = useState(false);
   const [savePickerMode, setSavePickerMode] = useState(false);
@@ -249,8 +356,8 @@ export function SnapshotPageView({
     const nextTextBlocks: SnapshotTextBlock[] = [];
 
     let counter = 0;
-    const walk = (el: HTMLElement, depth: number) => {
-      if (depth > 20) return;
+    const walk = (el: HTMLElement, depth: number, insideTextBlock: boolean) => {
+      if (depth > 40) return;
       for (const child of Array.from(el.children)) {
         if (child.nodeType !== Node.ELEMENT_NODE) continue;
         const childEl = child as HTMLElement;
@@ -268,8 +375,8 @@ export function SnapshotPageView({
         if (cs.position === "fixed" || cs.position === "sticky") continue;
 
         const rect = childEl.getBoundingClientRect();
-        if (rect.width < 12 || rect.height < 12) { walk(childEl, depth + 1); continue; }
-        if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) { walk(childEl, depth + 1); continue; }
+        if (rect.width < 12 || rect.height < 12) { walk(childEl, depth + 1, insideTextBlock); continue; }
+        if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) { walk(childEl, depth + 1, insideTextBlock); continue; }
 
         const text = textOf(childEl);
         const display = cs.display || "";
@@ -279,25 +386,28 @@ export function SnapshotPageView({
         const hasBorder = parseFloat(cs.borderWidth || "0") > 0;
         const hasShadow = cs.boxShadow && cs.boxShadow !== "none";
         const semantic = /^(BUTTON|A|IMG|PICTURE|VIDEO|SVG|INPUT|TEXTAREA|SELECT|H[1-6]|P|BLOCKQUOTE|FIGCAPTION|TABLE|FIGURE)$/.test(tag);
+        const mediaElement = /^(IMG|PICTURE|VIDEO|SVG|FIGURE)$/.test(tag);
         const sizableBlock = rect.width >= 48 && rect.height >= 24;
-        if (inlineish && !hasBg && !hasBorder && !hasShadow) {
-          walk(childEl, depth + 1);
+        // Skip inline non-media elements — but always keep images/videos as candidates
+        if (inlineish && !mediaElement && !hasBg && !hasBorder && !hasShadow) {
+          walk(childEl, depth + 1, insideTextBlock);
           continue;
         }
         if (!semantic && !hasBg && !hasBorder && !hasShadow && text.length < 12 && !sizableBlock) {
-          walk(childEl, depth + 1);
+          walk(childEl, depth + 1, insideTextBlock);
           continue;
         }
 
         const dominoId = getStableNodeId(root, childEl) || `snapshot-node-${counter++}`;
         childEl.dataset.dominoId = dominoId;
         const sceneElement = elementToSceneElement(childEl, viewportRect, win);
+        const hasMediaDescendants = childEl.querySelector("img, picture, video, svg, canvas") !== null;
         nodes.set(dominoId, childEl);
-        if (
-          sceneElement &&
-          (sceneElement.type === "paragraph" || sceneElement.type === "heading") &&
-          text.length > 0
-        ) {
+        const isTextBlock =
+          isTextSceneElement(sceneElement) &&
+          text.length > 0 &&
+          (!hasMediaDescendants || tag === "FIGCAPTION");
+        if (isTextBlock && !insideTextBlock) {
           textNodes.set(dominoId, childEl);
           nextTextBlocks.push({ id: dominoId, sceneElement, node: childEl });
         }
@@ -314,11 +424,11 @@ export function SnapshotPageView({
           display,
         });
 
-        walk(childEl, depth + 1);
+        walk(childEl, depth + 1, insideTextBlock || isTextBlock);
       }
     };
 
-    walk(root, 0);
+    walk(root, 0, false);
     nodesRef.current = nodes;
     textNodesRef.current = textNodes;
     setCandidates(next);
@@ -333,8 +443,8 @@ export function SnapshotPageView({
       c.sceneElement &&
       c.sceneElement.type !== "paragraph" &&
       c.sceneElement.type !== "heading" &&
-      c.display !== "inline" &&
-      c.display !== "contents" &&
+      // Allow inline images/videos — they're valid throwable targets
+      (c.sceneElement.type === "image" || (c.display !== "inline" && c.display !== "contents")) &&
       c.width >= 40 &&
       c.height >= 20
     ),
@@ -350,11 +460,6 @@ export function SnapshotPageView({
     return () => window.removeEventListener("resize", onResize);
   }, [scanCandidates, page.preparedHtml]);
 
-  // Auto-select throwable candidates after first scan.
-  // Selects images, badges, buttons, cards, and links that look like
-  // standalone interactive/visual elements. Skips elements that are
-  // descendants of already-selected elements to avoid duplication.
-  // Skips large containers/infoboxes/tables that serve as layout anchors.
   useEffect(() => {
     if (autoSelectedRef.current || selectableCandidates.length === 0) return;
     autoSelectedRef.current = true;
@@ -364,37 +469,44 @@ export function SnapshotPageView({
       if (!c.sceneElement) continue;
       const t = c.sceneElement.type;
       if (!throwableTypes.has(t)) continue;
-      if (c.width > 500 || c.height > 400) continue;
+      // Keep startup selection conservative. Inline media is still available
+      // in picker mode, but auto-selecting it makes Wikipedia pages much noisier.
+      if (c.display === "inline" || c.display === "contents") continue;
+      // Allow larger images/videos as throwables (hero media, video embeds)
+      const maxW = t === "image" ? 900 : 500;
+      const maxH = t === "image" ? 700 : 400;
+      if (c.width > maxW || c.height > maxH) continue;
       if (c.width < 30 || c.height < 16) continue;
       if (c.y < 40) continue;
 
-      // Skip large floated containers (infoboxes, image galleries, tables)
-      // These should stay pinned so text flows around them naturally
       const cls = (c.node.className || "").toString().toLowerCase();
       const id = (c.node.id || "").toLowerCase();
       const tag = c.node.tagName;
-      const isInfobox = cls.includes("infobox") || cls.includes("sidebar") || cls.includes("navbox") || cls.includes("tmbox") || cls.includes("ambox");
+      const isInfobox =
+        cls.includes("infobox") ||
+        cls.includes("sidebar") ||
+        cls.includes("navbox") ||
+        cls.includes("tmbox") ||
+        cls.includes("ambox");
       const isGallery = cls.includes("gallery") || cls.includes("thumb") || cls.includes("trow");
       const isTable = tag === "TABLE" || tag === "TBODY" || tag === "THEAD";
       const isFloatAnchor = (() => {
         try {
-          const cs = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
-          return cs.float === "left" || cs.float === "right";
-        } catch { return false; }
+          const styles = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
+          return styles.float === "left" || styles.float === "right";
+        } catch {
+          return false;
+        }
       })();
-      // Skip large layout-anchor elements: infoboxes, galleries, tables, or large floats
       if (isInfobox || isGallery || isTable || id.includes("infobox")) continue;
       if (isFloatAnchor && (c.width > 200 || c.height > 200)) continue;
-      // Skip containers that are too large to be a sensible throwable
       if (t === "card" && (c.width > 400 || c.height > 300)) continue;
-
-      // Skip if this element is inside an already-picked element
       if (picked.some((p) => p.node.contains(c.node))) continue;
       picked.push(c);
       if (picked.length >= 30) break;
     }
     if (picked.length > 0) {
-      setSelectedIds(new Set(picked.map((c) => c.id)));
+      setSelectedIds(new Set(picked.map((candidate) => candidate.id)));
     }
   }, [selectableCandidates]);
 
@@ -405,6 +517,57 @@ export function SnapshotPageView({
     const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, 1200);
     setIframeHeight(h);
     scanCandidates();
+
+    // Copy @font-face rules from iframe to the parent document so the
+    // Pretext text overlay can render with the same custom fonts.
+    try {
+      const fontRules: string[] = [];
+      for (const sheet of Array.from(doc.styleSheets)) {
+        try {
+          for (const rule of Array.from(sheet.cssRules)) {
+            if (rule instanceof CSSFontFaceRule) {
+              fontRules.push(rule.cssText);
+            }
+          }
+        } catch { /* cross-origin sheet, skip */ }
+      }
+      if (fontRules.length > 0) {
+        const id = "domino-iframe-fonts";
+        let fontStyle = document.getElementById(id) as HTMLStyleElement | null;
+        if (!fontStyle) {
+          fontStyle = document.createElement("style");
+          fontStyle.id = id;
+          document.head.appendChild(fontStyle);
+        }
+        fontStyle.textContent = fontRules.join("\n");
+      }
+    } catch { /* ignore font extraction errors */ }
+
+    // Wait for images to finish loading, then re-measure height and re-scan.
+    // Images may still be downloading when the iframe fires onload.
+    const images = Array.from(doc.querySelectorAll("img")) as HTMLImageElement[];
+    const pending = images.filter((img) => img.src && !img.complete);
+    if (pending.length > 0) {
+      const settled = Promise.allSettled(
+        pending.map((img) => new Promise<void>((resolve) => {
+          if (img.complete) { resolve(); return; }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        }))
+      );
+      // Also add a hard timeout so we don't wait forever
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, 8000));
+      Promise.race([settled, timeout]).then(() => {
+        if (!iframeRef.current?.contentDocument?.body) return;
+        const newH = Math.max(
+          iframeRef.current.contentDocument.body.scrollHeight,
+          iframeRef.current.contentDocument.documentElement?.scrollHeight || 0,
+          1200
+        );
+        setIframeHeight(newH);
+        scanCandidates();
+      });
+    }
   }, [scanCandidates]);
 
   const saveNode = useCallback((id: string) => {
@@ -426,76 +589,78 @@ export function SnapshotPageView({
     });
   }, []);
 
-  // Hide originals for selected DOM nodes so overlay clones replace them visually.
-  // In picker mode, show originals so the user sees what they're selecting.
-  useEffect(() => {
-    const current = nodesRef.current;
-    current.forEach((node, id) => {
-      if (selectedIds.has(id) && !pickerMode) {
-        if (!node.dataset.dominoOriginalVisibility) {
-          node.dataset.dominoOriginalVisibility = node.style.visibility || "";
-        }
-        node.style.visibility = "hidden";
-      } else if (node.dataset.dominoOriginalVisibility !== undefined) {
-        node.style.visibility = node.dataset.dominoOriginalVisibility;
-        delete node.dataset.dominoOriginalVisibility;
-      }
-    });
-    return () => {
-      current.forEach((node) => {
-        if (node.dataset.dominoOriginalVisibility !== undefined) {
-          node.style.visibility = node.dataset.dominoOriginalVisibility;
-          delete node.dataset.dominoOriginalVisibility;
-        }
-      });
-    };
-  }, [selectedIds, candidates, pickerMode]);
-
   // Filter out selected elements whose DOM nodes are descendants of another
   // selected element — the parent clone already includes them visually.
-  const selectedElements = useMemo(() => {
+  const selectedCandidates = useMemo(() => {
     const selected = selectableCandidates.filter(
       (c) => selectedIds.has(c.id) && c.sceneElement
     );
-    return selected
-      .filter((c) => !selected.some(
-        (other) => other.id !== c.id && other.node.contains(c.node)
-      ))
+    return selected.filter((c) => !selected.some(
+      (other) => other.id !== c.id && other.node.contains(c.node)
+    ));
+  }, [selectableCandidates, selectedIds]);
+
+  const activeSelectedIds = useMemo(
+    () => new Set(selectedCandidates.map((candidate) => candidate.id)),
+    [selectedCandidates]
+  );
+
+  useLayoutEffect(() => {
+    const desiredNodes =
+      pickerMode
+        ? []
+        : Array.from(activeSelectedIds)
+            .map((id) => nodesRef.current.get(id))
+            .filter((node): node is HTMLElement => Boolean(node));
+    syncHiddenNodes(hiddenSelectedNodesRef.current, desiredNodes);
+  }, [activeSelectedIds, candidates, pickerMode]);
+
+  useEffect(() => {
+    return () => restoreHiddenNodes(hiddenSelectedNodesRef.current);
+  }, []);
+
+  const selectedElements = useMemo(() => {
+    return selectedCandidates
       .map((c) => ({
         ...c.sceneElement!,
         id: c.id,
         throwable: true,
         pinned: false,
       }));
-  }, [selectableCandidates, selectedIds]);
+  }, [selectedCandidates]);
 
-  // Hide original text nodes when Pretext overlay is active.
+  const staticObstacleCandidates = useMemo(() => {
+    const sourceWindow = iframeRef.current?.contentWindow ?? null;
+    const obstacleCandidates: SnapshotCandidate[] = [];
+
+    for (const candidate of candidates) {
+      if (!isStaticTextFlowObstacleCandidate(candidate, sourceWindow)) continue;
+      if (selectedCandidates.some((selected) => selected.node.contains(candidate.node))) {
+        continue;
+      }
+      if (obstacleCandidates.some((existing) => existing.node.contains(candidate.node))) {
+        continue;
+      }
+      obstacleCandidates.push(candidate);
+    }
+
+    return obstacleCandidates;
+  }, [candidates, selectedCandidates]);
+
   const importedTextFlowActive =
     settings.pretextEnabled &&
     textBlocks.length > 0 &&
     (selectedElements.length > 0 || droppedElements.length > 0);
-  useEffect(() => {
-    const current = textNodesRef.current;
-    current.forEach((node) => {
-      if (importedTextFlowActive) {
-        if (!node.dataset.dominoOriginalVisibility) {
-          node.dataset.dominoOriginalVisibility = node.style.visibility || "";
-        }
-        node.style.visibility = "hidden";
-      } else if (node.dataset.dominoOriginalVisibility !== undefined) {
-        node.style.visibility = node.dataset.dominoOriginalVisibility;
-        delete node.dataset.dominoOriginalVisibility;
-      }
-    });
-    return () => {
-      current.forEach((node) => {
-        if (node.dataset.dominoOriginalVisibility !== undefined) {
-          node.style.visibility = node.dataset.dominoOriginalVisibility;
-          delete node.dataset.dominoOriginalVisibility;
-        }
-      });
-    };
+  useLayoutEffect(() => {
+    const desiredNodes = importedTextFlowActive
+      ? Array.from(textNodesRef.current.values())
+      : [];
+    syncHiddenNodes(hiddenTextNodesRef.current, desiredNodes);
   }, [importedTextFlowActive, textBlocks]);
+
+  useEffect(() => {
+    return () => restoreHiddenNodes(hiddenTextNodesRef.current);
+  }, []);
 
   const importedObstacles: ObstacleRect[] = useMemo(() => {
     // When the Pretext text overlay is active (original text hidden), ALL
@@ -518,8 +683,91 @@ export function SnapshotPageView({
       });
     }
 
+    for (const candidate of staticObstacleCandidates) {
+      const el = candidate.sceneElement;
+      if (!el || obstacles.some((o) => o.id === candidate.id)) continue;
+      obstacles.push({
+        id: candidate.id,
+        x: el.rect.x,
+        y: el.rect.y,
+        width: el.rect.width,
+        height: el.rect.height,
+        angle: 0,
+        borderRadius: el.borderRadius,
+      });
+    }
+
     return obstacles;
-  }, [selectedElements, droppedElements, bodyPositions]);
+  }, [selectedElements, droppedElements, staticObstacleCandidates, bodyPositions]);
+
+  const importedTextLayouts = useMemo(() => {
+    if (!importedTextFlowActive) return [];
+
+    const sortedBlocks = [...textBlocks].sort((a, b) => {
+      const ay = a.sceneElement.rect.y;
+      const by = b.sceneElement.rect.y;
+      if (Math.abs(ay - by) > 1) return ay - by;
+      return a.sceneElement.rect.x - b.sceneElement.rect.x;
+    });
+
+    const placed: Array<ImportedTextLayout & { textBottom: number; contentLeft: number; contentRight: number }> = [];
+    const layouts: ImportedTextLayout[] = [];
+
+    for (const block of sortedBlocks) {
+      const el = block.sceneElement;
+      const padding = el.padding ?? 0;
+      const fw = el.fontWeight ?? 400;
+      const fs = el.fontSize ?? 16;
+      const ff = el.fontFamily ?? '"DM Sans", sans-serif';
+      const font = `${fw !== 400 ? `${fw} ` : ""}${fs}px ${ff}`;
+      const contentLeft = el.rect.x + padding;
+      const contentRight = el.rect.x + el.rect.width - padding;
+      const originalTextTop = el.rect.y + padding;
+
+      let shiftedTextTop = originalTextTop;
+      for (const prev of placed) {
+        const overlapsHorizontally =
+          Math.min(contentRight, prev.contentRight) - Math.max(contentLeft, prev.contentLeft) > 12;
+        if (!overlapsHorizontally) continue;
+        if (prev.textBottom + 4 > shiftedTextTop) {
+          shiftedTextTop = prev.textBottom + 4;
+        }
+      }
+
+      const remainingHeight = Math.max(0, iframeHeight - shiftedTextTop - 24);
+      if (remainingHeight < fs) continue;
+
+      const flow = computeTextFlow(
+        el.text ?? "",
+        font,
+        el.lineHeight ?? Math.round(fs * 1.5),
+        contentLeft,
+        shiftedTextTop,
+        Math.max(0, el.rect.width - padding * 2),
+        remainingHeight,
+        importedObstacles
+      );
+
+      const containerWidth = Math.max(0, el.rect.width - padding * 2);
+      const layout: ImportedTextLayout = {
+        id: block.id,
+        sceneElement: el,
+        containerX: contentLeft,
+        containerY: shiftedTextTop,
+        containerWidth,
+        containerMaxHeight: remainingHeight,
+      };
+      layouts.push(layout);
+      placed.push({
+        ...layout,
+        textBottom: shiftedTextTop + flow.totalHeight,
+        contentLeft,
+        contentRight,
+      });
+    }
+
+    return layouts;
+  }, [iframeHeight, importedObstacles, importedTextFlowActive, textBlocks]);
 
   // Only include dynamic (throwable) elements in the physics scene to avoid
   // recreating the engine when static obstacle lists change. Static obstacles
@@ -699,7 +947,11 @@ export function SnapshotPageView({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    c.saved ? unsaveNode(c.id) : saveNode(c.id);
+                    if (c.saved) {
+                      unsaveNode(c.id);
+                    } else {
+                      saveNode(c.id);
+                    }
                   }}
                   style={{
                     position: "absolute",
@@ -775,24 +1027,24 @@ export function SnapshotPageView({
       )}
 
       {/* Pretext text overlay for imported pages */}
-      {importedTextFlowActive && textBlocks.map((t) => {
-        const el = t.sceneElement;
+      {importedTextFlowActive && importedTextLayouts.map((layout) => {
+        const el = layout.sceneElement;
         const fw = el.fontWeight ?? 400;
         const fs = el.fontSize ?? 16;
         const ff = el.fontFamily ?? '"DM Sans", sans-serif';
         const font = `${fw !== 400 ? fw + " " : ""}${fs}px ${ff}`;
         return (
           <TextFlowRegion
-            key={`imported-text-${t.id}`}
+            key={`imported-text-${layout.id}`}
             text={el.text ?? ""}
             font={font}
             fontSize={fs}
             lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
             color={el.color ?? "#333"}
-            containerX={el.rect.x + (el.padding ?? 0)}
-            containerY={el.rect.y + (el.padding ?? 0)}
-            containerWidth={el.rect.width - (el.padding ?? 0) * 2}
-            containerMaxHeight={Math.max(el.rect.height + 200, 300)}
+            containerX={layout.containerX}
+            containerY={layout.containerY}
+            containerWidth={layout.containerWidth}
+            containerMaxHeight={layout.containerMaxHeight}
             obstacles={importedObstacles}
             showDebug={settings.showLineBounds}
             generation={bodyPositions.size + selectedIds.size + droppedElements.length}
@@ -817,6 +1069,7 @@ export function SnapshotPageView({
             width={pos?.w ?? el.rect.width}
             height={pos?.h ?? el.rect.height}
             showDebug={settings.showObstacleBounds}
+            renderVersion={importedTextFlowActive}
           />
         );
       })}
@@ -882,8 +1135,8 @@ export function SnapshotPageView({
             pinned: false,
             rect: {
               ...saved.element.rect,
-              x: x != null ? x - saved.element.rect.width / 2 : (stageRef.current?.clientWidth || 1000) / 2 - saved.element.rect.width / 2,
-              y: y != null ? y - saved.element.rect.height / 2 : iframeHeight / 2 - saved.element.rect.height / 2,
+              x: x != null ? x - saved.element.rect.width / 2 : (stageRef.current?.clientWidth || 1000) / 2 - saved.element.rect.width / 2 + (Math.random() - 0.5) * 120,
+              y: y != null ? y - saved.element.rect.height / 2 : window.scrollY + window.innerHeight / 2 - saved.element.rect.height / 2 + (Math.random() - 0.5) * 60,
             },
           };
           setDroppedElements((prev) => [...prev, el]);

@@ -207,7 +207,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             </div>
             {importTab === "url" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="example.com"
+                <input autoFocus value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="example.com"
                   onKeyDown={(e) => { if (e.key === "Enter") handleFetchUrl(); }}
                   style={{ ...inputStyle, fontFamily: '"JetBrains Mono", monospace', fontSize: 11 }} />
                 {fetchStatus === "error" && <div style={{ fontSize: 10, color: "#f87171" }}>{fetchError || "Could not fetch."}</div>}
