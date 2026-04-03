@@ -132,6 +132,11 @@ function rewriteFetchedDocumentMarkup(html: string): string {
     }
   }
 
+  // Strip href from anchors to prevent navigation inside the viewer iframe
+  for (const a of Array.from(doc.querySelectorAll("a[href]"))) {
+    a.removeAttribute("href");
+  }
+
   for (const source of Array.from(doc.querySelectorAll("source"))) {
     const dataSrcset = source.getAttribute("data-srcset")?.trim();
     if (dataSrcset && !source.getAttribute("srcset")) {
