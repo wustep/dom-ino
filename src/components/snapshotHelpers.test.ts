@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  coerceForcedTextSceneElement,
   isTextSceneElement,
   getStableNodeId,
   textOf,
@@ -38,6 +39,7 @@ function mockComputedStyle(overrides: Partial<CSSStyleDeclaration> = {}): CSSSty
     color: "rgb(0, 0, 0)",
     borderRadius: "0",
     paddingLeft: "0",
+    paddingTop: "0",
     border: "",
     float: "none",
     ...overrides,
@@ -61,6 +63,38 @@ describe("isTextSceneElement", () => {
 
   it("returns false for null", () => {
     expect(isTextSceneElement(null)).toBe(false);
+  });
+});
+
+describe("coerceForcedTextSceneElement", () => {
+  it("converts forced generic containers into paragraph text blocks", () => {
+    const node = document.createElement("div");
+    const sceneElement: SceneElement = {
+      id: "forced-1",
+      type: "container",
+      rect: { x: 0, y: 0, width: 400, height: 120 },
+      throwable: true,
+      pinned: false,
+      text: "Featured article text",
+    };
+
+    const result = coerceForcedTextSceneElement(node, sceneElement, true);
+    expect(result?.type).toBe("paragraph");
+  });
+
+  it("preserves headings when forced", () => {
+    const node = document.createElement("h1");
+    const sceneElement: SceneElement = {
+      id: "forced-2",
+      type: "container",
+      rect: { x: 0, y: 0, width: 400, height: 40 },
+      throwable: true,
+      pinned: false,
+      text: "Welcome to Wikipedia",
+    };
+
+    const result = coerceForcedTextSceneElement(node, sceneElement, true);
+    expect(result?.type).toBe("heading");
   });
 });
 
@@ -375,6 +409,19 @@ describe("elementToSceneElement", () => {
     const result = elementToSceneElement(el, rootRect, cs, rect, "");
     expect(result).not.toBeNull();
     expect(result!.border).toBe("2px solid black");
+  });
+
+  it("stores horizontal and vertical padding separately", () => {
+    const el = makeElement("DIV");
+    const rect = makeDOMRect(0, 0, 240, 120);
+    const cs = mockComputedStyle({
+      paddingLeft: "18px",
+      paddingTop: "10px",
+    });
+    const result = elementToSceneElement(el, rootRect, cs, rect, "text");
+    expect(result).not.toBeNull();
+    expect(result!.padding).toBe(18);
+    expect(result!.paddingVertical).toBe(10);
   });
 
   it("excludes border when borderWidth is 0", () => {

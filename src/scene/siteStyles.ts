@@ -4,7 +4,11 @@
  */
 
 import type { SceneElement } from "./types";
-import type { SnapshotPretextRule, SiteRule } from "./siteRules";
+import type {
+  SnapshotAutoSelectRule,
+  SnapshotPretextRule,
+  SiteRule,
+} from "./siteRules";
 import { SITE_RULES } from "./siteRules";
 
 function getMatchingSiteRules(url?: string): SiteRule[] {
@@ -31,6 +35,7 @@ function isTextSceneElement(
 function getSnapshotPretextRule(url?: string): {
   pretextTags: Set<string> | null;
   neverPretextWithin: string;
+  forceSelectors: string;
 } | null {
   const rules = getMatchingSiteRules(url)
     .map((rule) => rule.snapshotPretext)
@@ -44,6 +49,9 @@ function getSnapshotPretextRule(url?: string): {
 
   return {
     pretextTags,
+    forceSelectors: rules
+      .flatMap((rule) => rule.forceSelectors ?? [])
+      .join(", "),
     neverPretextWithin: rules
       .map((rule) => rule.neverPretextWithin)
       .filter((selector): selector is string => Boolean(selector))
@@ -56,6 +64,27 @@ function getSnapshotSolidSelectors(url?: string): string {
     .map((rule) => rule.snapshotSolid?.solidSelectors ?? [])
     .flat()
     .join(", ");
+}
+
+function getSnapshotAutoSelectRule(url?: string): {
+  neverAutoSelectWithin: string;
+  forceSelectors: string;
+} | null {
+  const rules = getMatchingSiteRules(url)
+    .map((rule) => rule.snapshotAutoSelect)
+    .filter((rule): rule is SnapshotAutoSelectRule => Boolean(rule));
+
+  if (rules.length === 0) return null;
+
+  return {
+    forceSelectors: rules
+      .flatMap((rule) => rule.forceSelectors ?? [])
+      .join(", "),
+    neverAutoSelectWithin: rules
+      .map((rule) => rule.neverAutoSelectWithin)
+      .filter((selector): selector is string => Boolean(selector))
+      .join(", "),
+  };
 }
 
 /**
@@ -94,6 +123,10 @@ export function isPretextBlockEligible(
   const rule = getSnapshotPretextRule(sourceUrl);
   if (!rule) return true;
 
+  if (rule.forceSelectors && node.matches(rule.forceSelectors)) {
+    return true;
+  }
+
   if (rule.pretextTags && !rule.pretextTags.has(node.tagName)) {
     return false;
   }
@@ -105,8 +138,55 @@ export function isPretextBlockEligible(
   return true;
 }
 
+export function isForcePretextNode(
+  node: HTMLElement,
+  sourceUrl?: string
+): boolean {
+  const rule = getSnapshotPretextRule(sourceUrl);
+  if (!rule?.forceSelectors) return false;
+  return node.matches(rule.forceSelectors);
+}
+
 export function isSolidBlock(node: HTMLElement, sourceUrl?: string): boolean {
   const solidSelectors = getSnapshotSolidSelectors(sourceUrl);
   if (!solidSelectors) return false;
   return node.matches(solidSelectors);
+}
+
+export function isAutoSelectEligible(
+  node: HTMLElement,
+  sourceUrl?: string
+): boolean {
+  const rule = getSnapshotAutoSelectRule(sourceUrl);
+  if (!rule) return true;
+  if (
+    rule.forceSelectors &&
+    (node.matches(rule.forceSelectors) || node.closest(rule.forceSelectors))
+  ) {
+    return true;
+  }
+  if (rule.neverAutoSelectWithin && node.closest(rule.neverAutoSelectWithin)) {
+    return false;
+  }
+  return true;
+}
+
+export function isForceAutoSelectNode(
+  node: HTMLElement,
+  sourceUrl?: string
+): boolean {
+  const rule = getSnapshotAutoSelectRule(sourceUrl);
+  if (!rule?.forceSelectors) return false;
+  return Boolean(
+    node.matches(rule.forceSelectors) || node.closest(rule.forceSelectors)
+  );
+}
+
+export function getForceAutoSelectSelectors(url?: string): string[] {
+  const rule = getSnapshotAutoSelectRule(url);
+  if (!rule?.forceSelectors) return [];
+  return rule.forceSelectors
+    .split(",")
+    .map((selector) => selector.trim())
+    .filter(Boolean);
 }

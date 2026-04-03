@@ -260,12 +260,13 @@ export function SnapshotPageView({
 
     for (const block of sortedBlocks) {
       const el = block.sceneElement;
-      const padding = el.padding ?? 0;
+      const paddingX = el.padding ?? 0;
+      const paddingY = el.paddingVertical ?? paddingX;
       const fs = el.fontSize ?? 16;
       const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS, el.fontStyle);
-      const contentLeft = el.rect.x + padding;
-      const contentRight = el.rect.x + el.rect.width - padding;
-      const originalTextTop = el.rect.y + padding;
+      const contentLeft = el.rect.x + paddingX;
+      const contentRight = el.rect.x + el.rect.width - paddingX;
+      const originalTextTop = el.rect.y + paddingY;
 
       let shiftedTextTop = originalTextTop;
       for (const prev of placed) {
@@ -277,7 +278,7 @@ export function SnapshotPageView({
         }
       }
 
-      const remainingHeight = Math.max(0, iframeHeight - shiftedTextTop - 24);
+      const remainingHeight = Math.max(0, iframeHeight - shiftedTextTop - paddingY - 24);
       if (remainingHeight < fs) continue;
 
       const flow = computeTextFlow(
@@ -286,12 +287,12 @@ export function SnapshotPageView({
         el.lineHeight ?? Math.round(fs * 1.5),
         contentLeft,
         shiftedTextTop,
-        Math.max(0, el.rect.width - padding * 2),
+        Math.max(0, el.rect.width - paddingX * 2),
         remainingHeight,
         importedObstacles
       );
 
-      const containerWidth = Math.max(0, el.rect.width - padding * 2);
+      const containerWidth = Math.max(0, el.rect.width - paddingX * 2);
       const win = iframeRef.current?.contentWindow;
       let inlineStyles: InlineStyleRun[] | undefined;
       if (win) {

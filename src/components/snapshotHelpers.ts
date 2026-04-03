@@ -45,6 +45,21 @@ export function isTextSceneElement(
   );
 }
 
+export function coerceForcedTextSceneElement(
+  node: HTMLElement,
+  sceneElement: SceneElement | null,
+  forceText: boolean
+): SceneElement | null {
+  if (!sceneElement || !forceText || isTextSceneElement(sceneElement)) {
+    return sceneElement;
+  }
+
+  return {
+    ...sceneElement,
+    type: /^H[1-6]$/.test(node.tagName) ? "heading" : "paragraph",
+  };
+}
+
 export function getStableNodeId(root: HTMLElement, node: HTMLElement): string {
   const existing = node.dataset.dominoId;
   if (existing) return existing;
@@ -304,6 +319,7 @@ export function elementToSceneElement(
     backgroundColor: cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)" ? cs.backgroundColor : undefined,
     borderRadius: parseFloat(cs.borderRadius) || 0,
     padding: parseFloat(cs.paddingLeft) || 0,
+    paddingVertical: parseFloat(cs.paddingTop) || 0,
     border: parseFloat(cs.borderWidth) > 0 ? cs.border : undefined,
     boxShadow: cs.boxShadow !== "none" ? cs.boxShadow : undefined,
     imageSrc: (() => {

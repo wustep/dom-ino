@@ -3,6 +3,7 @@ import type { SceneElement } from "./types";
 import {
   getSiteCSS,
   getSiteRemoveSelectors,
+  isAutoSelectEligible,
   isPretextBlockEligible,
 } from "./siteStyles";
 
@@ -45,6 +46,36 @@ describe("siteStyles", () => {
         node,
         makeTextElement(),
         "https://en.wikipedia.org/wiki/History_of_art"
+      )
+    ).toBe(true);
+  });
+
+  it("forces the Wikipedia welcome heading into imported text flow", () => {
+    const wrapper = document.createElement("div");
+    wrapper.id = "mp-welcome";
+    const heading = document.createElement("h1");
+    heading.textContent = "Welcome to Wikipedia";
+    wrapper.appendChild(heading);
+
+    expect(
+      isPretextBlockEligible(
+        heading,
+        makeTextElement("heading"),
+        "https://en.wikipedia.org/wiki/Main_Page"
+      )
+    ).toBe(true);
+  });
+
+  it("forces the Wikipedia featured article summary container into imported text flow", () => {
+    const node = document.createElement("div");
+    node.id = "mp-tfa";
+    node.textContent = "Three Studies for Figures at the Base of a Crucifixion is a 1944 triptych...";
+
+    expect(
+      isPretextBlockEligible(
+        node,
+        makeTextElement(),
+        "https://en.wikipedia.org/wiki/Main_Page"
       )
     ).toBe(true);
   });
@@ -99,6 +130,75 @@ describe("siteStyles", () => {
         "https://en.wikipedia.org/wiki/History_of_art"
       )
     ).toBe(false);
+  });
+
+  it("keeps Wikipedia page chrome out of automatic throwable selection", () => {
+    const header = document.createElement("header");
+    header.className = "vector-header-container";
+    const link = document.createElement("a");
+    link.textContent = "View history";
+    header.appendChild(link);
+
+    expect(
+      isAutoSelectEligible(
+        link,
+        "https://en.wikipedia.org/wiki/History_of_art"
+      )
+    ).toBe(false);
+  });
+
+  it("still auto-selects normal Wikipedia article media", () => {
+    const figure = document.createElement("figure");
+    figure.className = "thumb";
+    const image = document.createElement("img");
+    figure.appendChild(image);
+
+    expect(
+      isAutoSelectEligible(
+        image,
+        "https://en.wikipedia.org/wiki/History_of_art"
+      )
+    ).toBe(true);
+  });
+
+  it("force-selects the Wikipedia logo and search box", () => {
+    const header = document.createElement("header");
+    header.className = "vector-header-container";
+
+    const logo = document.createElement("a");
+    logo.className = "mw-logo";
+    header.appendChild(logo);
+
+    const search = document.createElement("div");
+    search.id = "p-search";
+    header.appendChild(search);
+
+    expect(
+      isAutoSelectEligible(logo, "https://en.wikipedia.org/wiki/Main_Page")
+    ).toBe(true);
+    expect(
+      isAutoSelectEligible(search, "https://en.wikipedia.org/wiki/Main_Page")
+    ).toBe(true);
+  });
+
+  it("force-selects descendants inside the Wikipedia search and page tool areas", () => {
+    const search = document.createElement("div");
+    search.id = "p-search";
+    const input = document.createElement("input");
+    search.appendChild(input);
+
+    const tools = document.createElement("div");
+    tools.id = "vector-page-tools-dropdown";
+    const link = document.createElement("a");
+    link.textContent = "Tools";
+    tools.appendChild(link);
+
+    expect(
+      isAutoSelectEligible(input, "https://en.wikipedia.org/wiki/Main_Page")
+    ).toBe(true);
+    expect(
+      isAutoSelectEligible(link, "https://en.wikipedia.org/wiki/Main_Page")
+    ).toBe(true);
   });
 
   it("preserves generic non-Wikipedia text blocks", () => {
