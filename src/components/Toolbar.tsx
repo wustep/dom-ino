@@ -356,61 +356,62 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             )}
           </div>
           <div style={{ height: 4 }} />
-          {hoveredStash !== null && hoveredStash.index < savedElements.length && (() => {
-            const el = savedElements[hoveredStash.index].element;
-            const maxW = 160, maxH = 120;
-            const scale = Math.min(1, maxW / el.rect.width, maxH / el.rect.height);
-            const previewW = Math.round(el.rect.width * scale);
-            const previewH = Math.round(el.rect.height * scale);
-            return (
-              <div style={{
-                position: "fixed",
-                right: 326,
-                top: Math.max(12, Math.min(hoveredStash.top - 10, window.innerHeight - previewH - 50)),
-                zIndex: 10000,
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: "rgba(20,20,24,0.95)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-                pointerEvents: "none",
-                fontFamily: '"DM Sans", sans-serif',
-              }}>
-                <div style={{
-                  width: previewW,
-                  height: previewH,
-                  backgroundColor: el.backgroundColor || "#fff",
-                  borderRadius: Math.round((el.borderRadius ?? 0) * scale),
-                  border: el.border,
-                  overflow: "hidden",
-                  display: "flex",
-                  alignItems: el.text ? "flex-start" : "center",
-                  justifyContent: "center",
-                  fontSize: Math.max(6, Math.round((el.fontSize ?? 14) * scale)),
-                  fontFamily: el.fontFamily || "sans-serif",
-                  color: el.color || "#333",
-                  boxSizing: "border-box",
-                  lineHeight: 1.3,
-                }}>
-                  {el.imageSrc ? (
-                    <img src={el.imageSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : el.text ? (
-                    <div style={{ padding: Math.max(2, Math.round((el.padding ?? 8) * scale)), overflow: "hidden", wordBreak: "break-word" }}>
-                      {el.text.slice(0, 80)}
-                    </div>
-                  ) : (
-                    <div style={{ color: "#999", fontSize: 9 }}>{el.type}</div>
-                  )}
-                </div>
-                <div style={{ marginTop: 4, fontSize: 8, color: "#555", textAlign: "center" }}>
-                  {Math.round(el.rect.width)} × {Math.round(el.rect.height)}
-                </div>
-              </div>
-            );
-          })()}
         </div>
       )}
+      {/* Stash preview tooltip — rendered outside flyout to avoid backdropFilter containing block clipping */}
+      {openPanel === "stash" && hoveredStash !== null && hoveredStash.index < savedElements.length && (() => {
+        const el = savedElements[hoveredStash.index].element;
+        const maxW = 160, maxH = 120;
+        const scale = Math.min(1, maxW / el.rect.width, maxH / el.rect.height);
+        const previewW = Math.round(el.rect.width * scale);
+        const previewH = Math.round(el.rect.height * scale);
+        return (
+          <div style={{
+            position: "fixed",
+            right: 326,
+            top: Math.max(12, Math.min(hoveredStash.top - 10, window.innerHeight - previewH - 50)),
+            zIndex: 10000,
+            padding: 8,
+            borderRadius: 8,
+            backgroundColor: "rgba(20,20,24,0.95)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            pointerEvents: "none",
+            fontFamily: '"DM Sans", sans-serif',
+          }}>
+            <div style={{
+              width: previewW,
+              height: previewH,
+              backgroundColor: el.backgroundColor || "#fff",
+              borderRadius: Math.round((el.borderRadius ?? 0) * scale),
+              border: el.border,
+              overflow: "hidden",
+              display: "flex",
+              alignItems: el.text ? "flex-start" : "center",
+              justifyContent: "center",
+              fontSize: Math.max(6, Math.round((el.fontSize ?? 14) * scale)),
+              fontFamily: el.fontFamily || "sans-serif",
+              color: el.color || "#333",
+              boxSizing: "border-box",
+              lineHeight: 1.3,
+            }}>
+              {el.imageSrc ? (
+                <img src={el.imageSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : el.text ? (
+                <div style={{ padding: Math.max(2, Math.round((el.padding ?? 8) * scale)), overflow: "hidden", wordBreak: "break-word" }}>
+                  {el.text.slice(0, 80)}
+                </div>
+              ) : (
+                <div style={{ color: "#999", fontSize: 9 }}>{el.type}</div>
+              )}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 8, color: "#555", textAlign: "center" }}>
+              {Math.round(el.rect.width)} × {Math.round(el.rect.height)}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Settings flyout */}
       {openPanel === "settings" && (

@@ -214,7 +214,9 @@ export function SnapshotPageView({
 
     for (const el of [...selectedElements, ...droppedElements]) {
       if (obstacles.some((o) => o.id === el.id)) continue;
-      const pos = bodyPositions.get(el.id);
+      // During picker mode, originals are restored at their initial positions,
+      // so use el.rect instead of physics bodyPositions for correct reflow.
+      const pos = pickerMode ? undefined : bodyPositions.get(el.id);
       obstacles.push({
         id: el.id,
         x: pos?.x ?? el.rect.x,
@@ -241,7 +243,7 @@ export function SnapshotPageView({
     }
 
     return obstacles;
-  }, [selectedElements, droppedElements, staticObstacleCandidates, bodyPositions]);
+  }, [selectedElements, droppedElements, staticObstacleCandidates, bodyPositions, pickerMode]);
 
   const importedTextLayouts = useMemo(() => {
     if (!importedTextFlowActive) return [];
