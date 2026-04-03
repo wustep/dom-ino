@@ -397,7 +397,6 @@ export default function App({
 			}
 			const newScene = { ...scene, elements: [...scene.elements, el] }
 			ensureCustomScenePage(newScene)
-			setSceneKey((k) => k + 1)
 		},
 		[scene, ensureCustomScenePage, windowSize]
 	)
