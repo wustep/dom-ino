@@ -15,7 +15,7 @@ function defaultSettings(): DebugSettings {
     paused: false,
     pretextEnabled: true,
     textBodiesEnabled: false,
-    maxAutoSelectComponents: 300,
+    maxAutoSelectComponents: 500,
     allowWordBreaks: true,
     restitution: 0.3,
   };

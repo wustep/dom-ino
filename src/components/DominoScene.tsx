@@ -80,7 +80,7 @@ export function DominoScene({
 
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true, showObstacleBounds: false, showLineBounds: false,
-    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, textBodiesEnabled: false, maxAutoSelectComponents: 300, allowWordBreaks: true, restitution: 0.3,
+    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, textBodiesEnabled: false, maxAutoSelectComponents: 500, allowWordBreaks: true, restitution: 0.3,
   });
 
   const bumpGeneration = useCallback(() => setGeneration((g) => g + 1), []);
