@@ -124,7 +124,10 @@ export function DominoScene({
       .filter((el) => {
         const participates = el.affectsTextFlow ?? el.throwable;
         if (!participates) return false;
-        return el.type !== "paragraph" && el.type !== "heading" && el.type !== "divider";
+        if (el.type === "divider") return false;
+        if ((el.type === "paragraph" || el.type === "heading") && !el.throwable)
+          return false;
+        return true;
       })
       .map((el) => {
       const pos = bodyPositions.get(el.id);

@@ -96,7 +96,14 @@ export function createPhysicsEngine(
 
   function createBody(el: SceneElement): PhysicsBody | null {
     if (el.physicsEnabled === false) return null;
-    if (el.type === "paragraph" || el.type === "heading" || el.type === "divider") return null;
+    if (el.type === "divider") return null;
+    // Live text uses Pretext, not Matter; throwable headings/paragraphs are physics obstacles.
+    if (
+      (el.type === "paragraph" || el.type === "heading") &&
+      !el.throwable
+    ) {
+      return null;
+    }
 
     const cx = el.rect.x + el.rect.width / 2;
     const cy = el.rect.y + el.rect.height / 2;

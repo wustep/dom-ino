@@ -87,18 +87,21 @@ describe("createPhysicsEngine", () => {
     expect(body.body.isStatic).toBe(true);
   });
 
-  it("skips paragraph/heading/divider elements", () => {
+  it("skips live-text paragraph/heading and divider; throwable text gets bodies", () => {
     container = makeContainer();
     const scene = makeScene([
-      makeElement({ id: "p", type: "paragraph" }),
-      makeElement({ id: "h", type: "heading" }),
-      makeElement({ id: "d", type: "divider" }),
+      makeElement({ id: "p", type: "paragraph", throwable: false }),
+      makeElement({ id: "h", type: "heading", throwable: false }),
+      makeElement({ id: "h-throw", type: "heading", throwable: true }),
+      makeElement({ id: "d", type: "divider", throwable: false }),
       makeElement({ id: "btn", type: "button" }),
     ]);
     engine = createPhysicsEngine(scene, container);
 
     expect(engine.bodies.has("p")).toBe(false);
     expect(engine.bodies.has("h")).toBe(false);
+    expect(engine.bodies.has("h-throw")).toBe(true);
+    expect(engine.bodies.get("h-throw")!.body.isStatic).toBe(false);
     expect(engine.bodies.has("d")).toBe(false);
     expect(engine.bodies.has("btn")).toBe(true);
   });
