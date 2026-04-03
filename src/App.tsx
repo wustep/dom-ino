@@ -422,6 +422,36 @@ export default function App({
 		[activeCustomPage?.name, scene?.name]
 	)
 
+	const handleDropImageFilesOnScene = useCallback(
+		(files: File[], dropX: number, dropY: number) => {
+			void (async () => {
+				const sourceName = scene?.name ?? "Dropped image"
+				const newSaved: SavedElement[] = []
+				for (const file of files) {
+					const saved = await savedElementFromImageFile(file, sourceName)
+					if (saved) newSaved.push(saved)
+				}
+				if (!newSaved.length) return
+				setSavedElements((prev) => [...prev, ...newSaved])
+				if (!scene) return
+				const newElements: SceneElement[] = newSaved.map((saved) => ({
+					...saved.element,
+					id: `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+					throwable: true,
+					pinned: false,
+					rect: {
+						...saved.element.rect,
+						x: dropX - saved.element.rect.width / 2,
+						y: dropY - saved.element.rect.height / 2,
+					},
+				}))
+				const newScene = { ...scene, elements: [...scene.elements, ...newElements] }
+				ensureCustomScenePage(newScene)
+			})()
+		},
+		[scene, ensureCustomScenePage]
+	)
+
 	const handleResetAll = useCallback(() => {
 		localStorage.removeItem(LS_KEY)
 		setCurrentPreset(DEFAULT_PRESET)
@@ -468,26 +498,27 @@ export default function App({
 					onResetAll={handleResetAll}
 				/>
 			) : scene ? (
-				<DominoScene
-					key={sceneKey}
-					scene={scene}
-					onSceneChange={handleSceneChange}
-					currentPreset={currentPreset}
-					onSelectPreset={handleSelectPreset}
-					onImportHtml={handleImportHtml}
-					onFetchUrl={handleFetchUrl}
-					savedElements={savedElements}
-					onSaveElement={handleSaveElement}
-					onUnsaveElement={handleUnsaveElement}
-					onDropSaved={handleDropSaved}
-					onClearSaved={handleClearSaved}
-					onRemoveSaved={handleRemoveSaved}
-					onSaveStashImageFiles={handleSaveStashImageFiles}
-					customPages={customPages}
-					activeCustomId={activeCustomId}
-					onSelectCustomPage={handleSelectCustomPage}
-					onResetAll={handleResetAll}
-				/>
+			<DominoScene
+				key={sceneKey}
+				scene={scene}
+				onSceneChange={handleSceneChange}
+				currentPreset={currentPreset}
+				onSelectPreset={handleSelectPreset}
+				onImportHtml={handleImportHtml}
+				onFetchUrl={handleFetchUrl}
+				savedElements={savedElements}
+				onSaveElement={handleSaveElement}
+				onUnsaveElement={handleUnsaveElement}
+				onDropSaved={handleDropSaved}
+				onClearSaved={handleClearSaved}
+				onRemoveSaved={handleRemoveSaved}
+				onSaveStashImageFiles={handleSaveStashImageFiles}
+				onDropImageFiles={handleDropImageFilesOnScene}
+				customPages={customPages}
+				activeCustomId={activeCustomId}
+				onSelectCustomPage={handleSelectCustomPage}
+				onResetAll={handleResetAll}
+			/>
 			) : null}
 			{fetchingUrl && <FetchOverlay url={fetchingUrl} />}
 			{showHint && <Hint />}

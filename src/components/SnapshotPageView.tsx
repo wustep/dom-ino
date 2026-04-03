@@ -20,6 +20,7 @@ import { buildFontString, DEFAULT_SANS } from "../utils/fonts";
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop";
 import { useSnapshotScanner } from "../hooks/useSnapshotScanner";
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies";
+import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile";
 import {
   isStaticTextFlowObstacleCandidate,
   syncHiddenNodes,
@@ -487,7 +488,33 @@ export function SnapshotPageView({
               },
             };
             setDroppedElements((prev) => [...prev, el]);
+            return;
           } catch { /* ignore */ }
+          const imageFiles = Array.from(e.dataTransfer.files).filter(isAcceptableStashImageFile);
+          if (imageFiles.length > 0) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const dropX = e.clientX - rect.left;
+            const dropY = e.clientY - rect.top;
+            void (async () => {
+              const newDropped: SceneElement[] = [];
+              for (const file of imageFiles) {
+                const saved = await savedElementFromImageFile(file, page.name);
+                if (saved) {
+                  onSaveElement(saved.element);
+                  newDropped.push({
+                    ...saved.element,
+                    id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    rect: {
+                      ...saved.element.rect,
+                      x: dropX - saved.element.rect.width / 2,
+                      y: dropY - saved.element.rect.height / 2,
+                    },
+                  });
+                }
+              }
+              if (newDropped.length) setDroppedElements((prev) => [...prev, ...newDropped]);
+            })();
+          }
         }}
       >
         <iframe

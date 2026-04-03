@@ -108,8 +108,26 @@ function cloneWithInlineStyles(
     }
   }
 
-  for (const child of Array.from(htmlNode.childNodes)) {
-    clone.appendChild(cloneWithInlineStyles(child, sourceWindow, targetDocument));
+  const lightChildren = Array.from(htmlNode.childNodes);
+  if (lightChildren.length > 0) {
+    for (const child of lightChildren) {
+      clone.appendChild(cloneWithInlineStyles(child, sourceWindow, targetDocument));
+    }
+  } else {
+    // Custom elements using Declarative Shadow DOM (e.g. <nyt-betamax>) have
+    // their visual content in a shadow root — childNodes is empty after the
+    // <template shadowrootmode> is consumed during parsing. Fall back to the
+    // shadow root's children, skipping non-visual script/link nodes.
+    const shadowRoot = htmlNode.shadowRoot;
+    if (shadowRoot) {
+      for (const child of Array.from(shadowRoot.childNodes)) {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          const childTag = (child as Element).tagName.toUpperCase();
+          if (childTag === "SCRIPT" || childTag === "LINK") continue;
+        }
+        clone.appendChild(cloneWithInlineStyles(child, sourceWindow, targetDocument));
+      }
+    }
   }
   return clone;
 }

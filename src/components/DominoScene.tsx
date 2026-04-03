@@ -22,6 +22,7 @@ import { getBackgroundStyle } from "../utils/styles";
 import { buildFontString } from "../utils/fonts";
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop";
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies";
+import { isAcceptableStashImageFile } from "../utils/stashImageFromFile";
 
 interface DominoSceneProps {
   scene: SceneDescription;
@@ -37,6 +38,7 @@ interface DominoSceneProps {
   onClearSaved: () => void;
   onRemoveSaved: (index: number) => void;
   onSaveStashImageFiles?: (files: File[]) => void;
+  onDropImageFiles?: (files: File[], x: number, y: number) => void;
   customPages?: CustomPage[];
   activeCustomId?: string | null;
   onSelectCustomPage?: (id: string) => void;
@@ -65,6 +67,7 @@ export function DominoScene({
   scene, onSceneChange,
   currentPreset, onSelectPreset, onImportHtml, onFetchUrl,
   savedElements, onSaveElement, onUnsaveElement, onDropSaved, onClearSaved, onRemoveSaved, onSaveStashImageFiles,
+  onDropImageFiles,
   customPages, activeCustomId, onSelectCustomPage, onResetAll,
 }: DominoSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -284,9 +287,15 @@ export function DominoScene({
       if (data) {
         const rect = e.currentTarget.getBoundingClientRect();
         onDropSaved(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top);
+        return;
       }
-    } catch { /* not a valid drop */ }
-  }, [onDropSaved]);
+    } catch { /* not a valid stash drop */ }
+    const imageFiles = Array.from(e.dataTransfer.files).filter(isAcceptableStashImageFile);
+    if (imageFiles.length > 0) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      onDropImageFiles?.(imageFiles, e.clientX - rect.left, e.clientY - rect.top);
+    }
+  }, [onDropSaved, onDropImageFiles]);
 
   return (
     <div style={{ position: "relative", width: scene.width, height: scene.height, ...getBackgroundStyle(scene.backgroundColor), overflow: "hidden", cursor: "grab" }}>

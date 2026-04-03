@@ -83,8 +83,25 @@ export function getStableNodeId(root: HTMLElement, node: HTMLElement): string {
   return `path:${parts.reverse().join("/")}`;
 }
 
+function collectText(node: Node, out: string[]): void {
+  if (node.nodeType === Node.TEXT_NODE) {
+    out.push(node.textContent ?? "");
+  } else if (node.nodeType === Node.ELEMENT_NODE) {
+    const tag = (node as HTMLElement).tagName;
+    // Skip style/script/noscript — sites like Wikipedia embed <style> blocks
+    // directly inside content divs (TemplateStyles), and their CSS text must
+    // not leak into the Pretext-rendered text.
+    if (tag === "STYLE" || tag === "SCRIPT" || tag === "NOSCRIPT") return;
+    for (const child of Array.from(node.childNodes)) {
+      collectText(child, out);
+    }
+  }
+}
+
 export function textOf(el: HTMLElement): string {
-  return (el.textContent ?? "").replace(/\s+/g, " ").trim();
+  const parts: string[] = [];
+  collectText(el, parts);
+  return parts.join("").replace(/\s+/g, " ").trim();
 }
 
 // ── Inline style runs ──
@@ -246,6 +263,11 @@ export function inferSnapshotElementType(
   // FIGURE elements that contain images/videos are images
   if (tag === "FIGURE") {
     if (el.querySelector("img, picture, video, svg")) return "image";
+    // Custom element video players (e.g. nyt-betamax) host their <video> in a
+    // shadow root — querySelector above won't find it, so check shadow roots too.
+    for (const child of Array.from(el.querySelectorAll("*"))) {
+      if ((child as HTMLElement).shadowRoot?.querySelector("video")) return "image";
+    }
   }
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return "input";
   // Divs/sections that contain an image as primary content
@@ -255,6 +277,16 @@ export function inferSnapshotElementType(
       const imgRect = img.getBoundingClientRect();
       // If the image fills most of the container, treat the container as an image
       if (imgRect.width > rect.width * 0.6 && imgRect.height > rect.height * 0.4) return "image";
+    }
+    // Also check shadow DOM of custom element children (e.g. web component video players)
+    if (!img) {
+      for (const child of Array.from(el.querySelectorAll("*"))) {
+        const shadowVideo = (child as HTMLElement).shadowRoot?.querySelector("video");
+        if (shadowVideo instanceof HTMLElement) {
+          const videoRect = shadowVideo.getBoundingClientRect();
+          if (videoRect.width > rect.width * 0.5 && videoRect.height > rect.height * 0.4) return "image";
+        }
+      }
     }
   }
   // Generic elements (div, span, section, etc.) that are primarily text containers
