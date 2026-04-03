@@ -25,6 +25,7 @@ interface UseSnapshotScannerOptions {
   pageId: string;
   sourceUrl?: string;
   preparedHtml: string;
+  maxAutoSelectComponents: number;
   savedElements: SavedElement[];
   onSaveElement: (el: SceneElement) => void;
   onUnsaveElement: (id: string) => void;
@@ -32,10 +33,12 @@ interface UseSnapshotScannerOptions {
 
 interface UseSnapshotScannerResult {
   candidates: SnapshotCandidate[];
+  /** Pretext-eligible text blocks (for reflow mode). */
   textBlocks: SnapshotTextBlock[];
+  /** All text-bearing blocks including non-pretext (for letter-body mode). */
+  textBodyBlocks: SnapshotTextBlock[];
   selectableCandidates: SnapshotCandidate[];
   selectedIds: Set<string>;
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   iframeHeight: number;
   iframeLoaded: boolean;
   nodesRef: React.RefObject<Map<string, HTMLElement>>;
@@ -52,6 +55,7 @@ export function useSnapshotScanner({
   pageId,
   sourceUrl,
   preparedHtml,
+  maxAutoSelectComponents,
   savedElements,
   onSaveElement,
   onUnsaveElement,
@@ -62,7 +66,14 @@ export function useSnapshotScanner({
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [candidates, setCandidates] = useState<SnapshotCandidate[]>([]);
   const [textBlocks, setTextBlocks] = useState<SnapshotTextBlock[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [textBodyBlocks, setTextBodyBlocks] = useState<SnapshotTextBlock[]>([]);
+
+  // Auto-selected IDs from the scanner heuristic.
+  const [autoSelectedIds, setAutoSelectedIds] = useState<Set<string>>(new Set());
+  // IDs the user has explicitly toggled ON (not auto-selected).
+  const [manualSelectedIds, setManualSelectedIds] = useState<Set<string>>(new Set());
+  // IDs the user has explicitly toggled OFF (overrides auto-select).
+  const [manualDeselectedIds, setManualDeselectedIds] = useState<Set<string>>(new Set());
 
   const savedIds = useMemo(() => new Set(savedElements.map((s) => s.element.id)), [savedElements]);
 
@@ -80,9 +91,15 @@ export function useSnapshotScanner({
     const textNodes = new Map<string, HTMLElement>();
     const next: SnapshotCandidate[] = [];
     const nextTextBlocks: SnapshotTextBlock[] = [];
+    const nextTextBodyBlocks: SnapshotTextBlock[] = [];
 
     let counter = 0;
-    const visitNode = (childEl: HTMLElement, depth: number, insideTextBlock: boolean) => {
+    const visitNode = (
+      childEl: HTMLElement,
+      depth: number,
+      insideTextBlock: boolean,
+      insideTextBodyBlock: boolean
+    ) => {
       if (depth > 40) return;
       const tag = childEl.tagName;
       if (["SCRIPT", "STYLE", "NOSCRIPT", "LINK", "META", "HEAD", "TEMPLATE"].includes(tag)) return;
@@ -99,11 +116,11 @@ export function useSnapshotScanner({
 
       const rect = childEl.getBoundingClientRect();
       if (rect.width < 12 || rect.height < 12) {
-        walk(childEl, depth + 1, insideTextBlock);
+        walk(childEl, depth + 1, insideTextBlock, insideTextBodyBlock);
         return;
       }
       if (rect.bottom < 0 || rect.right < 0 || rect.left > win.innerWidth) {
-        walk(childEl, depth + 1, insideTextBlock);
+        walk(childEl, depth + 1, insideTextBlock, insideTextBodyBlock);
         return;
       }
 
@@ -118,11 +135,11 @@ export function useSnapshotScanner({
       const mediaElement = /^(IMG|PICTURE|VIDEO|SVG|FIGURE)$/.test(tag);
       const sizableBlock = rect.width >= 48 && rect.height >= 24;
       if (inlineish && !mediaElement && !hasBg && !hasBorder && !hasShadow) {
-        walk(childEl, depth + 1, insideTextBlock);
+        walk(childEl, depth + 1, insideTextBlock, insideTextBodyBlock);
         return;
       }
       if (!semantic && !hasBg && !hasBorder && !hasShadow && text.length < 12 && !sizableBlock) {
-        walk(childEl, depth + 1, insideTextBlock);
+        walk(childEl, depth + 1, insideTextBlock, insideTextBodyBlock);
         return;
       }
 
@@ -139,15 +156,27 @@ export function useSnapshotScanner({
       const textSceneElement = isTextSceneElement(sceneElement) ? sceneElement : null;
       const hasMediaDescendants = hasSignificantMediaDescendants(childEl);
       nodes.set(dominoId, childEl);
-      const isTextBlock =
+
+      // Any text block (for letter-body mode — no pretext eligibility restriction).
+      const isTextBodyBlock =
         textSceneElement !== null &&
-        isPretextBlockEligible(childEl, textSceneElement, sourceUrl) &&
         text.length > 0 &&
         (!hasMediaDescendants || tag === "FIGCAPTION");
+
+      // Pretext-eligible text block (for reflow mode).
+      const isTextBlock =
+        isTextBodyBlock &&
+        isPretextBlockEligible(childEl, textSceneElement, sourceUrl);
+
       if (isTextBlock && !insideTextBlock) {
         textNodes.set(dominoId, childEl);
         nextTextBlocks.push({ id: dominoId, sceneElement: textSceneElement, node: childEl });
       }
+      if (isTextBodyBlock && !insideTextBodyBlock) {
+        if (!isTextBlock) textNodes.set(dominoId, childEl);
+        nextTextBodyBlocks.push({ id: dominoId, sceneElement: textSceneElement, node: childEl });
+      }
+
       const stageRect = toStageRect(rect);
       next.push({
         id: dominoId,
@@ -162,29 +191,40 @@ export function useSnapshotScanner({
         display,
       });
 
-      walk(childEl, depth + 1, insideTextBlock || isTextBlock);
+      walk(
+        childEl,
+        depth + 1,
+        insideTextBlock || isTextBlock,
+        insideTextBodyBlock || isTextBodyBlock
+      );
     };
 
-    const walk = (el: HTMLElement, depth: number, insideTextBlock: boolean) => {
+    const walk = (
+      el: HTMLElement,
+      depth: number,
+      insideTextBlock: boolean,
+      insideTextBodyBlock: boolean
+    ) => {
       if (depth > 40) return;
       for (const child of Array.from(el.children)) {
         if (child.nodeType !== Node.ELEMENT_NODE) continue;
-        visitNode(child as HTMLElement, depth, insideTextBlock);
+        visitNode(child as HTMLElement, depth, insideTextBlock, insideTextBodyBlock);
       }
     };
 
-    walk(root, 0, false);
+    walk(root, 0, false, false);
     for (const selector of getForceAutoSelectSelectors(sourceUrl)) {
       for (const node of Array.from(doc.querySelectorAll(selector))) {
         if (!(node instanceof HTMLElement)) continue;
         if (root.contains(node)) continue;
-        visitNode(node, 0, false);
+        visitNode(node, 0, false, false);
       }
     }
     nodesRef.current = nodes;
     textNodesRef.current = textNodes;
     setCandidates(next);
     setTextBlocks(nextTextBlocks);
+    setTextBodyBlocks(nextTextBodyBlocks);
 
     const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, iframe.clientHeight);
     setIframeHeight(Math.max(800, bodyH));
@@ -211,11 +251,11 @@ export function useSnapshotScanner({
     [candidates]
   );
 
-  // Auto-selection
-  const autoSelectedRef = useRef(false);
-
+  // Reset all selection state when the page changes.
   useEffect(() => {
-    autoSelectedRef.current = false;
+    setAutoSelectedIds(new Set());
+    setManualSelectedIds(new Set());
+    setManualDeselectedIds(new Set());
     setIframeLoaded(false);
   }, [pageId]);
 
@@ -235,59 +275,81 @@ export function useSnapshotScanner({
     };
   }, []);
 
+  // Auto-selection — re-runs whenever the candidate list or the cap changes.
   useEffect(() => {
-    if (autoSelectedRef.current || selectableCandidates.length === 0) return;
-    autoSelectedRef.current = true;
+    if (selectableCandidates.length === 0) return;
+
     const throwableTypes = new Set(["image", "badge", "button", "card", "link", "input"]);
     const picked: SnapshotCandidate[] = [];
-    for (const c of selectableCandidates) {
-      if (!c.sceneElement) continue;
-      const t = c.sceneElement.type;
-      const forceAutoSelect = isForceAutoSelectNode(c.node, sourceUrl);
-      if (!throwableTypes.has(t)) continue;
-      if (!isAutoSelectEligible(c.node, sourceUrl)) continue;
-      if ((c.display === "inline" || c.display === "contents") && t !== "image") continue;
-      const maxW = forceAutoSelect ? 1400 : (t === "image" ? 900 : 500);
-      const maxH = forceAutoSelect ? 240 : (t === "image" ? 700 : 400);
-      if (c.width > maxW || c.height > maxH) continue;
-      if (c.width < 30 || c.height < 16) continue;
-      if (!forceAutoSelect && c.y < 40) continue;
 
-      const cls = (c.node.className || "").toString().toLowerCase();
-      const id = (c.node.id || "").toLowerCase();
-      const tag = c.node.tagName;
-      const isNoticeBox =
-        cls.includes("ambox") ||
-        cls.includes("tmbox") ||
-        cls.includes("ombox");
-      const isInfobox =
-        cls.includes("infobox") ||
-        cls.includes("sidebar") ||
-        cls.includes("navbox");
-      const isGallery = cls.includes("gallery") || cls.includes("thumb") || cls.includes("trow");
-      const isTable = tag === "TABLE" || tag === "TBODY" || tag === "THEAD";
-      const isMediaWrapper = t === "image" && (tag === "FIGURE" || isGallery);
-      const isFloatAnchor = (() => {
-        try {
-          const styles = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
-          return styles.float === "left" || styles.float === "right";
-        } catch {
-          return false;
-        }
-      })();
-      if (isInfobox || id.includes("infobox")) continue;
-      if ((isGallery || isTable) && !isMediaWrapper && !isNoticeBox) continue;
-      if (isFloatAnchor && t !== "image" && (c.width > 200 || c.height > 200)) continue;
-      if (t === "card" && !isNoticeBox && (c.width > 400 || c.height > 300)) continue;
-      if (isNoticeBox && (c.width > 980 || c.height > 320)) continue;
-      if (picked.some((p) => p.node.contains(c.node))) continue;
-      picked.push(c);
-      if (picked.length >= 200) break;
+    if (maxAutoSelectComponents > 0) {
+      for (const c of selectableCandidates) {
+        if (!c.sceneElement) continue;
+        const t = c.sceneElement.type;
+        const forceAutoSelect = isForceAutoSelectNode(c.node, sourceUrl);
+        const throwable =
+          throwableTypes.has(t) || (forceAutoSelect && t === "container");
+        if (!throwable) continue;
+        if (!isAutoSelectEligible(c.node, sourceUrl)) continue;
+        if ((c.display === "inline" || c.display === "contents") && t !== "image") continue;
+        const maxW = forceAutoSelect ? 1400 : (t === "image" ? 900 : 500);
+        const maxH = forceAutoSelect ? 240 : (t === "image" ? 700 : 400);
+        if (c.width > maxW || c.height > maxH) continue;
+        if (c.width < 30 || c.height < 16) continue;
+        if (!forceAutoSelect && c.y < 40) continue;
+
+        const cls = (c.node.className || "").toString().toLowerCase();
+        const id = (c.node.id || "").toLowerCase();
+        const tag = c.node.tagName;
+        const isNoticeBox =
+          cls.includes("ambox") || cls.includes("tmbox") || cls.includes("ombox");
+        const isInfobox =
+          cls.includes("infobox") || cls.includes("sidebar") || cls.includes("navbox");
+        const isGallery = cls.includes("gallery") || cls.includes("thumb") || cls.includes("trow");
+        const isTable = tag === "TABLE" || tag === "TBODY" || tag === "THEAD";
+        const isMediaWrapper = t === "image" && (tag === "FIGURE" || isGallery);
+        const isFloatAnchor = (() => {
+          try {
+            const styles = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node);
+            return styles.float === "left" || styles.float === "right";
+          } catch {
+            return false;
+          }
+        })();
+        if (isInfobox || id.includes("infobox")) continue;
+        if ((isGallery || isTable) && !isMediaWrapper && !isNoticeBox) continue;
+        if (isFloatAnchor && t !== "image" && (c.width > 200 || c.height > 200)) continue;
+        if (t === "card" && !isNoticeBox && (c.width > 400 || c.height > 300)) continue;
+        if (isNoticeBox && (c.width > 980 || c.height > 320)) continue;
+        if (picked.some((p) => p.node.contains(c.node))) continue;
+        picked.push(c);
+        if (picked.length >= maxAutoSelectComponents) break;
+      }
     }
-    if (picked.length > 0) {
-      setSelectedIds(new Set(picked.map((candidate) => candidate.id)));
-    }
-  }, [selectableCandidates, iframeRef, sourceUrl]);
+
+    setAutoSelectedIds(new Set(picked.map((c) => c.id)));
+  }, [maxAutoSelectComponents, selectableCandidates, iframeRef, sourceUrl]);
+
+  // Keep manual override sets tidy when candidates change.
+  useEffect(() => {
+    const ids = new Set(selectableCandidates.map((c) => c.id));
+    setManualSelectedIds((prev) => {
+      const next = new Set(Array.from(prev).filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+    setManualDeselectedIds((prev) => {
+      const next = new Set(Array.from(prev).filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [selectableCandidates]);
+
+  // Merge auto + manual overrides into a single stable selectedIds set.
+  const selectedIds = useMemo(() => {
+    const next = new Set(autoSelectedIds);
+    for (const id of manualDeselectedIds) next.delete(id);
+    for (const id of manualSelectedIds) next.add(id);
+    return next;
+  }, [autoSelectedIds, manualDeselectedIds, manualSelectedIds]);
 
   const handleIframeLoad = useCallback(() => {
     const iframe = iframeRef.current;
@@ -358,21 +420,23 @@ export function useSnapshotScanner({
     onUnsaveElement(id);
   }, [onUnsaveElement]);
 
+  // Toggle: if currently selected → mark as manually deselected; if not → mark as manually selected.
   const toggleSelected = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+    if (selectedIds.has(id)) {
+      setManualSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      setManualDeselectedIds((prev) => new Set([...prev, id]));
+    } else {
+      setManualDeselectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      setManualSelectedIds((prev) => new Set([...prev, id]));
+    }
+  }, [selectedIds]);
 
   return {
     candidates,
     textBlocks,
+    textBodyBlocks,
     selectableCandidates,
     selectedIds,
-    setSelectedIds,
     iframeHeight,
     iframeLoaded,
     nodesRef,

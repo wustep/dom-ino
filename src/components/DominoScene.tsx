@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 import type {
   ObstacleRect,
   SavedElement,
@@ -21,6 +21,7 @@ import { QuickSavePicker } from "./QuickSavePicker";
 import { getBackgroundStyle } from "../utils/styles";
 import { buildFontString } from "../utils/fonts";
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop";
+import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies";
 
 interface DominoSceneProps {
   scene: SceneDescription;
@@ -73,11 +74,13 @@ export function DominoScene({
   const [totalLineCount, setTotalLineCount] = useState(0);
   const [pickerMode, setPickerMode] = useState(false);
   const [savePickerMode, setSavePickerMode] = useState(false);
+  const [textBodyElements, setTextBodyElements] = useState<SceneElement[]>([]);
+  const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const effectiveElements = scene.elements;
 
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true, showObstacleBounds: false, showLineBounds: false,
-    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, allowWordBreaks: true, restitution: 0.3,
+    gravityX: 0, gravityY: 0, paused: false, pretextEnabled: true, textBodiesEnabled: false, maxAutoSelectComponents: 300, allowWordBreaks: true, restitution: 0.3,
   });
 
   const bumpGeneration = useCallback(() => setGeneration((g) => g + 1), []);
@@ -105,6 +108,30 @@ export function DominoScene({
     () => computeTextMaxHeights(textElements, effectiveElements, scene.height),
     [textElements, effectiveElements, scene.height]
   );
+
+  // Measure glyph bodies from a transparent clone of each text block rendered in the DOM.
+  useLayoutEffect(() => {
+    if (!settings.textBodiesEnabled) {
+      setTextBodyElements([]);
+      return;
+    }
+    const container = containerRef.current;
+    if (!container) return;
+    const rootRect = container.getBoundingClientRect();
+    const nextBodies: SceneElement[] = [];
+    for (const el of textElements) {
+      const node = textMeasureRefs.current.get(el.id);
+      if (!node) continue;
+      nextBodies.push(
+        ...measureGlyphBodiesFromDomNode(node, {
+          idPrefix: `${el.id}-text-body`,
+          rootRect,
+          zIndex: (el.zIndex ?? 2) + 4,
+        }).map((body) => ({ ...body, color: el.color ?? body.color }))
+      );
+    }
+    setTextBodyElements(nextBodies);
+  }, [scene.id, scene.width, scene.height, settings.textBodiesEnabled, textElements]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -233,6 +260,19 @@ export function DominoScene({
   const reportLines = useCallback((count: number) => { lineCountRef.current += count; }, []);
   useEffect(() => { lineCountRef.current = 0; const t = setTimeout(() => setTotalLineCount(lineCountRef.current), 50); return () => clearTimeout(t); }, [generation]);
 
+  // Sync glyph bodies into physics engine incrementally.
+  useEffect(() => {
+    const engine = physicsRef.current;
+    if (!engine) return;
+    const desiredIds = new Set(textBodyElements.map((el) => el.id));
+    for (const id of [...engine.bodies.keys()]) {
+      if (id.includes("-text-body-") && !desiredIds.has(id)) engine.removeBody(id);
+    }
+    for (const el of textBodyElements) {
+      if (!engine.bodies.has(el.id)) engine.addBody(el);
+    }
+  }, [textBodyElements]);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
@@ -269,7 +309,61 @@ export function DominoScene({
           <PhysicsDomItem key={el.id} element={el} x={el.rect.x} y={el.rect.y} angle={0} isPhysicsEnabled={false} showDebug={false} />
         ))}
 
-        {settings.pretextEnabled
+        {/* Invisible measurement layer — renders text at its natural position so we can
+            use Range.getClientRects() on each grapheme to place glyph bodies. */}
+        {settings.textBodiesEnabled && (
+          <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+            {textElements.map((el) => {
+              const pad = el.padding ?? 0;
+              return (
+                <div
+                  key={`measure-${el.id}`}
+                  ref={(node) => {
+                    if (node) textMeasureRefs.current.set(el.id, node);
+                    else textMeasureRefs.current.delete(el.id);
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: el.rect.x + pad,
+                    top: el.rect.y + pad,
+                    width: el.rect.width - pad * 2,
+                    fontSize: el.fontSize ?? 16,
+                    fontWeight: el.fontWeight ?? 400,
+                    fontStyle: el.fontStyle ?? "normal",
+                    fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif',
+                    lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6",
+                    color: "transparent",
+                    letterSpacing: el.letterSpacing,
+                    textAlign: el.textAlign as React.CSSProperties["textAlign"] | undefined,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "break-word",
+                  }}
+                >
+                  {el.text}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Letter bodies — one PhysicsDomItem per glyph */}
+        {settings.textBodiesEnabled && textBodyElements.map((el) => {
+          const pos = bodyPositions.get(el.id);
+          return (
+            <PhysicsDomItem
+              key={el.id}
+              element={el}
+              x={pos?.x ?? el.rect.x}
+              y={pos?.y ?? el.rect.y}
+              angle={pos?.angle ?? 0}
+              isPhysicsEnabled={settings.physicsEnabled}
+              showDebug={settings.showObstacleBounds}
+            />
+          );
+        })}
+
+        {/* Live reflow text — hidden when letter-body mode is on */}
+        {!settings.textBodiesEnabled && (settings.pretextEnabled
           ? textElements.map((el) => {
               const fs = el.fontSize ?? 16;
               const font = buildFontString(fs, el.fontWeight, el.fontFamily, el.fontStyle);
@@ -294,7 +388,7 @@ export function DominoScene({
               return (
                 <div key={el.id} style={{ position: "absolute", left: el.rect.x + pad, top: el.rect.y + pad, width: el.rect.width - pad * 2, fontSize: el.fontSize ?? 16, fontWeight: el.fontWeight ?? 400, fontStyle: el.fontStyle ?? "normal", fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif', lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6", color: el.color ?? "#333", opacity: el.opacity, letterSpacing: el.letterSpacing, textAlign: el.textAlign as React.CSSProperties["textAlign"] | undefined, pointerEvents: "none", zIndex: 2 }}>{el.text}</div>
               );
-            })}
+            }))}
 
         {throwableElements.map((el) => {
           const pos = bodyPositions.get(el.id);
@@ -365,7 +459,7 @@ export function DominoScene({
             return !prev;
           });
         }}
-        fps={fps} bodyCount={throwableElements.length} lineCount={totalLineCount}
+        fps={fps} bodyCount={throwableElements.length + textBodyElements.length} lineCount={settings.textBodiesEnabled ? 0 : totalLineCount}
         currentPreset={currentPreset} onSelectPreset={onSelectPreset}
         onImportHtml={onImportHtml} onFetchUrl={onFetchUrl}
         savedElements={savedElements} onDropSaved={onDropSaved}

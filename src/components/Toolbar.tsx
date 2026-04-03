@@ -13,6 +13,8 @@ export interface DebugSettings {
   gravityY: number;
   paused: boolean;
   pretextEnabled: boolean;
+  textBodiesEnabled: boolean;
+  maxAutoSelectComponents: number;
   allowWordBreaks: boolean;
   restitution: number;
 }
@@ -341,7 +343,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           <div style={{ padding: "6px 10px", maxHeight: 260, overflowY: "auto" }}>
             {savedElements.length === 0 ? (
               <div style={{ padding: "14px 4px", color: "#555", fontSize: 10, fontFamily: '"DM Sans", sans-serif', lineHeight: 1.6 }}>
-                Drag in PNG, SVG, GIF, WebP, or other images (max ~400px on the long side). Or use `Pick from page`, or the component picker for physics and deletes.
+                Drop image files here, or use `Pick from page` or the component picker.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -463,8 +465,24 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           </div>
           <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6, fontFamily: '"JetBrains Mono", monospace', fontSize: 10 }}>
             <Toggle label="Physics" checked={settings.physicsEnabled} onChange={(v) => update({ physicsEnabled: v })} />
-            <Toggle label="Pretext reflow" checked={settings.pretextEnabled} onChange={(v) => update({ pretextEnabled: v })} />
-            <Toggle label="Break words" checked={settings.allowWordBreaks} onChange={(v) => update({ allowWordBreaks: v })} />
+            <Toggle label="Letter bodies" checked={settings.textBodiesEnabled} onChange={(v) => update({ textBodiesEnabled: v })} />
+            <Toggle
+              label="Pretext reflow"
+              checked={settings.pretextEnabled}
+              disabled={settings.textBodiesEnabled}
+              onChange={(v) => update({ pretextEnabled: v })}
+            />
+            <Toggle
+              label="Break words"
+              checked={settings.allowWordBreaks}
+              disabled={settings.textBodiesEnabled || !settings.pretextEnabled}
+              onChange={(v) => update({ allowWordBreaks: v })}
+            />
+            {settings.textBodiesEnabled && (
+              <div style={settingHintStyle}>
+                Live text is replaced by individual glyph bodies. Reflow pauses while this is on.
+              </div>
+            )}
             <Lbl text="Gravity" />
             <Slider label="X" value={settings.gravityX} min={-3} max={3} onValue={(v) => update({ gravityX: v })} onReset={() => update({ gravityX: 0 })} />
             <Slider label="Y" value={settings.gravityY} min={-3} max={3} onValue={(v) => update({ gravityY: v })} onReset={() => update({ gravityY: 0 })} />
@@ -579,6 +597,7 @@ const primaryBtnStyle: React.CSSProperties = { padding: "6px 0", borderRadius: 6
 const chipStyle: React.CSSProperties = { padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", backgroundColor: "transparent", color: "#999", fontSize: 11, fontWeight: 400, fontFamily: '"DM Sans", sans-serif', cursor: "pointer" };
 const chipActiveStyle: React.CSSProperties = { border: "1px solid rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.1)", color: "#fff", fontWeight: 600 };
 const tinyBtnStyle: React.CSSProperties = { padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "transparent", fontSize: 9, fontWeight: 600, fontFamily: '"DM Sans", sans-serif', cursor: "pointer", whiteSpace: "nowrap" as const };
+const settingHintStyle: React.CSSProperties = { marginTop: -1, color: "#666", fontSize: 9, lineHeight: 1.45 };
 
 // ─── Sub-components ───
 function Sep() { return <div style={{ width: 1, height: 16, backgroundColor: "rgba(255,255,255,0.06)", margin: "0 1px" }} />; }
@@ -628,9 +647,36 @@ function Btn({
 
 function Lbl({ text }: { text: string }) { return <div style={{ fontSize: 8, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4, marginBottom: -2 }}>{text}</div>; }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}><span>{label}</span><div onClick={() => onChange(!checked)} style={{ width: 28, height: 16, borderRadius: 8, backgroundColor: checked ? "rgba(74,222,128,0.5)" : "rgba(255,255,255,0.1)", position: "relative", cursor: "pointer", flexShrink: 0 }}><div style={{ position: "absolute", top: 2, left: checked ? 14 : 2, width: 12, height: 12, borderRadius: "50%", backgroundColor: checked ? "#4ade80" : "#555", transition: "left 0.2s" }} /></div></label>;
+function Toggle({
+  label,
+  checked,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.42 : 1 }}>
+      <span>{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-label={label}
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        style={{ width: 28, height: 16, padding: 0, border: "none", borderRadius: 8, backgroundColor: checked ? "rgba(74,222,128,0.5)" : "rgba(255,255,255,0.1)", position: "relative", cursor: disabled ? "not-allowed" : "pointer", flexShrink: 0 }}
+      >
+        <div style={{ position: "absolute", top: 2, left: checked ? 14 : 2, width: 12, height: 12, borderRadius: "50%", backgroundColor: checked ? "#4ade80" : "#555", transition: "left 0.2s" }} />
+      </button>
+    </label>
+  );
 }
+
+
 
 function Slider({ label, value, min, max, onValue, onReset, step = 0.1, resetLabel }: { label: string; value: number; min: number; max: number; onValue: (v: number) => void; onReset: () => void; step?: number; resetLabel?: string }) {
   return <div><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}><span style={{ fontSize: 9, color: "#888" }}>{label}: {value.toFixed(2)}</span><button onClick={onReset} style={{ background: "none", border: "none", color: "#555", fontSize: 8, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: '"JetBrains Mono", monospace' }}>{resetLabel ?? "0"}</button></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onValue(parseFloat(e.target.value))} style={{ width: "100%", accentColor: "#555", height: 4 }} /></div>;

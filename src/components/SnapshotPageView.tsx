@@ -19,6 +19,7 @@ import {
 import { buildFontString, DEFAULT_SANS } from "../utils/fonts";
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop";
 import { useSnapshotScanner } from "../hooks/useSnapshotScanner";
+import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies";
 import {
   isStaticTextFlowObstacleCandidate,
   syncHiddenNodes,
@@ -84,6 +85,8 @@ export function SnapshotPageView({
   const [pickerMode, setPickerMode] = useState(false);
   const [savePickerMode, setSavePickerMode] = useState(false);
   const [droppedElements, setDroppedElements] = useState<SceneElement[]>([]);
+  const [importedTextBodyElements, setImportedTextBodyElements] = useState<SceneElement[]>([]);
+  const [importedTextBodyBlockIds, setImportedTextBodyBlockIds] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<DebugSettings>({
     physicsEnabled: true,
     showObstacleBounds: false,
@@ -92,6 +95,8 @@ export function SnapshotPageView({
     gravityY: 0,
     paused: false,
     pretextEnabled: true,
+    textBodiesEnabled: false,
+    maxAutoSelectComponents: 300,
     allowWordBreaks: true,
     restitution: 0.3,
   });
@@ -107,6 +112,7 @@ export function SnapshotPageView({
   const {
     candidates,
     textBlocks,
+    textBodyBlocks,
     selectableCandidates,
     selectedIds,
     iframeHeight,
@@ -123,6 +129,7 @@ export function SnapshotPageView({
     pageId: page.id,
     sourceUrl: page.sourceUrl,
     preparedHtml: page.preparedHtml,
+    maxAutoSelectComponents: settings.maxAutoSelectComponents,
     savedElements,
     onSaveElement,
     onUnsaveElement,
@@ -157,7 +164,7 @@ export function SnapshotPageView({
             .map((id) => nodesRef.current.get(id))
             .filter((node): node is HTMLElement => Boolean(node));
     syncHiddenNodes(hiddenSelectedNodesRef.current, desiredNodes);
-  }, [activeSelectedIds, candidates, pickerMode]);
+  }, [activeSelectedIds, candidates, nodesRef, pickerMode]);
 
   useEffect(() => {
     const hiddenSelectedNodes = hiddenSelectedNodesRef.current;
@@ -198,9 +205,49 @@ export function SnapshotPageView({
   );
 
   const importedTextFlowActive =
+    !settings.textBodiesEnabled &&
     settings.pretextEnabled &&
     textBlocks.length > 0 &&
     (hasMovedSelectedElements || droppedElements.length > 0);
+
+  const importedTextBodiesActive =
+    settings.textBodiesEnabled && textBodyBlocks.length > 0;
+
+  // When letter-body mode is active, measure each text block's glyphs from
+  // the live iframe DOM and create throwable SceneElements for them.
+  useLayoutEffect(() => {
+    if (!importedTextBodiesActive || !iframeLoaded) {
+      setImportedTextBodyElements([]);
+      setImportedTextBodyBlockIds(new Set());
+      return;
+    }
+    const nextBodies: SceneElement[] = [];
+    const nextBlockIds = new Set<string>();
+    const zeroRect = new DOMRect(0, 0, 0, 0);
+    const orderedBlocks = [...textBodyBlocks].sort((a, b) => {
+      const ay = a.sceneElement.rect.y;
+      const by = b.sceneElement.rect.y;
+      if (Math.abs(ay - by) > 1) return ay - by;
+      return a.sceneElement.rect.x - b.sceneElement.rect.x;
+    });
+    for (const block of orderedBlocks) {
+      const revealedNodes = revealHiddenAncestors(block.node);
+      try {
+        const blockBodies = measureGlyphBodiesFromDomNode(block.node, {
+          idPrefix: `${block.id}-imported-text-body`,
+          rootRect: zeroRect,
+          zIndex: 7,
+        });
+        if (blockBodies.length === 0) continue;
+        nextBodies.push(...blockBodies);
+        nextBlockIds.add(block.id);
+      } finally {
+        restoreRevealedAncestors(revealedNodes);
+      }
+    }
+    setImportedTextBodyElements(nextBodies);
+    setImportedTextBodyBlockIds(nextBlockIds);
+  }, [iframeLoaded, importedTextBodiesActive, textBodyBlocks]);
 
   useEffect(() => {
     const hiddenTextNodes = hiddenTextNodesRef.current;
@@ -331,16 +378,20 @@ export function SnapshotPageView({
           .filter((layout) => hasRenderableImportedText(layout.flow))
           .map((layout) => textNodesRef.current.get(layout.id))
           .filter((node): node is HTMLElement => Boolean(node))
-      : [];
+      : importedTextBodiesActive
+        ? Array.from(importedTextBodyBlockIds)
+            .map((id) => textNodesRef.current.get(id))
+            .filter((node): node is HTMLElement => Boolean(node))
+        : [];
     syncHiddenNodes(hiddenTextNodesRef.current, desiredNodes);
-  }, [importedTextFlowActive, importedTextLayouts]);
+  }, [importedTextBodiesActive, importedTextBodyBlockIds, importedTextFlowActive, importedTextLayouts, textNodesRef]);
 
   // Only include dynamic (throwable) elements in the physics scene to avoid
   // recreating the engine when static obstacle lists change. Static obstacles
   // are still tracked for Pretext reflow but don't need physics bodies.
   const physicsElements = useMemo(
-    () => (iframeLoaded ? [...selectedElements, ...droppedElements] : []),
-    [iframeLoaded, selectedElements, droppedElements]
+    () => (iframeLoaded ? [...selectedElements, ...droppedElements, ...importedTextBodyElements] : []),
+    [iframeLoaded, selectedElements, droppedElements, importedTextBodyElements]
   );
 
   const baseOverlayScene = useMemo(() => ({
@@ -538,6 +589,22 @@ export function SnapshotPageView({
           );
         })}
 
+        {/* Letter-body overlay: one glyph-body PhysicsDomItem per character */}
+        {!pickerMode && importedTextBodiesActive && importedTextBodyElements.map((el) => {
+          const pos = bodyPositions.get(el.id);
+          return (
+            <PhysicsDomItem
+              key={el.id}
+              element={el}
+              x={pos?.x ?? el.rect.x}
+              y={pos?.y ?? el.rect.y}
+              angle={pos?.angle ?? 0}
+              isPhysicsEnabled={settings.physicsEnabled}
+              showDebug={settings.showObstacleBounds}
+            />
+          );
+        })}
+
         {/* Physics overlay for selected/dropped imported-page components.
             Hidden during picker mode so originals are visible for selection. */}
         {!pickerMode && selectedElements.map((el) => {
@@ -605,7 +672,7 @@ export function SnapshotPageView({
           });
         }}
         fps={fps}
-        bodyCount={selectedElements.length + droppedElements.length}
+        bodyCount={selectedElements.length + droppedElements.length + importedTextBodyElements.length}
         lineCount={0}
         currentPreset={currentPreset}
         onSelectPreset={onSelectPreset}

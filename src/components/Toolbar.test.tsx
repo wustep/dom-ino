@@ -14,6 +14,8 @@ function defaultSettings(): DebugSettings {
     gravityY: 0,
     paused: false,
     pretextEnabled: true,
+    textBodiesEnabled: false,
+    maxAutoSelectComponents: 300,
     allowWordBreaks: true,
     restitution: 0.3,
   };
@@ -218,6 +220,7 @@ describe("Toolbar", () => {
       render(<Toolbar {...defaultProps()} />);
       await userEvent.click(screen.getByLabelText("Settings"));
       expect(screen.getByText("Physics")).toBeInTheDocument();
+      expect(screen.getByText("Letter bodies")).toBeInTheDocument();
       expect(screen.getByText("Pretext reflow")).toBeInTheDocument();
       expect(screen.getByText("Break words")).toBeInTheDocument();
     });
@@ -237,6 +240,13 @@ describe("Toolbar", () => {
       const resetBtn = screen.getByText("Reset all state");
       await userEvent.click(resetBtn);
       expect(props.onResetAll).toHaveBeenCalledOnce();
+    });
+
+    it("disables reflow controls when letter bodies are on", async () => {
+      render(<Toolbar {...defaultProps({ settings: { ...defaultSettings(), textBodiesEnabled: true } })} />);
+      await userEvent.click(screen.getByLabelText("Settings"));
+      expect(screen.getByRole("switch", { name: "Pretext reflow" })).toBeDisabled();
+      expect(screen.getByRole("switch", { name: "Break words" })).toBeDisabled();
     });
   });
 

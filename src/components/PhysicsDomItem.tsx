@@ -159,6 +159,26 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
           </div>
         );
 
+      case "glyph":
+        return (
+          <div style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "transparent",
+            overflow: "visible",
+            whiteSpace: "pre",
+            ...textStyleOf(element, {
+              fontSize: element.fontSize ?? 16,
+              color: element.color ?? "#333",
+              lineHeight: element.lineHeight
+                ? `${element.lineHeight}px`
+                : `${Math.max(element.rect.height, element.fontSize ?? 16)}px`,
+            }),
+          }}>
+            {element.text}
+          </div>
+        );
+
       case "container":
         return (
           <div style={{

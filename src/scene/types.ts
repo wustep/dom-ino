@@ -1,6 +1,7 @@
 export type SceneElementType =
   | "heading"
   | "paragraph"
+  | "glyph"
   | "button"
   | "card"
   | "image"
