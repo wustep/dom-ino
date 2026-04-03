@@ -9,6 +9,7 @@ import type {
 import type { PresetKey } from "./scene/presets"
 import { DEFAULT_PRESET, getPresetScene, isPresetKey } from "./scene/presets"
 import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot"
+import { savedElementFromImageFile } from "./utils/stashImageFromFile"
 
 export interface SceneCustomPage {
 	id: string
@@ -406,6 +407,22 @@ export default function App({
 		setSavedElements((prev) => prev.filter((_, i) => i !== index))
 	}, [])
 
+	const handleSaveStashImageFiles = useCallback(
+		(files: File[]) => {
+			void (async () => {
+				const sourceName =
+					activeCustomPage?.name ?? scene?.name ?? "Dropped image"
+				const next: SavedElement[] = []
+				for (const file of files) {
+					const saved = await savedElementFromImageFile(file, sourceName)
+					if (saved) next.push(saved)
+				}
+				if (next.length) setSavedElements((prev) => [...prev, ...next])
+			})()
+		},
+		[activeCustomPage?.name, scene?.name]
+	)
+
 	const handleResetAll = useCallback(() => {
 		localStorage.removeItem(LS_KEY)
 		setCurrentPreset(DEFAULT_PRESET)
@@ -445,6 +462,7 @@ export default function App({
 					onUnsaveElement={handleUnsaveElement}
 					onClearSaved={handleClearSaved}
 					onRemoveSaved={handleRemoveSaved}
+					onSaveStashImageFiles={handleSaveStashImageFiles}
 					customPages={customPages}
 					activeCustomId={activeCustomId}
 					onSelectCustomPage={handleSelectCustomPage}
@@ -465,6 +483,7 @@ export default function App({
 					onDropSaved={handleDropSaved}
 					onClearSaved={handleClearSaved}
 					onRemoveSaved={handleRemoveSaved}
+					onSaveStashImageFiles={handleSaveStashImageFiles}
 					customPages={customPages}
 					activeCustomId={activeCustomId}
 					onSelectCustomPage={handleSelectCustomPage}

@@ -35,6 +35,7 @@ interface DominoSceneProps {
   onDropSaved: (saved: SavedElement, x?: number, y?: number) => void;
   onClearSaved: () => void;
   onRemoveSaved: (index: number) => void;
+  onSaveStashImageFiles?: (files: File[]) => void;
   customPages?: CustomPage[];
   activeCustomId?: string | null;
   onSelectCustomPage?: (id: string) => void;
@@ -62,7 +63,7 @@ function computeTextMaxHeights(
 export function DominoScene({
   scene, onSceneChange,
   currentPreset, onSelectPreset, onImportHtml, onFetchUrl,
-  savedElements, onSaveElement, onUnsaveElement, onDropSaved, onClearSaved, onRemoveSaved,
+  savedElements, onSaveElement, onUnsaveElement, onDropSaved, onClearSaved, onRemoveSaved, onSaveStashImageFiles,
   customPages, activeCustomId, onSelectCustomPage, onResetAll,
 }: DominoSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -368,6 +369,7 @@ export function DominoScene({
         currentPreset={currentPreset} onSelectPreset={onSelectPreset}
         onImportHtml={onImportHtml} onFetchUrl={onFetchUrl}
         savedElements={savedElements} onDropSaved={onDropSaved}
+        onSaveStashImageFiles={onSaveStashImageFiles}
         onClearSaved={onClearSaved} onRemoveSaved={onRemoveSaved}
         customPages={customPages ?? []} activeCustomId={activeCustomId ?? null}
         onSelectCustomPage={onSelectCustomPage ?? (() => {})}

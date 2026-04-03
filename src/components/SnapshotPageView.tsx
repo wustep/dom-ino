@@ -41,6 +41,7 @@ interface SnapshotPageViewProps {
   onUnsaveElement: (id: string) => void;
   onClearSaved: () => void;
   onRemoveSaved: (index: number) => void;
+  onSaveStashImageFiles?: (files: File[]) => void;
   customPages: CustomPage[];
   activeCustomId: string | null;
   onSelectCustomPage: (id: string) => void;
@@ -69,6 +70,7 @@ export function SnapshotPageView({
   onUnsaveElement,
   onClearSaved,
   onRemoveSaved,
+  onSaveStashImageFiles,
   customPages,
   activeCustomId,
   onSelectCustomPage,
@@ -626,6 +628,7 @@ export function SnapshotPageView({
         }}
         onClearSaved={onClearSaved}
         onRemoveSaved={onRemoveSaved}
+        onSaveStashImageFiles={onSaveStashImageFiles}
         customPages={customPages}
         activeCustomId={activeCustomId}
         onSelectCustomPage={onSelectCustomPage}

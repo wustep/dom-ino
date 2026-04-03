@@ -1,8 +1,9 @@
-import { memo, useState, useCallback, useLayoutEffect, useRef, useEffect, useEffectEvent } from "react";
+import { memo, useState, useCallback, useLayoutEffect, useRef, useEffect, useEffectEvent, type DragEvent as ReactDragEvent } from "react";
 import type { PresetKey } from "../scene/presets";
 import { PRESET_LIST } from "../scene/presets";
 import type { SavedElement } from "../scene/types";
 import type { CustomPage } from "../App";
+import { isAcceptableStashImageFile } from "../utils/stashImageFromFile";
 
 export interface DebugSettings {
   physicsEnabled: boolean;
@@ -34,6 +35,8 @@ interface ToolbarProps {
   onFetchUrl: (url: string) => Promise<void>;
   savedElements: SavedElement[];
   onDropSaved: (saved: SavedElement, x?: number, y?: number) => void;
+  /** Add image files dragged onto the Saved Components panel (PNG, SVG, GIF, WebP, etc.). */
+  onSaveStashImageFiles?: (files: File[]) => void;
   onClearSaved: () => void;
   onRemoveSaved: (index: number) => void;
   customPages: CustomPage[];
@@ -64,7 +67,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     settings, onSettingsChange, onExplode, onReset,
     onTogglePicker, pickerMode, savePickerMode, onToggleSavePicker, fps, bodyCount, lineCount,
     currentPreset, onSelectPreset, onImportHtml, onFetchUrl,
-    savedElements, onDropSaved, onRemoveSaved,
+    savedElements, onDropSaved, onSaveStashImageFiles, onRemoveSaved,
     customPages, activeCustomId, onSelectCustomPage, onResetAll,
   } = props;
 
@@ -110,6 +113,23 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       setFetchError(e instanceof Error ? e.message : "Could not fetch page.");
     }
   }, [urlInput, onFetchUrl]);
+
+  const handleStashImageDragOver = useCallback((e: ReactDragEvent) => {
+    if (![...e.dataTransfer.types].includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handleStashImageDrop = useCallback(
+    (e: ReactDragEvent) => {
+      e.preventDefault();
+      const files = [...(e.dataTransfer.files ?? [])].filter((f) =>
+        isAcceptableStashImageFile(f)
+      );
+      if (files.length) onSaveStashImageFiles?.(files);
+    },
+    [onSaveStashImageFiles]
+  );
 
   const handlePasteImport = useCallback(() => {
     if (!htmlInput.trim()) return;
@@ -300,7 +320,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
       {/* Stash flyout — shows saved components for dropping */}
       {openPanel === "stash" && (
-        <div data-domino-toolbar-root="true" style={{ ...flyoutBase, bottom: 56, right: 16, width: 300 }}>
+        <div
+          data-domino-toolbar-root="true"
+          style={{ ...flyoutBase, bottom: 56, right: 16, width: 300 }}
+          onDragOver={handleStashImageDragOver}
+          onDrop={handleStashImageDrop}
+        >
           <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>Saved Components</div>
             <button
@@ -316,7 +341,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           <div style={{ padding: "6px 10px", maxHeight: 260, overflowY: "auto" }}>
             {savedElements.length === 0 ? (
               <div style={{ padding: "14px 4px", color: "#555", fontSize: 10, fontFamily: '"DM Sans", sans-serif', lineHeight: 1.6 }}>
-                Use `Pick from page` for a quick eyedropper-style save, or enter the component picker to toggle physics and delete elements.
+                Drag in PNG, SVG, GIF, WebP, or other images (max ~400px on the long side). Or use `Pick from page`, or the component picker for physics and deletes.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -326,10 +351,21 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                     onDragStart={(e) => {
                       e.dataTransfer.setData("application/domino-saved", JSON.stringify(s));
                       e.dataTransfer.effectAllowed = "copy";
-                      // Create a drag preview that looks like the actual component
+                      const pw = Math.min(s.element.rect.width, 200);
+                      const ph = Math.min(s.element.rect.height, 120);
                       const preview = document.createElement("div");
-                      preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${Math.min(s.element.rect.width, 200)}px;height:${Math.min(s.element.rect.height, 100)}px;background:${s.element.backgroundColor || "#fff"};border-radius:${s.element.borderRadius ?? 6}px;border:${s.element.border || "1px solid #ddd"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:8px;box-sizing:border-box;overflow:hidden;`;
-                      preview.textContent = s.element.text?.slice(0, 30) || s.element.type;
+                      preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${pw}px;height:${ph}px;background:${s.element.backgroundColor || "#fff"};border-radius:${s.element.borderRadius ?? 6}px;border:${s.element.border || "1px solid #ddd"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:8px;box-sizing:border-box;overflow:hidden;`;
+                      if (s.element.type === "image" && s.element.imageSrc) {
+                        const im = document.createElement("img");
+                        im.src = s.element.imageSrc;
+                        im.alt = "";
+                        im.draggable = false;
+                        im.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 6) - 2)}px`;
+                        preview.textContent = "";
+                        preview.appendChild(im);
+                      } else {
+                        preview.textContent = s.element.text?.slice(0, 30) || s.element.type;
+                      }
                       document.body.appendChild(preview);
                       e.dataTransfer.setDragImage(preview, preview.offsetWidth / 2, preview.offsetHeight / 2);
                       requestAnimationFrame(() => document.body.removeChild(preview));
@@ -339,10 +375,14 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                     style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 6px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)", cursor: "grab" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                       <div style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, backgroundColor: s.element.backgroundColor ?? "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, color: s.element.color ?? "#999", fontFamily: '"JetBrains Mono", monospace', overflow: "hidden" }}>
-                        {s.element.type.slice(0, 3)}
+                        {s.element.type === "image" && s.element.imageSrc ? (
+                          <img src={s.element.imageSrc} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          s.element.type.slice(0, 3)
+                        )}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 10, color: "#ddd", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.element.text?.slice(0, 20) || s.element.type}</div>
+                        <div style={{ fontSize: 10, color: "#ddd", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.element.type === "image" ? (s.element.imageAlt || "Image").slice(0, 24) : (s.element.text?.slice(0, 20) || s.element.type)}</div>
                         <div style={{ fontSize: 8, color: "#666" }}>{s.sourceScene}</div>
                       </div>
                     </div>
