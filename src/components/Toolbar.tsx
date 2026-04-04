@@ -107,6 +107,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
 	const [openPanel, setOpenPanel] = useState<FlyoutPanel>(_pendingPanel)
 	const [collapsed, setCollapsed] = useState(false)
+	const [focusedBtnIdx, setFocusedBtnIdx] = useState(0)
 	const [activeTooltip, setActiveTooltip] = useState<TooltipAnchor | null>(null)
 	const [tooltipPosition, setTooltipPosition] = useState<{ left: number; bottom: number } | null>(
 		null,
@@ -123,6 +124,33 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
 	const toggle = (panel: FlyoutPanel) => setOpenPanel((p) => (p === panel ? null : panel))
 	const closePanel = useCallback(() => setOpenPanel(null), [])
+
+	const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+		const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button"))
+		const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
+		if (current === -1) return
+
+		let next: number
+		switch (e.key) {
+			case "ArrowRight":
+				next = (current + 1) % buttons.length
+				break
+			case "ArrowLeft":
+				next = (current - 1 + buttons.length) % buttons.length
+				break
+			case "Home":
+				next = 0
+				break
+			case "End":
+				next = buttons.length - 1
+				break
+			default:
+				return
+		}
+		e.preventDefault()
+		setFocusedBtnIdx(next)
+		buttons[next]?.focus()
+	}, [])
 
 	const clearTooltip = useCallback(() => {
 		setActiveTooltip(null)
@@ -301,6 +329,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 				{/* ─── Compact pill ─── */}
 				<div
 					className="dt-pill"
+					role="toolbar"
+					aria-label="Scene tools"
+					onKeyDown={handleToolbarKeyDown}
 					style={{
 						opacity: collapsed ? 0 : 1,
 						transform: collapsed ? "translateY(16px) scale(0.96)" : "translateY(0) scale(1)",
@@ -311,6 +342,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						active={openPanel === "pages"}
 						onClick={() => toggle("pages")}
 						tip="Pages"
+						btnIndex={0}
+						focusedBtnIdx={focusedBtnIdx}
+						onBtnFocused={setFocusedBtnIdx}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -320,6 +354,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					<Btn
 						onClick={onExplode}
 						tip="Explode scene"
+						btnIndex={1}
+						focusedBtnIdx={focusedBtnIdx}
+						onBtnFocused={setFocusedBtnIdx}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -328,6 +365,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					<Btn
 						onClick={onReset}
 						tip="Reset scene"
+						btnIndex={2}
+						focusedBtnIdx={focusedBtnIdx}
+						onBtnFocused={setFocusedBtnIdx}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -339,6 +379,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						onClick={onTogglePicker}
 						tip={pickerMode ? "Exit component picker" : "Enter component picker"}
 						accent={pickerMode ? "var(--dt-accent-blue, #3b82f6)" : undefined}
+						btnIndex={3}
+						focusedBtnIdx={focusedBtnIdx}
+						onBtnFocused={setFocusedBtnIdx}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -356,6 +399,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 									: undefined
 						}
 						dataAttrs={{ "data-domino-stash-trigger": "true" }}
+						btnIndex={4}
+						focusedBtnIdx={focusedBtnIdx}
+						onBtnFocused={setFocusedBtnIdx}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -367,6 +413,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						active={openPanel === "settings"}
 						onClick={() => toggle("settings")}
 						tip="Settings"
+						btnIndex={5}
+						focusedBtnIdx={focusedBtnIdx}
+						onBtnFocused={setFocusedBtnIdx}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -376,6 +425,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						onClick={handleCollapseToolbar}
 						tip="Hide toolbar"
 						compact
+						btnIndex={6}
+						focusedBtnIdx={focusedBtnIdx}
+						onBtnFocused={setFocusedBtnIdx}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -414,6 +466,9 @@ function Btn({
 	accent,
 	compact,
 	dataAttrs,
+	btnIndex,
+	focusedBtnIdx,
+	onBtnFocused,
 	onShowTooltip,
 	onHideTooltip,
 }: {
@@ -424,6 +479,9 @@ function Btn({
 	accent?: string
 	compact?: boolean
 	dataAttrs?: Record<string, string>
+	btnIndex: number
+	focusedBtnIdx: number
+	onBtnFocused: (index: number) => void
 	onShowTooltip: (label: string | undefined, target: HTMLButtonElement) => void
 	onHideTooltip: () => void
 }) {
@@ -437,13 +495,17 @@ function Btn({
 				{...dataAttrs}
 				type="button"
 				className={className}
+				tabIndex={btnIndex === focusedBtnIdx ? 0 : -1}
 				onClick={() => {
 					onHideTooltip()
 					onClick()
 				}}
 				onMouseEnter={(e) => onShowTooltip(tip, e.currentTarget)}
 				onMouseLeave={onHideTooltip}
-				onFocus={(e) => onShowTooltip(tip, e.currentTarget)}
+				onFocus={(e) => {
+					onBtnFocused(btnIndex)
+					onShowTooltip(tip, e.currentTarget)
+				}}
 				onBlur={onHideTooltip}
 				aria-label={tip}
 				style={accent ? { color: accent } : undefined}
