@@ -10,6 +10,7 @@ import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
 import { getObstacleAABB } from "../textflow/obstacles"
 import { computeTextFlow } from "../textflow/useTextFlow"
 import { buildFontString } from "../utils/fonts"
+import { loadSettings, saveSettings } from "../utils/persistence"
 import { isAcceptableStashImageFile } from "../utils/stashImageFromFile"
 import { getBackgroundStyle } from "../utils/styles"
 import { PhysicsDomItem } from "./PhysicsDomItem"
@@ -75,19 +76,11 @@ export function DominoScene({
 	const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 	const effectiveElements = scene.elements
 
-	const [settings, setSettings] = useState<SceneSettings>({
-		physicsEnabled: true,
-		showObstacleBounds: false,
-		showLineBounds: false,
-		gravityX: 0,
-		gravityY: 0,
-		paused: false,
-		pretextEnabled: true,
-		textBodiesEnabled: false,
-		maxAutoSelectComponents: 500,
-		allowWordBreaks: true,
-		restitution: 0.3,
-	})
+	const [settings, setSettingsRaw] = useState<SceneSettings>(loadSettings)
+	const setSettings = useCallback((s: SceneSettings) => {
+		setSettingsRaw(s)
+		saveSettings(s)
+	}, [])
 
 	const {
 		pickerMode,

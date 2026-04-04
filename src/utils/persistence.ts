@@ -1,8 +1,10 @@
+import type { SceneSettings } from "../contexts/SettingsContext"
 import type { PresetKey } from "../scene/presets"
 import { isPresetKey } from "../scene/presets"
 import type { CustomPage, SavedElement, SceneDescription } from "../scene/types"
 
 const LS_KEY = "domino-state"
+const LS_SETTINGS_KEY = "domino-settings"
 
 export interface PersistedState {
 	currentPreset: PresetKey | "custom"
@@ -110,4 +112,68 @@ export function saveState(s: PersistedState) {
 /** Removes all persisted state from localStorage. */
 export function clearPersistedState() {
 	localStorage.removeItem(LS_KEY)
+	localStorage.removeItem(LS_SETTINGS_KEY)
+}
+
+const DEFAULT_SETTINGS: SceneSettings = {
+	physicsEnabled: true,
+	showObstacleBounds: false,
+	showLineBounds: false,
+	gravityX: 0,
+	gravityY: 0,
+	paused: false,
+	pretextEnabled: true,
+	textBodiesEnabled: false,
+	maxAutoSelectComponents: 500,
+	allowWordBreaks: true,
+	restitution: 0.3,
+}
+
+/** Keys from SceneSettings that are persisted (excludes transient state like `paused`). */
+const PERSISTED_KEYS = [
+	"physicsEnabled",
+	"showObstacleBounds",
+	"showLineBounds",
+	"gravityX",
+	"gravityY",
+	"pretextEnabled",
+	"textBodiesEnabled",
+	"maxAutoSelectComponents",
+	"allowWordBreaks",
+	"restitution",
+] as const satisfies readonly (keyof SceneSettings)[]
+
+/** Loads persisted scene settings from localStorage, merged with defaults. */
+export function loadSettings(): SceneSettings {
+	try {
+		const raw = localStorage.getItem(LS_SETTINGS_KEY)
+		if (raw) {
+			const parsed = JSON.parse(raw)
+			if (parsed && typeof parsed === "object") {
+				const result = { ...DEFAULT_SETTINGS }
+				for (const key of PERSISTED_KEYS) {
+					if (key in parsed && typeof parsed[key] === typeof DEFAULT_SETTINGS[key]) {
+						;(result as Record<string, unknown>)[key] = parsed[key]
+					}
+				}
+				return result
+			}
+		}
+	} catch (e) {
+		console.warn("[DOMino] Failed to load persisted settings:", e)
+	}
+	return { ...DEFAULT_SETTINGS }
+}
+
+/** Persists scene settings to localStorage (only non-transient keys). */
+export function saveSettings(s: SceneSettings) {
+	try {
+		const toSave: Record<string, unknown> = {}
+		for (const key of PERSISTED_KEYS) {
+			toSave[key] = s[key]
+		}
+		localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(toSave))
+	} catch (e) {
+		console.warn("[DOMino] Failed to save settings:", e)
+	}
 }
