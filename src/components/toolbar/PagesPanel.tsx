@@ -151,6 +151,7 @@ export function PagesPanel({
 							onKeyDown={(e) => {
 								if (e.key === "Enter") handleFetchUrl()
 							}}
+							autoFocus
 							className="dt-input dt-input--mono"
 						/>
 						{fetchStatus === "error" && (
