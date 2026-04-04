@@ -1,7 +1,6 @@
-import { memo, useCallback, useRef, useState } from "react"
+import { memo, useState } from "react"
 import {
 	candidateOutlineStyle,
-	FlyBadges,
 	overlayBackdropStyle,
 	PhysicsBadge,
 	PICKER_HALO,
@@ -10,48 +9,38 @@ import {
 	pickerKeyframes,
 	SaveBadge,
 	useEscClose,
-	useFlyAnimation,
 } from "./pickerShared"
-import type { SnapshotCandidate } from "./snapshotHelpers"
+
+export interface SnapshotPickerOverlayItem {
+	id: string
+	x: number
+	y: number
+	width: number
+	height: number
+	borderRadius?: number
+	saved: boolean
+	active: boolean
+	label: string
+	onToggle: () => void
+	onSave: () => void
+	onUnsave: () => void
+}
 
 interface SnapshotPickerOverlayProps {
-	selectableCandidates: SnapshotCandidate[]
-	selectedIds: Set<string>
-	onToggleSelected: (id: string) => void
-	onSaveNode: (id: string) => void
-	onUnsaveNode: (id: string) => void
+	items: SnapshotPickerOverlayItem[]
 	onClose: () => void
 }
 
 export const SnapshotPickerOverlay = memo(function SnapshotPickerOverlay({
-	selectableCandidates,
-	selectedIds,
-	onToggleSelected,
-	onSaveNode,
-	onUnsaveNode,
+	items,
 	onClose,
 }: SnapshotPickerOverlayProps) {
 	const [hoveredId, setHoveredId] = useState<string | null>(null)
 	const [flashId, setFlashId] = useState<string | null>(null)
-	const candidateRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-	const { flyBadges, triggerFly } = useFlyAnimation()
 
 	useEscClose(onClose)
 
-	const handleSave = useCallback(
-		(id: string) => {
-			onSaveNode(id)
-			setFlashId(id)
-			setTimeout(() => setFlashId(null), 800)
-			const el = candidateRefs.current.get(id)
-			const candidate = selectableCandidates.find((c) => c.id === id)
-			if (el) {
-				const label = candidate?.node.textContent?.trim().slice(0, 20) || "Component"
-				triggerFly(el, label)
-			}
-		},
-		[onSaveNode, triggerFly, selectableCandidates],
-	)
+	const activeCount = items.filter((item) => item.active).length
 
 	return (
 		<>
@@ -62,58 +51,53 @@ export const SnapshotPickerOverlay = memo(function SnapshotPickerOverlay({
 				iconBg="rgba(59, 130, 246, 0.18)"
 				iconColor="#93bbfd"
 				title="Component picker"
-				subtitle={`${selectableCandidates.length} selectable · ${selectedIds.size} selected`}
+				subtitle={`${items.length} selectable · ${activeCount} active`}
 				onClose={onClose}
 			/>
 
-			{selectableCandidates.map((c) => {
-				const wide = c.width >= 80
-				const selected = selectedIds.has(c.id)
-				const isHovered = hoveredId === c.id
-				const isFlash = flashId === c.id
+			{items.map((item) => {
+				const wide = item.width >= 80
+				const isHovered = hoveredId === item.id
+				const isFlash = flashId === item.id
 
 				return (
 					<div
-						key={c.id}
-						ref={(el) => {
-							if (el) candidateRefs.current.set(c.id, el)
-							else candidateRefs.current.delete(c.id)
-						}}
-						data-picker-candidate={c.id}
-						onMouseEnter={() => setHoveredId(c.id)}
+						key={item.id}
+						data-picker-candidate={item.id}
+						onMouseEnter={() => setHoveredId(item.id)}
 						onMouseLeave={() => setHoveredId(null)}
 						style={{
 							position: "absolute",
-							left: c.x - PICKER_HALO,
-							top: c.y - PICKER_HALO,
-							width: c.width + PICKER_HALO * 2,
-							height: c.height + PICKER_HALO * 2,
+							left: item.x - PICKER_HALO,
+							top: item.y - PICKER_HALO,
+							width: item.width + PICKER_HALO * 2,
+							height: item.height + PICKER_HALO * 2,
 							zIndex: 205,
 							pointerEvents: "auto",
 						}}
 					>
 						<div
 							style={{
-								...candidateOutlineStyle(selected, isHovered, c.borderRadius ?? 0),
-								width: c.width + 4,
-								height: c.height + 4,
+								...candidateOutlineStyle(item.active, isHovered, item.borderRadius ?? 0),
+								width: item.width + 4,
+								height: item.height + 4,
 							}}
 						/>
 
-						{(selected || isHovered) && (
+						{(item.active || isHovered) && (
 							<PhysicsBadge
-								active={selected}
+								active={item.active}
 								wide={wide}
 								isHovered={isHovered}
 								onClick={(e) => {
 									e.stopPropagation()
-									onToggleSelected(c.id)
+									item.onToggle()
 								}}
 								style={{ position: "absolute", top: PICKER_HALO - 10, right: PICKER_HALO - 8 }}
 							/>
 						)}
 
-						{c.saved ? (
+						{item.saved ? (
 							<SaveBadge
 								saved
 								wide={wide}
@@ -121,7 +105,7 @@ export const SnapshotPickerOverlay = memo(function SnapshotPickerOverlay({
 								isFlash={isFlash}
 								onClick={(e) => {
 									e.stopPropagation()
-									onUnsaveNode(c.id)
+									item.onUnsave()
 								}}
 								style={{ position: "absolute", top: PICKER_HALO - 10, left: PICKER_HALO - 8 }}
 							/>
@@ -132,7 +116,12 @@ export const SnapshotPickerOverlay = memo(function SnapshotPickerOverlay({
 								isHovered
 								onClick={(e) => {
 									e.stopPropagation()
-									handleSave(c.id)
+									item.onSave()
+									setFlashId(item.id)
+									window.setTimeout(
+										() => setFlashId((prev) => (prev === item.id ? null : prev)),
+										800,
+									)
 								}}
 								style={{ position: "absolute", top: PICKER_HALO - 10, left: PICKER_HALO - 8 }}
 							/>
@@ -141,7 +130,6 @@ export const SnapshotPickerOverlay = memo(function SnapshotPickerOverlay({
 				)
 			})}
 
-			<FlyBadges badges={flyBadges} />
 			<style>{pickerKeyframes}</style>
 		</>
 	)

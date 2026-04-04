@@ -15,7 +15,7 @@ import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/
 import { ImportedPhysicsClone } from "./ImportedPhysicsClone"
 import { PhysicsDomItem } from "./PhysicsDomItem"
 import { QuickSavePicker } from "./QuickSavePicker"
-import { SnapshotPickerOverlay } from "./SnapshotPickerOverlay"
+import { SnapshotPickerOverlay, type SnapshotPickerOverlayItem } from "./SnapshotPickerOverlay"
 import {
 	extractInlineStyles,
 	type InlineStyleRun,
@@ -170,6 +170,10 @@ export function SnapshotPageView({
 
 	const gifPlaybackPaused = settings.paused || pickerMode || savePickerMode
 	const animatedAlpha = useAnimatedAlpha(droppedElements, gifPlaybackPaused)
+	const savedElementIds = useMemo(
+		() => new Set(savedElements.map((saved) => saved.element.id)),
+		[savedElements],
+	)
 
 	// Update physics body bounds when alpha changes for animated images
 	useEffect(() => {
@@ -424,6 +428,58 @@ export function SnapshotPageView({
 		[selectableCandidates],
 	)
 
+	const handleRemoveDropped = useCallback((id: string) => {
+		setDroppedElements((prev) => prev.filter((el) => el.id !== id))
+	}, [])
+
+	const pickerItems = useMemo<SnapshotPickerOverlayItem[]>(
+		() => [
+			...selectableCandidates
+				.filter((candidate) => candidate.sceneElement)
+				.map((candidate) => ({
+					id: candidate.id,
+					x: candidate.x,
+					y: candidate.y,
+					width: candidate.width,
+					height: candidate.height,
+					borderRadius: candidate.borderRadius,
+					saved: candidate.saved,
+					active: selectedIds.has(candidate.id),
+					label: candidate.node.textContent?.trim().slice(0, 20) || "Component",
+					onToggle: () => toggleSelected(candidate.id),
+					onSave: () => saveNode(candidate.id),
+					onUnsave: () => unsaveNode(candidate.id),
+				})),
+			...droppedElements.map((element) => ({
+				id: element.id,
+				x: bodyPositions.get(element.id)?.x ?? element.rect.x,
+				y: bodyPositions.get(element.id)?.y ?? element.rect.y,
+				width: bodyPositions.get(element.id)?.w ?? element.rect.width,
+				height: bodyPositions.get(element.id)?.h ?? element.rect.height,
+				borderRadius: element.borderRadius,
+				saved: savedElementIds.has(element.id),
+				active: true,
+				label: element.imageAlt || element.text?.trim().slice(0, 20) || element.type,
+				onToggle: () => handleRemoveDropped(element.id),
+				onSave: () => onSaveElement(element),
+				onUnsave: () => onUnsaveElement(element.id),
+			})),
+		],
+		[
+			droppedElements,
+			handleRemoveDropped,
+			onSaveElement,
+			onUnsaveElement,
+			bodyPositions,
+			saveNode,
+			savedElementIds,
+			selectedIds,
+			selectableCandidates,
+			toggleSelected,
+			unsaveNode,
+		],
+	)
+
 	const handleExplode = useCallback(() => {
 		physicsRef.current?.explode()
 	}, [])
@@ -634,16 +690,7 @@ export function SnapshotPageView({
 					onLoad={handleIframeLoad}
 				/>
 
-				{pickerMode && (
-					<SnapshotPickerOverlay
-						selectableCandidates={selectableCandidates}
-						selectedIds={selectedIds}
-						onToggleSelected={toggleSelected}
-						onSaveNode={saveNode}
-						onUnsaveNode={unsaveNode}
-						onClose={handleClosePicker}
-					/>
-				)}
+				{pickerMode && <SnapshotPickerOverlay items={pickerItems} onClose={handleClosePicker} />}
 
 				{savePickerMode && (
 					<QuickSavePicker

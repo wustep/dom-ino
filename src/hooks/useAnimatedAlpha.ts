@@ -66,6 +66,7 @@ export function useAnimatedAlpha(
 				if (gif && !cancelled) {
 					const startTime = elementFirstSeenRef.current.get(el.id) ?? performance.now()
 					const controller = new GifAlphaController(gif, startTime)
+					if (paused) controller.pause()
 					controllersRef.current.set(el.id, controller)
 				}
 			}
