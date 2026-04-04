@@ -10,7 +10,7 @@ interface GifFrameData {
 	delay: number
 }
 
-interface ParsedGif {
+export interface ParsedGif {
 	width: number
 	height: number
 	frames: GifFrameData[]
@@ -162,6 +162,22 @@ export function extractAlphaRowsFromImageData(
 	return intervals.length > 0 ? intervals : null
 }
 
+function getLoopTime(totalDuration: number, elapsed: number): number {
+	if (totalDuration <= 0) return 0
+	const remainder = elapsed % totalDuration
+	return remainder >= 0 ? remainder : remainder + totalDuration
+}
+
+function getFrameIndexAtLoopTime(gif: ParsedGif, loopTime: number): number {
+	if (gif.totalDuration <= 0) return 0
+	let accum = 0
+	for (let i = 0; i < gif.frames.length; i++) {
+		accum += gif.frames[i].delay
+		if (loopTime < accum) return i
+	}
+	return Math.max(0, gif.frames.length - 1)
+}
+
 /**
  * GIF animation controller that provides frame-synced alpha data.
  * Uses timing-based frame calculation (browsers don't expose current GIF frame via canvas).
@@ -170,6 +186,7 @@ export class GifAlphaController {
 	private gif: ParsedGif
 	private currentFrameIndex = 0
 	private alphaCache: Map<number, AlphaRowInterval[] | null> = new Map()
+	private renderSurfaceCache: Map<number, HTMLCanvasElement | null> = new Map()
 	private startTime: number
 
 	/**
@@ -198,25 +215,52 @@ export class GifAlphaController {
 	}
 
 	/**
+	 * Get the current frame state for both rendering and alpha extraction.
+	 * The returned image data and alpha rows come from the same frame index.
+	 */
+	getCurrentFrameState(): {
+		frameIndex: number
+		imageData: ImageData
+		alphaRows: AlphaRowInterval[] | null
+	} {
+		const elapsed = performance.now() - this.startTime
+		const loopTime = getLoopTime(this.gif.totalDuration, elapsed)
+		this.currentFrameIndex = getFrameIndexAtLoopTime(this.gif, loopTime)
+
+		return {
+			frameIndex: this.currentFrameIndex,
+			imageData: this.gif.frames[this.currentFrameIndex].imageData,
+			alphaRows: this.alphaCache.get(this.currentFrameIndex) ?? null,
+		}
+	}
+
+	getRenderSurface(frameIndex: number = this.currentFrameIndex): HTMLCanvasElement | null {
+		const cached = this.renderSurfaceCache.get(frameIndex)
+		if (cached !== undefined) return cached
+
+		const frame = this.gif.frames[frameIndex]
+		if (!frame) return null
+
+		const canvas = document.createElement("canvas")
+		canvas.width = frame.imageData.width
+		canvas.height = frame.imageData.height
+		const ctx = canvas.getContext("2d")
+		if (!ctx) {
+			this.renderSurfaceCache.set(frameIndex, null)
+			return null
+		}
+
+		ctx.putImageData(frame.imageData, 0, 0)
+		this.renderSurfaceCache.set(frameIndex, canvas)
+		return canvas
+	}
+
+	/**
 	 * Get alpha rows for the current frame based on elapsed time.
 	 * Updates currentFrameIndex internally.
 	 */
 	getCurrentAlphaRows(): AlphaRowInterval[] | null {
-		const elapsed = performance.now() - this.startTime
-		const loopTime = elapsed % this.gif.totalDuration
-
-		let accum = 0
-		let newFrameIndex = 0
-		for (let i = 0; i < this.gif.frames.length; i++) {
-			accum += this.gif.frames[i].delay
-			if (loopTime < accum) {
-				newFrameIndex = i
-				break
-			}
-		}
-
-		this.currentFrameIndex = newFrameIndex
-		return this.alphaCache.get(this.currentFrameIndex) ?? null
+		return this.getCurrentFrameState().alphaRows
 	}
 
 	get frameCount(): number {

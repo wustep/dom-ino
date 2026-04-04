@@ -1,5 +1,7 @@
-import { memo } from "react"
+import { memo, useEffect, useRef } from "react"
 import type { AlphaRowInterval, AlphaTightBounds, SceneElement, TextStyle } from "../scene/types"
+import type { GifAlphaController } from "../utils/gifFrames"
+import { isAnimatedImageSrc } from "../utils/imageAlpha"
 import { getBackgroundStyle } from "../utils/styles"
 
 interface PhysicsDomItemProps {
@@ -13,6 +15,8 @@ interface PhysicsDomItemProps {
 	alphaBounds?: AlphaTightBounds | null
 	/** Per-row alpha intervals for debug visualization */
 	alphaRows?: AlphaRowInterval[] | null
+	/** Shared controller for manual animated GIF playback */
+	animatedGifController?: GifAlphaController
 }
 
 /** Build a CSS text style from a TextStyle-bearing element (or child). */
@@ -32,6 +36,93 @@ function textStyleOf(
 	}
 }
 
+function drawAnimatedGifFrame(
+	canvas: HTMLCanvasElement,
+	frameSurface: HTMLCanvasElement,
+	displayWidth: number,
+	displayHeight: number,
+): void {
+	const pixelRatio = window.devicePixelRatio || 1
+	const targetWidth = Math.max(1, Math.round(displayWidth * pixelRatio))
+	const targetHeight = Math.max(1, Math.round(displayHeight * pixelRatio))
+
+	if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+		canvas.width = targetWidth
+		canvas.height = targetHeight
+	}
+
+	const ctx = canvas.getContext("2d")
+	if (!ctx) return
+
+	ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+	ctx.clearRect(0, 0, displayWidth, displayHeight)
+
+	const scale = Math.max(displayWidth / frameSurface.width, displayHeight / frameSurface.height)
+	const drawWidth = frameSurface.width * scale
+	const drawHeight = frameSurface.height * scale
+	const drawX = (displayWidth - drawWidth) / 2
+	const drawY = (displayHeight - drawHeight) / 2
+
+	ctx.drawImage(frameSurface, drawX, drawY, drawWidth, drawHeight)
+}
+
+const AnimatedGifCanvas = memo(function AnimatedGifCanvas({
+	elementId,
+	controller,
+	alt,
+	width,
+	height,
+}: {
+	elementId: string
+	controller: GifAlphaController
+	alt?: string
+	width: number
+	height: number
+}) {
+	const canvasRef = useRef<HTMLCanvasElement | null>(null)
+	const prevFrameIndexRef = useRef<number | null>(null)
+
+	useEffect(() => {
+		let running = true
+		let rafId: number | null = null
+
+		const tick = () => {
+			if (!running) return
+			const canvas = canvasRef.current
+			if (canvas) {
+				const frameState = controller.getCurrentFrameState()
+				if (prevFrameIndexRef.current !== frameState.frameIndex) {
+					const frameSurface = controller.getRenderSurface(frameState.frameIndex)
+					if (frameSurface) {
+						drawAnimatedGifFrame(canvas, frameSurface, width, height)
+						prevFrameIndexRef.current = frameState.frameIndex
+					}
+				}
+			}
+			rafId = requestAnimationFrame(tick)
+		}
+
+		tick()
+
+		return () => {
+			running = false
+			if (rafId !== null) {
+				cancelAnimationFrame(rafId)
+			}
+		}
+	}, [controller, width, height])
+
+	return (
+		<canvas
+			ref={canvasRef}
+			data-domino-image-id={elementId}
+			aria-label={alt}
+			role={alt ? "img" : undefined}
+			style={{ width: "100%", height: "100%", display: "block" }}
+		/>
+	)
+})
+
 export const PhysicsDomItem = memo(function PhysicsDomItem({
 	element,
 	x,
@@ -41,6 +132,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 	showDebug,
 	alphaBounds,
 	alphaRows,
+	animatedGifController,
 }: PhysicsDomItemProps) {
 	const isThrowable = element.throwable
 	const live = isPhysicsEnabled && isThrowable
@@ -166,7 +258,9 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 					</div>
 				)
 
-			case "image":
+			case "image": {
+				const shouldManuallyAnimate =
+					!!animatedGifController && !!element.imageSrc && isAnimatedImageSrc(element.imageSrc)
 				return (
 					<div
 						style={{
@@ -182,13 +276,23 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 						}}
 					>
 						{element.imageSrc ? (
-							<img
-								src={element.imageSrc}
-								alt={element.imageAlt ?? ""}
-								data-domino-image-id={element.id}
-								style={{ width: "100%", height: "100%", objectFit: "cover" }}
-								draggable={false}
-							/>
+							shouldManuallyAnimate ? (
+								<AnimatedGifCanvas
+									elementId={element.id}
+									controller={animatedGifController}
+									alt={element.imageAlt}
+									width={element.rect.width}
+									height={element.rect.height}
+								/>
+							) : (
+								<img
+									src={element.imageSrc}
+									alt={element.imageAlt ?? ""}
+									data-domino-image-id={element.id}
+									style={{ width: "100%", height: "100%", objectFit: "cover" }}
+									draggable={false}
+								/>
+							)
 						) : (
 							<svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ opacity: 0.25 }}>
 								<rect
@@ -211,6 +315,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 						)}
 					</div>
 				)
+			}
 
 			case "input":
 				return (

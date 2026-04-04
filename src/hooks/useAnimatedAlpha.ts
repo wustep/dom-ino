@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { startTransition, useEffect, useMemo, useRef, useState } from "react"
 import type { AlphaRowInterval, AlphaTightBounds, SceneElement } from "../scene/types"
 import { GifAlphaController, parseGifFromDataUrl } from "../utils/gifFrames"
 import { computeTightBoundsFromAlphaRows, isAnimatedImageSrc } from "../utils/imageAlpha"
 
 const DEBUG_HOOK = true
-// Offset to compensate for delay between browser loading GIF and us detecting it
-// Negative = our animation is ahead, Positive = behind
-const TIMING_OFFSET_MS = -100
+const MAX_DISPLACEMENT_UPDATES_PER_SECOND = 12
+const MIN_DISPLACEMENT_UPDATE_INTERVAL_MS = 1000 / MAX_DISPLACEMENT_UPDATES_PER_SECOND
 
 interface AnimatedAlphaEntry {
+	frameIndex: number
+	controller: GifAlphaController
 	rows: AlphaRowInterval[] | null
 	bounds: AlphaTightBounds | null
 }
@@ -28,6 +29,7 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 	const [alphaState, setAlphaState] = useState<AnimatedAlphaState>(EMPTY_ALPHA_STATE)
 	const controllersRef = useRef<Map<string, GifAlphaController>>(new Map())
 	const prevFrameRef = useRef<Map<string, number>>(new Map())
+	const lastPublishedAtRef = useRef<Map<string, number>>(new Map())
 	// Track when each element was first seen (approximates when browser started playing)
 	const elementFirstSeenRef = useRef<Map<string, number>>(new Map())
 
@@ -67,11 +69,9 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 
 				const gif = await parseGifFromDataUrl(el.imageSrc)
 				if (gif && !cancelled) {
-					// Use the time we first saw this element as the start time
-					// Apply offset to compensate for detection delay
-					const startTime =
-						(elementFirstSeenRef.current.get(el.id) ?? performance.now()) + TIMING_OFFSET_MS
-					controllersRef.current.set(el.id, new GifAlphaController(gif, startTime))
+					const startTime = elementFirstSeenRef.current.get(el.id) ?? performance.now()
+					const controller = new GifAlphaController(gif, startTime)
+					controllersRef.current.set(el.id, controller)
 					if (DEBUG_HOOK) {
 						console.log(
 							`[useAnimatedAlpha] Created controller for ${el.id}, ${gif.frames.length} frames, startTime=${startTime.toFixed(0)}ms`,
@@ -110,16 +110,23 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 				const controller = controllersRef.current.get(el.id)
 				if (!controller) continue
 
-				// Get current frame based on timing
-				const rows = controller.getCurrentAlphaRows()
-				const currentFrame = controller.currentFrame
+				// Rendering and displacement both read from the same authoritative frame.
+				const frameState = controller.getCurrentFrameState()
+				const { alphaRows: rows, frameIndex: currentFrame } = frameState
 				const prevFrame = prevFrameRef.current.get(el.id)
+				const now = performance.now()
+				const lastPublishedAt = lastPublishedAtRef.current.get(el.id) ?? -Infinity
+				const shouldPublishFrame =
+					currentFrame !== prevFrame &&
+					(prevFrame === undefined ||
+						now - lastPublishedAt >= MIN_DISPLACEMENT_UPDATE_INTERVAL_MS)
 
 				// Update state when frame changes
-				if (currentFrame !== prevFrame) {
+				if (shouldPublishFrame) {
 					const bounds = rows ? computeTightBoundsFromAlphaRows(rows) : null
-					updates[el.id] = { rows, bounds }
+					updates[el.id] = { frameIndex: currentFrame, controller, rows, bounds }
 					prevFrameRef.current.set(el.id, currentFrame)
+					lastPublishedAtRef.current.set(el.id, now)
 					hasChanges = true
 
 					if (DEBUG_HOOK) {
@@ -131,7 +138,9 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 			}
 
 			if (hasChanges) {
-				setAlphaState((prev) => ({ ...prev, ...updates }))
+				startTransition(() => {
+					setAlphaState((prev) => ({ ...prev, ...updates }))
+				})
 			}
 
 			if (running) {
@@ -156,6 +165,7 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 			if (!currentIds.has(id)) {
 				controllersRef.current.delete(id)
 				prevFrameRef.current.delete(id)
+				lastPublishedAtRef.current.delete(id)
 				elementFirstSeenRef.current.delete(id)
 			}
 		}

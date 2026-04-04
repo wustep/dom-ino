@@ -756,6 +756,7 @@ export function SnapshotPageView({
 								showDebug={settings.showObstacleBounds}
 								alphaBounds={alphaEntry?.bounds}
 								alphaRows={alphaEntry?.rows ?? el.alphaRows}
+								animatedGifController={alphaEntry?.controller}
 							/>
 						)
 					})}
