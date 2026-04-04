@@ -78,7 +78,8 @@ export const ThrowablePicker = memo(function ThrowablePicker({
 
 			{pickable.map((el) => {
 				const isHovered = hoveredId === el.id
-				const isSaved = savedIds.has(el.id)
+				const savedId = el.sourceSavedId ?? el.id
+				const isSaved = savedIds.has(savedId)
 				const isFlash = flashId === el.id
 				const wide = el.rect.width >= 80
 
@@ -130,7 +131,7 @@ export const ThrowablePicker = memo(function ThrowablePicker({
 								isFlash={isFlash}
 								onClick={(e) => {
 									e.stopPropagation()
-									onUnsave(el.id)
+									onUnsave(savedId)
 								}}
 								style={{ position: "absolute", top: PICKER_HALO - 10, left: PICKER_HALO - 8 }}
 							/>

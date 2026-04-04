@@ -457,12 +457,12 @@ export function SnapshotPageView({
 				width: bodyPositions.get(element.id)?.w ?? element.rect.width,
 				height: bodyPositions.get(element.id)?.h ?? element.rect.height,
 				borderRadius: element.borderRadius,
-				saved: savedElementIds.has(element.id),
+				saved: savedElementIds.has(element.sourceSavedId ?? element.id),
 				active: true,
 				label: element.imageAlt || element.text?.trim().slice(0, 20) || element.type,
 				onToggle: () => handleRemoveDropped(element.id),
 				onSave: () => onSaveElement(element),
-				onUnsave: () => onUnsaveElement(element.id),
+				onUnsave: () => onUnsaveElement(element.sourceSavedId ?? element.id),
 			})),
 		],
 		[
@@ -492,6 +492,7 @@ export function SnapshotPageView({
 		const el = {
 			...saved.element,
 			id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+			sourceSavedId: saved.element.id,
 			throwable: true,
 			pinned: false,
 			rect: {
@@ -635,6 +636,7 @@ export function SnapshotPageView({
 						const el = {
 							...data.element,
 							id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+							sourceSavedId: data.element.id,
 							throwable: true,
 							pinned: false,
 							rect: {
@@ -662,6 +664,7 @@ export function SnapshotPageView({
 									newDropped.push({
 										...saved.element,
 										id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+										sourceSavedId: saved.element.id,
 										rect: {
 											...saved.element.rect,
 											x: dropX - saved.element.rect.width / 2,

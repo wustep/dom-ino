@@ -82,6 +82,8 @@ export interface SceneElement extends TextStyle, VisualStyle, PhysicsProperties 
 	children?: SceneElement[]
 	href?: string
 	gap?: number
+	/** Original saved-component id when this element is a dropped clone of a saved item. */
+	sourceSavedId?: string
 	/** Per-row alpha intervals for transparent images (normalized 0-1 coordinates) */
 	alphaRows?: AlphaRowInterval[]
 }

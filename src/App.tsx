@@ -313,9 +313,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			}
 			if (pendingForkIdRef.current) {
 				const forkId = pendingForkIdRef.current
-				setCustomPages((prev) =>
-					prev.map((p) => (p.id === forkId ? { ...p, scene: newScene } : p)),
-				)
+				setCustomPages((prev) => prev.map((p) => (p.id === forkId ? { ...p, scene: newScene } : p)))
 				return forkId
 			}
 			const id = `custom-${Date.now()}`
@@ -362,6 +360,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			if (!scene) return
 			const el = { ...saved.element }
 			el.id = `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+			el.sourceSavedId = saved.element.id
 			el.throwable = true
 			el.pinned = false
 			el.rect = {

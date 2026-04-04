@@ -342,7 +342,7 @@ export function DominoScene({
 					width: pos?.w ?? el.rect.width,
 					height: pos?.h ?? el.rect.height,
 					borderRadius: el.borderRadius,
-					saved: savedIds.has(el.id),
+					saved: savedIds.has(el.sourceSavedId ?? el.id),
 				}
 			})
 	}, [effectiveElements, bodyPositions, savedIds])
