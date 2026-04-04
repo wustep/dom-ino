@@ -1,6 +1,6 @@
 import { createContext, use } from "react"
 
-export interface DebugSettings {
+export interface SceneSettings {
 	physicsEnabled: boolean
 	showObstacleBounds: boolean
 	showLineBounds: boolean
@@ -15,8 +15,8 @@ export interface DebugSettings {
 }
 
 export interface SettingsContextValue {
-	settings: DebugSettings
-	setSettings: (s: DebugSettings) => void
+	settings: SceneSettings
+	setSettings: (s: SceneSettings) => void
 	fps: number
 	bodyCount: number
 	lineCount: number

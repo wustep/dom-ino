@@ -1,10 +1,10 @@
 import type { LayoutCursor } from "@chenglou/pretext"
 import { memo, useEffect, useMemo } from "react"
+import type { InlineStyleRun } from "../scene/snapshotHelpers"
 import type { ObstacleRect } from "../scene/types"
 import type { FlowLine, TextFlowResult } from "../textflow/useTextFlow"
 import { computeTextFlow } from "../textflow/useTextFlow"
 import { parseFontShorthand } from "../utils/fonts"
-import type { InlineStyleRun } from "./snapshotHelpers"
 
 interface TextFlowRegionProps {
 	text: string

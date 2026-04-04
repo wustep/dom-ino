@@ -1,28 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useSavedElements } from "../contexts/SavedElementsContext"
-import { type DebugSettings, SettingsContext } from "../contexts/SettingsContext"
-import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
+import { type SceneSettings, SettingsContext } from "../contexts/SettingsContext"
 import { useImportedTextLayouts } from "../hooks/useImportedTextLayouts"
-import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
-import { usePickerPause } from "../hooks/usePickerPause"
+import { useScenePhysics } from "../hooks/useScenePhysics"
 import { useSnapshotScanner } from "../hooks/useSnapshotScanner"
 import type { PhysicsEngine } from "../physics/engine"
 import { createPhysicsEngine } from "../physics/engine"
-import type { PresetKey } from "../scene/presets"
-import type {
-	CustomPage,
-	ObstacleRect,
-	SavedElement,
-	SceneElement,
-	SnapshotCustomPage,
-} from "../scene/types"
-import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
-import { buildFontString, DEFAULT_SANS } from "../utils/fonts"
-import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
-import { ImportedPhysicsClone } from "./ImportedPhysicsClone"
-import { PhysicsDomItem } from "./PhysicsDomItem"
-import { QuickSavePicker } from "./QuickSavePicker"
-import { SnapshotPickerOverlay, type SnapshotPickerOverlayItem } from "./SnapshotPickerOverlay"
 import {
 	isStaticTextFlowObstacleCandidate,
 	restoreHiddenNodes,
@@ -31,20 +14,21 @@ import {
 	type SnapshotCandidate,
 	type SnapshotTextBlock,
 	syncHiddenNodes,
-} from "./snapshotHelpers"
-import { hasMovedImportedElement, hasRenderableImportedText } from "./snapshotViewUtils"
+} from "../scene/snapshotHelpers"
+import { hasMovedImportedElement, hasRenderableImportedText } from "../scene/snapshotViewUtils"
+import type { ObstacleRect, SavedElement, SceneElement, SnapshotCustomPage } from "../scene/types"
+import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
+import { buildFontString, DEFAULT_SANS } from "../utils/fonts"
+import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
+import { ImportedPhysicsClone } from "./ImportedPhysicsClone"
+import { PhysicsDomItem } from "./PhysicsDomItem"
+import { QuickSavePicker } from "./QuickSavePicker"
+import { SnapshotPickerOverlay, type SnapshotPickerOverlayItem } from "./SnapshotPickerOverlay"
 import { TextFlowRegion } from "./TextFlowRegion"
 import { Toolbar } from "./Toolbar"
 
 interface SnapshotPageViewProps {
 	page: SnapshotCustomPage
-	currentPreset: PresetKey | "custom"
-	onSelectPreset: (key: PresetKey) => void
-	onImportHtml: (html: string, name: string) => void
-	onFetchUrl: (url: string) => Promise<void>
-	customPages: CustomPage[]
-	activeCustomId: string | null
-	onSelectCustomPage: (id: string) => void
 	onResetAll: () => void
 }
 
@@ -55,17 +39,7 @@ function compareTextBlockPosition(a: SnapshotTextBlock, b: SnapshotTextBlock) {
 	return a.sceneElement.rect.x - b.sceneElement.rect.x
 }
 
-export function SnapshotPageView({
-	page,
-	currentPreset,
-	onSelectPreset,
-	onImportHtml,
-	onFetchUrl,
-	customPages,
-	activeCustomId,
-	onSelectCustomPage,
-	onResetAll,
-}: SnapshotPageViewProps) {
+export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 	const {
 		savedElements,
 		saveElement: onSaveElement,
@@ -79,7 +53,7 @@ export function SnapshotPageView({
 	const [droppedElements, setDroppedElements] = useState<SceneElement[]>([])
 	const [importedTextBodyElements, setImportedTextBodyElements] = useState<SceneElement[]>([])
 	const [importedTextBodyBlockIds, setImportedTextBodyBlockIds] = useState<Set<string>>(new Set())
-	const [settings, setSettings] = useState<DebugSettings>({
+	const [settings, setSettings] = useState<SceneSettings>({
 		physicsEnabled: true,
 		showObstacleBounds: false,
 		showLineBounds: false,
@@ -93,16 +67,16 @@ export function SnapshotPageView({
 		restitution: 0.3,
 	})
 
-	const { pickerMode, handleTogglePicker, handleToggleSavePicker, handleClosePicker } =
-		usePickerPause({ physicsRef, isPaused: settings.paused })
-
-	const { bodyPositions, fps } = usePhysicsLoop({
-		physicsRef,
-		physicsEnabled: settings.physicsEnabled,
-		gravityX: settings.gravityX,
-		gravityY: settings.gravityY,
-		restitution: settings.restitution,
-	})
+	const {
+		pickerMode,
+		handleTogglePicker,
+		handleToggleSavePicker,
+		handleClosePicker,
+		bodyPositions,
+		fps,
+		animatedAlpha,
+		gifPlaybackPaused,
+	} = useScenePhysics({ physicsRef, settings, animatedElements: droppedElements })
 
 	const {
 		candidates,
@@ -149,22 +123,10 @@ export function SnapshotPageView({
 		[selectableCandidates],
 	)
 
-	const gifPlaybackPaused = settings.paused || pickerMode !== null
-	const animatedAlpha = useAnimatedAlpha(droppedElements, gifPlaybackPaused)
 	const savedElementIds = useMemo(
 		() => new Set(savedElements.map((saved) => saved.element.id)),
 		[savedElements],
 	)
-
-	// Update physics body bounds when alpha changes for animated images
-	useEffect(() => {
-		const physics = physicsRef.current
-		if (!physics) return
-
-		for (const [id, entry] of Object.entries(animatedAlpha)) {
-			physics.updateAlphaBounds(id, entry.bounds)
-		}
-	}, [animatedAlpha])
 
 	useLayoutEffect(() => {
 		const desiredNodes = pickerMode
@@ -743,14 +705,7 @@ export function SnapshotPageView({
 					onTogglePicker={handleTogglePicker}
 					pickerMode={pickerMode}
 					onToggleSavePicker={handleToggleSavePicker}
-					currentPreset={currentPreset}
-					onSelectPreset={onSelectPreset}
-					onImportHtml={onImportHtml}
-					onFetchUrl={onFetchUrl}
 					onDropSaved={handleDropSaved}
-					customPages={customPages}
-					activeCustomId={activeCustomId}
-					onSelectCustomPage={onSelectCustomPage}
 				/>
 			</SettingsContext>
 		</div>

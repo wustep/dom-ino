@@ -1,19 +1,20 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { NavigationContext, type NavigationContextValue } from "../contexts/NavigationContext"
 import {
 	SavedElementsContext,
 	type SavedElementsContextValue,
 } from "../contexts/SavedElementsContext"
 import {
-	type DebugSettings,
+	type SceneSettings,
 	SettingsContext,
 	type SettingsContextValue,
 } from "../contexts/SettingsContext"
 import type { SavedElement } from "../scene/types"
 import { Toolbar } from "./Toolbar"
 
-function defaultSettings(): DebugSettings {
+function defaultSettings(): SceneSettings {
 	return {
 		physicsEnabled: true,
 		showObstacleBounds: false,
@@ -54,6 +55,21 @@ function defaultSettingsCtx(overrides: Partial<SettingsContextValue> = {}): Sett
 	}
 }
 
+function defaultNavigationCtx(
+	overrides: Partial<NavigationContextValue> = {},
+): NavigationContextValue {
+	return {
+		currentPreset: "editorial",
+		customPages: [],
+		activeCustomId: null,
+		onSelectPreset: vi.fn(),
+		onSelectCustomPage: vi.fn(),
+		onImportHtml: vi.fn(),
+		onFetchUrl: vi.fn().mockResolvedValue(undefined),
+		...overrides,
+	}
+}
+
 function defaultProps(overrides: Record<string, unknown> = {}) {
 	return {
 		onExplode: vi.fn(),
@@ -61,14 +77,7 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
 		onTogglePicker: vi.fn(),
 		pickerMode: null as null | "throwable" | "save",
 		onToggleSavePicker: vi.fn(),
-		currentPreset: "editorial" as const,
-		onSelectPreset: vi.fn(),
-		onImportHtml: vi.fn(),
-		onFetchUrl: vi.fn().mockResolvedValue(undefined),
 		onDropSaved: vi.fn(),
-		customPages: [],
-		activeCustomId: null,
-		onSelectCustomPage: vi.fn(),
 		...overrides,
 	}
 }
@@ -78,14 +87,17 @@ function renderToolbar(
 	ctxOverrides?: {
 		savedElements?: Partial<SavedElementsContextValue>
 		settings?: Partial<SettingsContextValue>
+		navigation?: Partial<NavigationContextValue>
 	},
 ) {
 	return render(
-		<SavedElementsContext value={defaultSavedElementsCtx(ctxOverrides?.savedElements)}>
-			<SettingsContext value={defaultSettingsCtx(ctxOverrides?.settings)}>
-				<Toolbar {...defaultProps(props)} />
-			</SettingsContext>
-		</SavedElementsContext>,
+		<NavigationContext value={defaultNavigationCtx(ctxOverrides?.navigation)}>
+			<SavedElementsContext value={defaultSavedElementsCtx(ctxOverrides?.savedElements)}>
+				<SettingsContext value={defaultSettingsCtx(ctxOverrides?.settings)}>
+					<Toolbar {...defaultProps(props)} />
+				</SettingsContext>
+			</SavedElementsContext>
+		</NavigationContext>,
 	)
 }
 
@@ -138,11 +150,13 @@ describe("Toolbar", () => {
 		it("calls onExplode when explode clicked", async () => {
 			const props = defaultProps()
 			render(
-				<SavedElementsContext value={defaultSavedElementsCtx()}>
-					<SettingsContext value={defaultSettingsCtx()}>
-						<Toolbar {...props} />
-					</SettingsContext>
-				</SavedElementsContext>,
+				<NavigationContext value={defaultNavigationCtx()}>
+					<SavedElementsContext value={defaultSavedElementsCtx()}>
+						<SettingsContext value={defaultSettingsCtx()}>
+							<Toolbar {...props} />
+						</SettingsContext>
+					</SavedElementsContext>
+				</NavigationContext>,
 			)
 			await userEvent.click(screen.getByLabelText("Explode scene"))
 			expect(props.onExplode).toHaveBeenCalledOnce()
@@ -151,11 +165,13 @@ describe("Toolbar", () => {
 		it("calls onReset when reset clicked", async () => {
 			const props = defaultProps()
 			render(
-				<SavedElementsContext value={defaultSavedElementsCtx()}>
-					<SettingsContext value={defaultSettingsCtx()}>
-						<Toolbar {...props} />
-					</SettingsContext>
-				</SavedElementsContext>,
+				<NavigationContext value={defaultNavigationCtx()}>
+					<SavedElementsContext value={defaultSavedElementsCtx()}>
+						<SettingsContext value={defaultSettingsCtx()}>
+							<Toolbar {...props} />
+						</SettingsContext>
+					</SavedElementsContext>
+				</NavigationContext>,
 			)
 			await userEvent.click(screen.getByLabelText("Reset scene"))
 			expect(props.onReset).toHaveBeenCalledOnce()
@@ -164,11 +180,13 @@ describe("Toolbar", () => {
 		it("calls onTogglePicker when component picker clicked", async () => {
 			const props = defaultProps()
 			render(
-				<SavedElementsContext value={defaultSavedElementsCtx()}>
-					<SettingsContext value={defaultSettingsCtx()}>
-						<Toolbar {...props} />
-					</SettingsContext>
-				</SavedElementsContext>,
+				<NavigationContext value={defaultNavigationCtx()}>
+					<SavedElementsContext value={defaultSavedElementsCtx()}>
+						<SettingsContext value={defaultSettingsCtx()}>
+							<Toolbar {...props} />
+						</SettingsContext>
+					</SavedElementsContext>
+				</NavigationContext>,
 			)
 			await userEvent.click(screen.getByLabelText("Enter component picker"))
 			expect(props.onTogglePicker).toHaveBeenCalledOnce()
@@ -216,17 +234,11 @@ describe("Toolbar", () => {
 		})
 
 		it("calls onSelectPreset when a preset is clicked", async () => {
-			const props = defaultProps()
-			render(
-				<SavedElementsContext value={defaultSavedElementsCtx()}>
-					<SettingsContext value={defaultSettingsCtx()}>
-						<Toolbar {...props} />
-					</SettingsContext>
-				</SavedElementsContext>,
-			)
+			const onSelectPreset = vi.fn()
+			renderToolbar({}, { navigation: { onSelectPreset } })
 			await userEvent.click(screen.getByLabelText("Pages"))
 			await userEvent.click(screen.getByText("Landing"))
-			expect(props.onSelectPreset).toHaveBeenCalledWith("landing")
+			expect(onSelectPreset).toHaveBeenCalledWith("landing")
 		})
 
 		it("shows URL fetch tab by default", async () => {
@@ -243,25 +255,20 @@ describe("Toolbar", () => {
 		})
 
 		it("calls onFetchUrl when fetch button clicked", async () => {
-			const props = defaultProps()
-			render(
-				<SavedElementsContext value={defaultSavedElementsCtx()}>
-					<SettingsContext value={defaultSettingsCtx()}>
-						<Toolbar {...props} />
-					</SettingsContext>
-				</SavedElementsContext>,
-			)
+			const onFetchUrl = vi.fn().mockResolvedValue(undefined)
+			renderToolbar({}, { navigation: { onFetchUrl } })
 			await userEvent.click(screen.getByLabelText("Pages"))
 			const input = screen.getByPlaceholderText("example.com")
 			await userEvent.type(input, "test.com")
 			await userEvent.click(screen.getByText("Import"))
-			expect(props.onFetchUrl).toHaveBeenCalledWith("test.com")
+			expect(onFetchUrl).toHaveBeenCalledWith("test.com")
 		})
 
 		it("shows fetch error on failure", async () => {
-			renderToolbar({
-				onFetchUrl: vi.fn().mockRejectedValue(new Error("Network failed")),
-			})
+			renderToolbar(
+				{},
+				{ navigation: { onFetchUrl: vi.fn().mockRejectedValue(new Error("Network failed")) } },
+			)
 			await userEvent.click(screen.getByLabelText("Pages"))
 			const input = screen.getByPlaceholderText("example.com")
 			await userEvent.type(input, "bad.com")
@@ -270,14 +277,8 @@ describe("Toolbar", () => {
 		})
 
 		it("calls onImportHtml when paste import button clicked", async () => {
-			const props = defaultProps()
-			render(
-				<SavedElementsContext value={defaultSavedElementsCtx()}>
-					<SettingsContext value={defaultSettingsCtx()}>
-						<Toolbar {...props} />
-					</SettingsContext>
-				</SavedElementsContext>,
-			)
+			const onImportHtml = vi.fn()
+			renderToolbar({}, { navigation: { onImportHtml } })
 			await userEvent.click(screen.getByLabelText("Pages"))
 			await userEvent.click(screen.getByText("Paste HTML"))
 			// Two textboxes on the paste tab (Name input + HTML textarea); get the textarea
@@ -285,7 +286,7 @@ describe("Toolbar", () => {
 			const textarea = textboxes.find((el) => el.tagName === "TEXTAREA")!
 			await userEvent.type(textarea, "<p>test</p>")
 			await userEvent.click(screen.getByText("Import"))
-			expect(props.onImportHtml).toHaveBeenCalledWith("<p>test</p>", "Custom Page")
+			expect(onImportHtml).toHaveBeenCalledWith("<p>test</p>", "Custom Page")
 		})
 	})
 

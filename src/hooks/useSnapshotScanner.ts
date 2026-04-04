@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { SnapshotCandidate, SnapshotTextBlock } from "../components/snapshotHelpers"
+import {
+	getForceAutoSelectSelectors,
+	isAutoSelectEligible,
+	isForceAutoSelectNode,
+	isForcePretextNode,
+	isPretextBlockEligible,
+} from "../scene/siteStyles"
+import type { SnapshotCandidate, SnapshotTextBlock } from "../scene/snapshotHelpers"
 import {
 	coerceForcedTextSceneElement,
 	elementToSceneElement,
@@ -8,15 +15,8 @@ import {
 	isTextSceneElement,
 	pickContentRoot,
 	textOf,
-} from "../components/snapshotHelpers"
-import { toStageRect } from "../components/snapshotViewUtils"
-import {
-	getForceAutoSelectSelectors,
-	isAutoSelectEligible,
-	isForceAutoSelectNode,
-	isForcePretextNode,
-	isPretextBlockEligible,
-} from "../scene/siteStyles"
+} from "../scene/snapshotHelpers"
+import { toStageRect } from "../scene/snapshotViewUtils"
 import type { SavedElement, SceneElement } from "../scene/types"
 
 interface UseSnapshotScannerOptions {

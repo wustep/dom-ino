@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
+import { restoreRevealedAncestors, revealHiddenAncestors } from "../scene/snapshotHelpers"
 import { toAbsoluteSrcset, toAbsoluteUrl } from "../utils/url"
-import { restoreRevealedAncestors, revealHiddenAncestors } from "./snapshotHelpers"
 
 interface ImportedPhysicsCloneProps {
 	sourceNode: HTMLElement

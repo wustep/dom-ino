@@ -1,10 +1,10 @@
 import { useMemo } from "react"
-import type { InlineStyleRun, SnapshotTextBlock } from "../components/snapshotHelpers"
+import type { InlineStyleRun, SnapshotTextBlock } from "../scene/snapshotHelpers"
 import {
 	extractInlineStyles,
 	restoreRevealedAncestors,
 	revealHiddenAncestors,
-} from "../components/snapshotHelpers"
+} from "../scene/snapshotHelpers"
 import type { ObstacleRect, SceneElement } from "../scene/types"
 import { computeTextFlow, type TextFlowResult } from "../textflow/useTextFlow"
 import { buildFontString, DEFAULT_SANS } from "../utils/fonts"

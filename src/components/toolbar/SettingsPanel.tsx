@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import { type DebugSettings, useSettingsContext } from "../../contexts/SettingsContext"
+import { type SceneSettings, useSettingsContext } from "../../contexts/SettingsContext"
 
 interface SettingsPanelProps {
 	onClose: () => void
@@ -16,7 +16,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 	} = useSettingsContext()
 
 	const update = useCallback(
-		(partial: Partial<DebugSettings>) => onSettingsChange({ ...settings, ...partial }),
+		(partial: Partial<SceneSettings>) => onSettingsChange({ ...settings, ...partial }),
 		[settings, onSettingsChange],
 	)
 

@@ -9,8 +9,7 @@ import {
 } from "react"
 import { useSavedElements } from "../contexts/SavedElementsContext"
 import type { PickerMode } from "../hooks/usePickerPause"
-import type { PresetKey } from "../scene/presets"
-import type { CustomPage, SavedElement } from "../scene/types"
+import type { SavedElement } from "../scene/types"
 import "./toolbar/Toolbar.css"
 import {
 	ChevronDownIcon,
@@ -32,14 +31,7 @@ interface ToolbarProps {
 	onTogglePicker: () => void
 	pickerMode: PickerMode
 	onToggleSavePicker: () => void
-	currentPreset: PresetKey | "custom"
-	onSelectPreset: (key: PresetKey) => void
-	onImportHtml: (html: string, name: string) => void
-	onFetchUrl: (url: string) => Promise<void>
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
-	customPages: CustomPage[]
-	activeCustomId: string | null
-	onSelectCustomPage: (id: string) => void
 }
 
 type FlyoutPanel = "pages" | "settings" | "stash" | null
@@ -53,21 +45,7 @@ type TooltipAnchor = {
 const COLLAPSED_REVEAL_PROXIMITY_PX = 128
 
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
-	const {
-		onExplode,
-		onReset,
-		onTogglePicker,
-		pickerMode,
-		onToggleSavePicker,
-		currentPreset,
-		onSelectPreset,
-		onImportHtml,
-		onFetchUrl,
-		onDropSaved,
-		customPages,
-		activeCustomId,
-		onSelectCustomPage,
-	} = props
+	const { onExplode, onReset, onTogglePicker, pickerMode, onToggleSavePicker, onDropSaved } = props
 
 	const { savedElements } = useSavedElements()
 	const [openPanel, setOpenPanel] = useState<FlyoutPanel>(null)
@@ -215,18 +193,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
 	return (
 		<>
-			{openPanel === "pages" && (
-				<PagesPanel
-					currentPreset={currentPreset}
-					activeCustomId={activeCustomId}
-					onSelectPreset={onSelectPreset}
-					onFetchUrl={onFetchUrl}
-					onImportHtml={onImportHtml}
-					customPages={customPages}
-					onSelectCustomPage={onSelectCustomPage}
-					onClose={closePanel}
-				/>
-			)}
+			{openPanel === "pages" && <PagesPanel onClose={closePanel} />}
 
 			{openPanel === "stash" && (
 				<StashPanel

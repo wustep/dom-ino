@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react"
-import type { PresetKey } from "../../scene/presets"
+import { useNavigation } from "../../contexts/NavigationContext"
 import { PRESET_LIST } from "../../scene/presets"
-import type { CustomPage } from "../../scene/types"
 
 const WEBSITE_PRESETS = [
 	{ label: "Wikipedia", url: "https://en.wikipedia.org/wiki/Main_Page" },
@@ -9,26 +8,19 @@ const WEBSITE_PRESETS = [
 ] as const
 
 interface PagesPanelProps {
-	currentPreset: PresetKey | "custom"
-	activeCustomId: string | null
-	onSelectPreset: (key: PresetKey) => void
-	onFetchUrl: (url: string) => Promise<void>
-	onImportHtml: (html: string, name: string) => void
-	customPages: CustomPage[]
-	onSelectCustomPage: (id: string) => void
 	onClose: () => void
 }
 
-export function PagesPanel({
-	currentPreset,
-	activeCustomId,
-	onSelectPreset,
-	onFetchUrl,
-	onImportHtml,
-	customPages,
-	onSelectCustomPage,
-	onClose,
-}: PagesPanelProps) {
+export function PagesPanel({ onClose }: PagesPanelProps) {
+	const {
+		currentPreset,
+		activeCustomId,
+		customPages,
+		onSelectPreset,
+		onSelectCustomPage,
+		onFetchUrl,
+		onImportHtml,
+	} = useNavigation()
 	const [importTab, setImportTab] = useState<"url" | "html">("url")
 	const [urlInput, setUrlInput] = useState("")
 	const [htmlInput, setHtmlInput] = useState("")

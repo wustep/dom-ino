@@ -1,20 +1,11 @@
 import type { LayoutCursor } from "@chenglou/pretext"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useSavedElements } from "../contexts/SavedElementsContext"
-import { type DebugSettings, SettingsContext } from "../contexts/SettingsContext"
-import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
-import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
-import { usePickerPause } from "../hooks/usePickerPause"
+import { type SceneSettings, SettingsContext } from "../contexts/SettingsContext"
+import { useScenePhysics } from "../hooks/useScenePhysics"
 import type { PhysicsEngine } from "../physics/engine"
 import { createPhysicsEngine } from "../physics/engine"
-import type { PresetKey } from "../scene/presets"
-import type {
-	CustomPage,
-	ObstacleRect,
-	SavedElement,
-	SceneDescription,
-	SceneElement,
-} from "../scene/types"
+import type { ObstacleRect, SavedElement, SceneDescription, SceneElement } from "../scene/types"
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
 import { getObstacleAABB } from "../textflow/obstacles"
 import { computeTextFlow } from "../textflow/useTextFlow"
@@ -23,26 +14,15 @@ import { isAcceptableStashImageFile } from "../utils/stashImageFromFile"
 import { getBackgroundStyle } from "../utils/styles"
 import { PhysicsDomItem } from "./PhysicsDomItem"
 import { QuickSavePicker } from "./QuickSavePicker"
-import { TextFlowRegion } from "./TextFlowRegion"
+import { SceneTextLayer } from "./SceneTextLayer"
 import { ThrowablePicker } from "./ThrowablePicker"
 import { Toolbar } from "./Toolbar"
-
-const NOOP_SELECT_CUSTOM_PAGE: (id: string) => void = () => {}
-const NOOP_RESET_ALL = () => {}
-const EMPTY_CUSTOM_PAGES: CustomPage[] = []
 
 interface DominoSceneProps {
 	scene: SceneDescription
 	onSceneChange?: (scene: SceneDescription, remount?: boolean) => void
-	currentPreset: PresetKey | "custom"
-	onSelectPreset: (key: PresetKey) => void
-	onImportHtml: (html: string, name: string) => void
-	onFetchUrl: (url: string) => Promise<void>
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
 	onDropImageFiles?: (files: File[], x: number, y: number) => void
-	customPages?: CustomPage[]
-	activeCustomId?: string | null
-	onSelectCustomPage?: (id: string) => void
 	onResetAll?: () => void
 }
 
@@ -75,15 +55,8 @@ function computeTextMaxHeights(
 export function DominoScene({
 	scene,
 	onSceneChange,
-	currentPreset,
-	onSelectPreset,
-	onImportHtml,
-	onFetchUrl,
 	onDropSaved,
 	onDropImageFiles,
-	customPages,
-	activeCustomId,
-	onSelectCustomPage,
 	onResetAll,
 }: DominoSceneProps) {
 	const {
@@ -99,7 +72,7 @@ export function DominoScene({
 	const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 	const effectiveElements = scene.elements
 
-	const [settings, setSettings] = useState<DebugSettings>({
+	const [settings, setSettings] = useState<SceneSettings>({
 		physicsEnabled: true,
 		showObstacleBounds: false,
 		showLineBounds: false,
@@ -113,29 +86,16 @@ export function DominoScene({
 		restitution: 0.3,
 	})
 
-	const { pickerMode, handleTogglePicker, handleToggleSavePicker, handleClosePicker } =
-		usePickerPause({ physicsRef, isPaused: settings.paused })
-
-	const gifPlaybackPaused = settings.paused || pickerMode !== null
-	const animatedAlpha = useAnimatedAlpha(effectiveElements, gifPlaybackPaused)
-
-	// Update physics body bounds when alpha changes for animated images
-	useEffect(() => {
-		const physics = physicsRef.current
-		if (!physics) return
-
-		for (const [id, entry] of Object.entries(animatedAlpha)) {
-			physics.updateAlphaBounds(id, entry.bounds)
-		}
-	}, [animatedAlpha])
-
-	const { bodyPositions, fps } = usePhysicsLoop({
-		physicsRef,
-		physicsEnabled: settings.physicsEnabled,
-		gravityX: settings.gravityX,
-		gravityY: settings.gravityY,
-		restitution: settings.restitution,
-	})
+	const {
+		pickerMode,
+		handleTogglePicker,
+		handleToggleSavePicker,
+		handleClosePicker,
+		bodyPositions,
+		fps,
+		animatedAlpha,
+		gifPlaybackPaused,
+	} = useScenePhysics({ physicsRef, settings, animatedElements: effectiveElements })
 
 	const { textElements, throwableElements, staticElements } = useMemo(() => {
 		const text: SceneElement[] = [],
@@ -444,122 +404,17 @@ export function DominoScene({
 					/>
 				))}
 
-				{/* Invisible measurement layer — renders text at its natural position so we can
-            use Range.getClientRects() on each grapheme to place glyph bodies. */}
-				{settings.textBodiesEnabled && (
-					<div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-						{textElements.map((el) => {
-							const pad = el.padding ?? 0
-							return (
-								<div
-									key={`measure-${el.id}`}
-									ref={(node) => {
-										if (node) textMeasureRefs.current.set(el.id, node)
-										else textMeasureRefs.current.delete(el.id)
-									}}
-									style={{
-										position: "absolute",
-										left: el.rect.x + pad,
-										top: el.rect.y + pad,
-										width: el.rect.width - pad * 2,
-										fontSize: el.fontSize ?? 16,
-										fontWeight: el.fontWeight ?? 400,
-										fontStyle: el.fontStyle ?? "normal",
-										fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif',
-										lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6",
-										color: "transparent",
-										letterSpacing: el.letterSpacing,
-										textAlign: el.textAlign as React.CSSProperties["textAlign"] | undefined,
-										whiteSpace: "pre-wrap",
-										overflowWrap: "break-word",
-									}}
-								>
-									{el.text}
-								</div>
-							)
-						})}
-					</div>
-				)}
-
-				{/* Letter bodies — one PhysicsDomItem per glyph */}
-				{settings.textBodiesEnabled &&
-					textBodyElements.map((el) => {
-						const pos = bodyPositions.get(el.id)
-						return (
-							<PhysicsDomItem
-								key={el.id}
-								element={el}
-								x={pos?.x ?? el.rect.x}
-								y={pos?.y ?? el.rect.y}
-								angle={pos?.angle ?? 0}
-								isPhysicsEnabled={settings.physicsEnabled}
-								showDebug={settings.showObstacleBounds}
-							/>
-						)
-					})}
-
-				{/* Live reflow text — hidden when letter-body mode is on */}
-				{!settings.textBodiesEnabled &&
-					(settings.pretextEnabled
-						? textElements.map((el) => {
-								const fs = el.fontSize ?? 16
-								const font = buildFontString(fs, el.fontWeight, el.fontFamily, el.fontStyle)
-								const pad = el.padding ?? 0
-								const flowMinSegmentWidth = el.minSegmentWidth ?? (el.type === "heading" ? 80 : 8)
-								const allowWordBreaks =
-									el.allowWordBreaks ?? (el.type === "heading" ? false : settings.allowWordBreaks)
-								const startCursor = continuationCursors.get(el.id)
-								return (
-									<TextFlowRegion
-										key={el.id}
-										text={el.text!}
-										font={font}
-										fontSize={fs}
-										lineHeight={el.lineHeight ?? 28}
-										color={el.color ?? "#333"}
-										opacity={el.opacity}
-										letterSpacing={el.letterSpacing}
-										textAlign={el.textAlign}
-										containerX={el.rect.x + pad}
-										containerY={el.rect.y + pad}
-										containerWidth={el.rect.width - pad * 2}
-										containerMaxHeight={(textMaxHeights.get(el.id) ?? el.rect.height) - pad * 2}
-										obstacles={obstacles}
-										showDebug={settings.showLineBounds}
-										onLineCount={reportLines}
-										minSegmentWidth={flowMinSegmentWidth}
-										allowWordBreaks={allowWordBreaks}
-										startCursor={startCursor}
-									/>
-								)
-							})
-						: textElements.map((el) => {
-								const pad = el.padding ?? 0
-								return (
-									<div
-										key={el.id}
-										style={{
-											position: "absolute",
-											left: el.rect.x + pad,
-											top: el.rect.y + pad,
-											width: el.rect.width - pad * 2,
-											fontSize: el.fontSize ?? 16,
-											fontWeight: el.fontWeight ?? 400,
-											fontStyle: el.fontStyle ?? "normal",
-											fontFamily: el.fontFamily ?? '"Source Serif 4", Georgia, serif',
-											lineHeight: el.lineHeight ? `${el.lineHeight}px` : "1.6",
-											color: el.color ?? "#333",
-											opacity: el.opacity,
-											letterSpacing: el.letterSpacing,
-											textAlign: el.textAlign as React.CSSProperties["textAlign"] | undefined,
-											pointerEvents: "none",
-											zIndex: 2,
-										}}
-									>
-										{el.text}
-									</div>
-								)
-							}))}
+				<SceneTextLayer
+					settings={settings}
+					textElements={textElements}
+					textBodyElements={textBodyElements}
+					bodyPositions={bodyPositions}
+					obstacles={obstacles}
+					textMaxHeights={textMaxHeights}
+					continuationCursors={continuationCursors}
+					textMeasureRefs={textMeasureRefs}
+					onLineCount={reportLines}
+				/>
 
 				{throwableElements.map((el) => {
 					const pos = bodyPositions.get(el.id)
@@ -632,7 +487,7 @@ export function DominoScene({
 					fps,
 					bodyCount: throwableElements.length + textBodyElements.length,
 					lineCount: settings.textBodiesEnabled ? 0 : totalLineCount,
-					onResetAll: onResetAll ?? NOOP_RESET_ALL,
+					onResetAll: onResetAll ?? (() => {}),
 				}}
 			>
 				<Toolbar
@@ -641,14 +496,7 @@ export function DominoScene({
 					onTogglePicker={handleTogglePicker}
 					pickerMode={pickerMode}
 					onToggleSavePicker={handleToggleSavePicker}
-					currentPreset={currentPreset}
-					onSelectPreset={onSelectPreset}
-					onImportHtml={onImportHtml}
-					onFetchUrl={onFetchUrl}
 					onDropSaved={onDropSaved}
-					customPages={customPages ?? EMPTY_CUSTOM_PAGES}
-					activeCustomId={activeCustomId ?? null}
-					onSelectCustomPage={onSelectCustomPage ?? NOOP_SELECT_CUSTOM_PAGE}
 				/>
 			</SettingsContext>
 		</div>
