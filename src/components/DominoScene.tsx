@@ -18,6 +18,8 @@ import { ThrowablePicker } from "./picker/ThrowablePicker"
 import { SceneTextLayer } from "./SceneTextLayer"
 import { Toolbar } from "./Toolbar"
 
+const NOOP = () => {}
+
 interface DominoSceneProps {
 	scene: SceneDescription
 	onSceneChange?: (scene: SceneDescription, remount?: boolean) => void
@@ -488,7 +490,7 @@ export function DominoScene({
 					fps,
 					bodyCount: throwableElements.length + textBodyElements.length,
 					lineCount: settings.textBodiesEnabled ? 0 : totalLineCount,
-					onResetAll: onResetAll ?? (() => {}),
+					onResetAll: onResetAll ?? NOOP,
 				}}
 			>
 				<Toolbar

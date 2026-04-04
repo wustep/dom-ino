@@ -33,6 +33,9 @@ interface SnapshotPageViewProps {
 	onResetAll: () => void
 }
 
+const EMPTY_ELEMENTS: SceneElement[] = []
+const EMPTY_ID_SET = new Set<string>()
+
 function compareTextBlockPosition(a: SnapshotTextBlock, b: SnapshotTextBlock) {
 	const ay = a.sceneElement.rect.y
 	const by = b.sceneElement.rect.y
@@ -53,8 +56,10 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 	const hiddenSelectedNodesRef = useRef<Map<HTMLElement, string>>(new Map())
 	const hiddenTextNodesRef = useRef<Map<HTMLElement, string>>(new Map())
 	const [droppedElements, setDroppedElements] = useState<SceneElement[]>([])
-	const [importedTextBodyElements, setImportedTextBodyElements] = useState<SceneElement[]>([])
-	const [importedTextBodyBlockIds, setImportedTextBodyBlockIds] = useState<Set<string>>(new Set())
+	const [importedTextBodyElements, setImportedTextBodyElements] =
+		useState<SceneElement[]>(EMPTY_ELEMENTS)
+	const [importedTextBodyBlockIds, setImportedTextBodyBlockIds] =
+		useState<Set<string>>(EMPTY_ID_SET)
 	const [settings, setSettings] = useState<SceneSettings>({
 		physicsEnabled: true,
 		showObstacleBounds: false,
@@ -194,8 +199,8 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 	// the live iframe DOM and create throwable SceneElements for them.
 	useLayoutEffect(() => {
 		if (!importedTextBodiesActive || !iframeLoaded) {
-			setImportedTextBodyElements([])
-			setImportedTextBodyBlockIds(new Set())
+			setImportedTextBodyElements(EMPTY_ELEMENTS)
+			setImportedTextBodyBlockIds(EMPTY_ID_SET)
 			return
 		}
 		const nextBodies: SceneElement[] = []
