@@ -2,12 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { fetchPageHtml, prepareHtmlForViewer } from "../scene/domSnapshot"
 import type { PresetKey } from "../scene/presets"
 import { DEFAULT_PRESET, getPresetScene } from "../scene/presets"
-import type {
-	CustomPage,
-	SceneCustomPage,
-	SceneDescription,
-	SnapshotCustomPage,
-} from "../scene/types"
+import type { CustomPage, SceneCustomPage, SceneDescription } from "../scene/types"
 import type { PersistedState } from "../utils/persistence"
 
 let consumedInitialFetchUrl: string | null = null
@@ -95,15 +90,21 @@ export function usePageNavigation({
 
 	const handleImportHtml = useCallback(async (html: string, name: string, sourceUrl?: string) => {
 		const preparedHtml = await prepareHtmlForViewer(html, sourceUrl)
-		const page: SnapshotCustomPage = {
-			id: `custom-${Date.now()}`,
-			name,
-			kind: "snapshot",
-			preparedHtml,
-			sourceUrl,
-		}
-		setCustomPages((prev) => [...prev, page])
-		setActiveCustomId(page.id)
+		let pageId: string | null = null
+		setCustomPages((prev) => {
+			// Deduplicate: if a snapshot page with the same sourceUrl exists, update it
+			if (sourceUrl) {
+				const existing = prev.find((p) => p.kind === "snapshot" && p.sourceUrl === sourceUrl)
+				if (existing) {
+					pageId = existing.id
+					return prev.map((p) => (p.id === existing.id ? { ...p, preparedHtml, name } : p))
+				}
+			}
+			const id = `custom-${Date.now()}`
+			pageId = id
+			return [...prev, { id, name, kind: "snapshot" as const, preparedHtml, sourceUrl }]
+		})
+		setActiveCustomId(pageId!)
 		setCurrentPreset("custom")
 		setSceneKey((k) => k + 1)
 		setShowHint(false)

@@ -589,7 +589,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					bodyPositions={bodyPositions}
 					physicsEnabled={settings.physicsEnabled}
 					showObstacleBounds={settings.showObstacleBounds}
-					hidden={!!pickerMode}
+					hideLetterBodies={!!pickerMode}
 				/>
 
 				<SnapshotPhysicsOverlay

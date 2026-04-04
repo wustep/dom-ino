@@ -16,7 +16,8 @@ interface SnapshotTextLayerProps {
 	bodyPositions: Map<string, { x: number; y: number; w: number; h: number; angle: number }>
 	physicsEnabled: boolean
 	showObstacleBounds: boolean
-	hidden: boolean
+	/** Hides only the letter-body overlay (not the text flow overlay). */
+	hideLetterBodies: boolean
 }
 
 /** Renders imported-page text: either as Pretext reflow or as letter-body glyphs. */
@@ -30,13 +31,11 @@ export const SnapshotTextLayer = memo(function SnapshotTextLayer({
 	bodyPositions,
 	physicsEnabled,
 	showObstacleBounds,
-	hidden,
+	hideLetterBodies,
 }: SnapshotTextLayerProps) {
-	if (hidden) return null
-
 	return (
 		<>
-			{/* Pretext text overlay */}
+			{/* Pretext text overlay — always rendered when active, even during picker mode */}
 			{importedTextFlowActive &&
 				importedTextLayouts.map((layout) => {
 					const el = layout.sceneElement
@@ -86,7 +85,8 @@ export const SnapshotTextLayer = memo(function SnapshotTextLayer({
 				})}
 
 			{/* Letter-body overlay: one glyph-body PhysicsDomItem per character */}
-			{importedTextBodiesActive &&
+			{!hideLetterBodies &&
+				importedTextBodiesActive &&
 				importedTextBodyElements.map((el) => {
 					const pos = bodyPositions.get(el.id)
 					return (
