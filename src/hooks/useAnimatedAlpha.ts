@@ -77,7 +77,7 @@ export function useAnimatedAlpha(
 		return () => {
 			cancelled = true
 		}
-	}, [animatedElements])
+	}, [animatedElements, paused])
 
 	useEffect(() => {
 		for (const controller of controllersRef.current.values()) {

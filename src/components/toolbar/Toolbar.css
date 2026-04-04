@@ -198,7 +198,9 @@
 
 .dt-reveal:hover,
 .dt-reveal:focus-visible {
+	/* biome-ignore lint/complexity/noImportantStyles: overrides inline styles set in JSX */
 	opacity: 1 !important;
+	/* biome-ignore lint/complexity/noImportantStyles: overrides inline styles set in JSX */
 	transform: translateY(-2px) scale(1.03) !important;
 	color: var(--dt-text-bright);
 	border-color: rgba(255, 255, 255, 0.22);

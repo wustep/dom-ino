@@ -143,6 +143,7 @@ export function PagesPanel({ onClose }: PagesPanelProps) {
 							onKeyDown={(e) => {
 								if (e.key === "Enter") handleFetchUrl()
 							}}
+							// biome-ignore lint/a11y/noAutofocus: intentional focus on panel open
 							autoFocus
 							className="dt-input dt-input--mono"
 						/>

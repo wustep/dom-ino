@@ -400,7 +400,7 @@ describe("snapshotHtmlToScene (structure-based fallback)", () => {
 				const el = origCreateElement(tag, options)
 				if (tag === "iframe") {
 					// Provide a fake DOMTokenList for sandbox
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					// biome-ignore lint/suspicious/noExplicitAny: jsdom iframe.sandbox is not a DOMTokenList
 					;(el as any).sandbox = { add: vi.fn() }
 					// Make the iframe immediately error so we skip the 10s timeout
 					setTimeout(() => (el as HTMLIFrameElement).onerror?.(new Event("error")), 0)
