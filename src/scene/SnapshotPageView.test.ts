@@ -3,6 +3,7 @@ import type { SceneElement } from "../scene/types"
 import {
 	hasMovedImportedElement,
 	hasRenderableImportedText,
+	shouldActivateImportedTextFlow,
 	toStageRect,
 } from "./snapshotViewUtils"
 
@@ -107,5 +108,59 @@ describe("hasRenderableImportedText", () => {
 				],
 			}),
 		).toBe(true)
+	})
+})
+
+describe("shouldActivateImportedTextFlow", () => {
+	it("stays off when there are no imported text blocks", () => {
+		expect(
+			shouldActivateImportedTextFlow({
+				pretextEnabled: true,
+				textBodiesEnabled: false,
+				textBlockCount: 0,
+				selectedObstacleCount: 1,
+				staticObstacleCount: 1,
+				droppedElementCount: 0,
+			}),
+		).toBe(false)
+	})
+
+	it("activates on initial load when static imported obstacles exist", () => {
+		expect(
+			shouldActivateImportedTextFlow({
+				pretextEnabled: true,
+				textBodiesEnabled: false,
+				textBlockCount: 8,
+				selectedObstacleCount: 0,
+				staticObstacleCount: 3,
+				droppedElementCount: 0,
+			}),
+		).toBe(true)
+	})
+
+	it("activates when dropped elements exist even without imported obstacles", () => {
+		expect(
+			shouldActivateImportedTextFlow({
+				pretextEnabled: true,
+				textBodiesEnabled: false,
+				textBlockCount: 8,
+				selectedObstacleCount: 0,
+				staticObstacleCount: 0,
+				droppedElementCount: 1,
+			}),
+		).toBe(true)
+	})
+
+	it("stays off when text-body mode is enabled", () => {
+		expect(
+			shouldActivateImportedTextFlow({
+				pretextEnabled: true,
+				textBodiesEnabled: true,
+				textBlockCount: 8,
+				selectedObstacleCount: 1,
+				staticObstacleCount: 3,
+				droppedElementCount: 1,
+			}),
+		).toBe(false)
 	})
 })

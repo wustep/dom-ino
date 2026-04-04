@@ -34,3 +34,23 @@ export function hasMovedImportedElement(
 export function hasRenderableImportedText(flow?: Pick<TextFlowResult, "lines">): boolean {
 	return Boolean(flow && flow.lines.length > 0)
 }
+
+export function shouldActivateImportedTextFlow({
+	pretextEnabled,
+	textBodiesEnabled,
+	textBlockCount,
+	selectedObstacleCount,
+	staticObstacleCount,
+	droppedElementCount,
+}: {
+	pretextEnabled: boolean
+	textBodiesEnabled: boolean
+	textBlockCount: number
+	selectedObstacleCount: number
+	staticObstacleCount: number
+	droppedElementCount: number
+}): boolean {
+	if (!pretextEnabled || textBodiesEnabled || textBlockCount === 0) return false
+
+	return selectedObstacleCount > 0 || staticObstacleCount > 0 || droppedElementCount > 0
+}

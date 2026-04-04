@@ -15,9 +15,14 @@ import {
 	type SnapshotTextBlock,
 	syncHiddenNodes,
 } from "../scene/snapshotHelpers"
-import { hasMovedImportedElement, hasRenderableImportedText } from "../scene/snapshotViewUtils"
+import {
+	hasMovedImportedElement,
+	hasRenderableImportedText,
+	shouldActivateImportedTextFlow,
+} from "../scene/snapshotViewUtils"
 import type { ObstacleRect, SavedElement, SceneElement, SnapshotCustomPage } from "../scene/types"
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
+import { loadSettings, saveSettings } from "../utils/persistence"
 import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
 import { QuickSavePicker } from "./picker/QuickSavePicker"
 import {
@@ -60,19 +65,11 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		useState<SceneElement[]>(EMPTY_ELEMENTS)
 	const [importedTextBodyBlockIds, setImportedTextBodyBlockIds] =
 		useState<Set<string>>(EMPTY_ID_SET)
-	const [settings, setSettings] = useState<SceneSettings>({
-		physicsEnabled: true,
-		showObstacleBounds: false,
-		showLineBounds: false,
-		gravityX: 0,
-		gravityY: 0,
-		paused: false,
-		pretextEnabled: true,
-		textBodiesEnabled: false,
-		maxAutoSelectComponents: 500,
-		allowWordBreaks: true,
-		restitution: 0.3,
-	})
+	const [settings, setSettingsRaw] = useState<SceneSettings>(loadSettings)
+	const setSettings = useCallback((s: SceneSettings) => {
+		setSettingsRaw(s)
+		saveSettings(s)
+	}, [])
 
 	const {
 		pickerMode,
@@ -182,11 +179,16 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		[bodyPositions, selectedElements],
 	)
 
-	const importedTextFlowActive =
-		!settings.textBodiesEnabled &&
-		settings.pretextEnabled &&
-		textBlocks.length > 0 &&
-		(hasMovedSelectedElements || droppedElements.length > 0)
+	const importedTextFlowActive = shouldActivateImportedTextFlow({
+		pretextEnabled: settings.pretextEnabled,
+		textBodiesEnabled: settings.textBodiesEnabled,
+		textBlockCount: textBlocks.length,
+		selectedObstacleCount: hasMovedSelectedElements
+			? selectedElements.length
+			: activeSelectedIds.size,
+		staticObstacleCount: staticObstacleCandidates.length,
+		droppedElementCount: droppedElements.length,
+	})
 
 	const importedTextBodiesActive = settings.textBodiesEnabled && textBodyBlocks.length > 0
 
