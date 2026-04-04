@@ -23,7 +23,6 @@ interface TextFlowRegionProps {
 	flow?: TextFlowResult
 	inlineStyles?: InlineStyleRun[]
 	showDebug?: boolean
-	generation: number
 	onLineCount?: (count: number) => void
 	minSegmentWidth?: number
 	allowWordBreaks?: boolean
@@ -101,7 +100,6 @@ export const TextFlowRegion = memo(function TextFlowRegion({
 	flow: providedFlow,
 	inlineStyles,
 	showDebug,
-	generation,
 	onLineCount,
 	minSegmentWidth = 8,
 	allowWordBreaks = true,
@@ -109,8 +107,6 @@ export const TextFlowRegion = memo(function TextFlowRegion({
 	onEndCursor,
 }: TextFlowRegionProps) {
 	const flow = useMemo(() => {
-		// generation is included in deps to force recompute when obstacles change (e.g., animated alpha)
-		void generation
 		if (providedFlow) return providedFlow
 		return computeTextFlow(
 			text,
@@ -139,7 +135,6 @@ export const TextFlowRegion = memo(function TextFlowRegion({
 		minSegmentWidth,
 		allowWordBreaks,
 		startCursor,
-		generation,
 	])
 
 	useEffect(() => {

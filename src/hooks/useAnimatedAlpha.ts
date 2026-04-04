@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { AlphaRowInterval, AlphaTightBounds, SceneElement } from "../scene/types"
 import { GifAlphaController, parseGifFromDataUrl } from "../utils/gifFrames"
 import { computeTightBoundsFromAlphaRows, isAnimatedImageSrc } from "../utils/imageAlpha"
@@ -22,15 +22,21 @@ interface AnimatedAlphaState {
  * Uses gifuct-js to parse GIF frames and provides frame-synced alpha data
  * based on timing (since browsers don't expose current GIF frame via canvas).
  */
+const EMPTY_ALPHA_STATE: AnimatedAlphaState = {}
+
 export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
-	const [alphaState, setAlphaState] = useState<AnimatedAlphaState>({})
+	const [alphaState, setAlphaState] = useState<AnimatedAlphaState>(EMPTY_ALPHA_STATE)
 	const controllersRef = useRef<Map<string, GifAlphaController>>(new Map())
 	const prevFrameRef = useRef<Map<string, number>>(new Map())
 	// Track when each element was first seen (approximates when browser started playing)
 	const elementFirstSeenRef = useRef<Map<string, number>>(new Map())
 
-	const animatedElements = elements.filter(
-		(el) => el.type === "image" && el.imageSrc && isAnimatedImageSrc(el.imageSrc),
+	const animatedElements = useMemo(
+		() =>
+			elements.filter(
+				(el) => el.type === "image" && el.imageSrc && isAnimatedImageSrc(el.imageSrc),
+			),
+		[elements],
 	)
 
 	// Track when elements first appear
@@ -87,7 +93,7 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 		if (animatedElements.length === 0) {
 			controllersRef.current.clear()
 			prevFrameRef.current.clear()
-			setAlphaState({})
+			setAlphaState(EMPTY_ALPHA_STATE)
 			return
 		}
 

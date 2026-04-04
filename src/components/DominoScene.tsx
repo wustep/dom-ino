@@ -23,6 +23,7 @@ import { Toolbar } from "./Toolbar"
 
 const NOOP_SELECT_CUSTOM_PAGE: (id: string) => void = () => {}
 const NOOP_RESET_ALL = () => {}
+const EMPTY_CUSTOM_PAGES: CustomPage[] = []
 
 interface DominoSceneProps {
 	scene: SceneDescription
@@ -94,23 +95,12 @@ export function DominoScene({
 	const containerRef = useRef<HTMLDivElement>(null)
 	const physicsRef = useRef<PhysicsEngine | null>(null)
 
-	const [generation, setGeneration] = useState(0)
 	const [totalLineCount, setTotalLineCount] = useState(0)
 	const [textBodyElements, setTextBodyElements] = useState<SceneElement[]>([])
 	const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 	const effectiveElements = scene.elements
 
 	const animatedAlpha = useAnimatedAlpha(effectiveElements)
-
-	// Compute a generation counter that changes when animated alpha changes
-	const animatedAlphaGeneration = useMemo(() => {
-		let gen = 0
-		for (const entry of Object.values(animatedAlpha)) {
-			if (entry.rows) gen += entry.rows.length
-			if (entry.bounds) gen += Math.round(entry.bounds.left * 1000 + entry.bounds.right * 1000)
-		}
-		return gen
-	}, [animatedAlpha])
 
 	// Update physics body bounds when alpha changes for animated images
 	useEffect(() => {
@@ -145,14 +135,12 @@ export function DominoScene({
 		handleCloseSavePicker,
 	} = usePickerPause({ physicsRef, isPaused: settings.paused })
 
-	const bumpGeneration = useCallback(() => setGeneration((g) => g + 1), [])
 	const { bodyPositions, fps } = usePhysicsLoop({
 		physicsRef,
 		physicsEnabled: settings.physicsEnabled,
 		gravityX: settings.gravityX,
 		gravityY: settings.gravityY,
 		restitution: settings.restitution,
-		onPositionsChanged: bumpGeneration,
 	})
 
 	const { textElements, throwableElements, staticElements } = useMemo(() => {
@@ -334,8 +322,6 @@ export function DominoScene({
 		},
 		[scene, onSceneChange],
 	)
-
-	const handleSaveElement = useCallback((el: SceneElement) => onSaveElement(el), [onSaveElement])
 
 	const saveCandidates = useMemo(() => {
 		return effectiveElements
@@ -546,7 +532,6 @@ export function DominoScene({
 										containerMaxHeight={(textMaxHeights.get(el.id) ?? el.rect.height) - pad * 2}
 										obstacles={obstacles}
 										showDebug={settings.showLineBounds}
-										generation={generation + animatedAlphaGeneration}
 										onLineCount={reportLines}
 										minSegmentWidth={flowMinSegmentWidth}
 										allowWordBreaks={allowWordBreaks}
@@ -627,7 +612,7 @@ export function DominoScene({
 						elements={pickerElements}
 						savedElements={savedElements}
 						onToggle={handleToggleThrowable}
-						onSave={handleSaveElement}
+						onSave={onSaveElement}
 						onUnsave={onUnsaveElement}
 						onDelete={handleDeletePickerElement}
 						onClose={handleClosePicker}
@@ -637,7 +622,7 @@ export function DominoScene({
 				{savePickerMode && (
 					<QuickSavePicker
 						candidates={saveCandidates}
-						onSave={handleSaveElement}
+						onSave={onSaveElement}
 						onUnsave={onUnsaveElement}
 						onClose={handleCloseSavePicker}
 					/>
@@ -665,7 +650,7 @@ export function DominoScene({
 				onSaveStashImageFiles={onSaveStashImageFiles}
 				onClearSaved={onClearSaved}
 				onRemoveSaved={onRemoveSaved}
-				customPages={customPages ?? []}
+				customPages={customPages ?? EMPTY_CUSTOM_PAGES}
 				activeCustomId={activeCustomId ?? null}
 				onSelectCustomPage={onSelectCustomPage ?? NOOP_SELECT_CUSTOM_PAGE}
 				onResetAll={onResetAll ?? NOOP_RESET_ALL}

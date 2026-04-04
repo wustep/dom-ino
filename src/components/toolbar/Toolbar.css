@@ -365,10 +365,6 @@
 	outline-offset: -1px;
 }
 
-.dt-btn-tiny:hover {
-	border-color: var(--dt-border-hover);
-}
-
 /* ─── Import Tabs ─── */
 .dt-tab {
 	flex: 1;
@@ -518,7 +514,6 @@
 	height: 4px;
 }
 
-/* ─── Reset Button ─── */
 /* ─── Reset Button ─── */
 .dt-reset-all {
 	width: 100%;
