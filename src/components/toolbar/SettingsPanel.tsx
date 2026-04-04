@@ -1,25 +1,20 @@
 import { useCallback } from "react"
-import type { DebugSettings } from "../Toolbar"
+import { type DebugSettings, useSettingsContext } from "../../contexts/SettingsContext"
 
 interface SettingsPanelProps {
-	settings: DebugSettings
-	onSettingsChange: (s: DebugSettings) => void
-	fps: number
-	bodyCount: number
-	lineCount: number
-	onResetAll: () => void
 	onClose: () => void
 }
 
-export function SettingsPanel({
-	settings,
-	onSettingsChange,
-	fps,
-	bodyCount,
-	lineCount,
-	onResetAll,
-	onClose,
-}: SettingsPanelProps) {
+export function SettingsPanel({ onClose }: SettingsPanelProps) {
+	const {
+		settings,
+		setSettings: onSettingsChange,
+		fps,
+		bodyCount,
+		lineCount,
+		onResetAll,
+	} = useSettingsContext()
+
 	const update = useCallback(
 		(partial: Partial<DebugSettings>) => onSettingsChange({ ...settings, ...partial }),
 		[settings, onSettingsChange],

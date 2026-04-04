@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react"
-import type { CustomPage } from "../../App"
 import type { PresetKey } from "../../scene/presets"
 import { PRESET_LIST } from "../../scene/presets"
+import type { CustomPage } from "../../scene/types"
 
 const WEBSITE_PRESETS = [
 	{ label: "Wikipedia", url: "https://en.wikipedia.org/wiki/Main_Page" },

@@ -1,8 +1,16 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+	SavedElementsContext,
+	type SavedElementsContextValue,
+} from "../contexts/SavedElementsContext"
+import {
+	type DebugSettings,
+	SettingsContext,
+	type SettingsContextValue,
+} from "../contexts/SettingsContext"
 import type { SavedElement } from "../scene/types"
-import type { DebugSettings } from "./Toolbar"
 import { Toolbar } from "./Toolbar"
 
 function defaultSettings(): DebugSettings {
@@ -21,33 +29,64 @@ function defaultSettings(): DebugSettings {
 	}
 }
 
-function defaultProps(overrides: Record<string, unknown> = {}) {
+function defaultSavedElementsCtx(
+	overrides: Partial<SavedElementsContextValue> = {},
+): SavedElementsContextValue {
+	return {
+		savedElements: [],
+		saveElement: vi.fn(),
+		unsaveElement: vi.fn(),
+		removeSaved: vi.fn(),
+		saveStashImageFiles: vi.fn(),
+		...overrides,
+	}
+}
+
+function defaultSettingsCtx(overrides: Partial<SettingsContextValue> = {}): SettingsContextValue {
 	return {
 		settings: defaultSettings(),
-		onSettingsChange: vi.fn(),
-		onExplode: vi.fn(),
-		onReset: vi.fn(),
-		onTogglePicker: vi.fn(),
-		pickerMode: false,
-		savePickerMode: false,
-		onToggleSavePicker: vi.fn(),
+		setSettings: vi.fn(),
 		fps: 60,
 		bodyCount: 5,
 		lineCount: 100,
+		onResetAll: vi.fn(),
+		...overrides,
+	}
+}
+
+function defaultProps(overrides: Record<string, unknown> = {}) {
+	return {
+		onExplode: vi.fn(),
+		onReset: vi.fn(),
+		onTogglePicker: vi.fn(),
+		pickerMode: null as null | "throwable" | "save",
+		onToggleSavePicker: vi.fn(),
 		currentPreset: "editorial" as const,
 		onSelectPreset: vi.fn(),
 		onImportHtml: vi.fn(),
 		onFetchUrl: vi.fn().mockResolvedValue(undefined),
-		savedElements: [] as SavedElement[],
 		onDropSaved: vi.fn(),
-		onClearSaved: vi.fn(),
-		onRemoveSaved: vi.fn(),
 		customPages: [],
 		activeCustomId: null,
 		onSelectCustomPage: vi.fn(),
-		onResetAll: vi.fn(),
 		...overrides,
 	}
+}
+
+function renderToolbar(
+	props?: Parameters<typeof defaultProps>[0],
+	ctxOverrides?: {
+		savedElements?: Partial<SavedElementsContextValue>
+		settings?: Partial<SettingsContextValue>
+	},
+) {
+	return render(
+		<SavedElementsContext value={defaultSavedElementsCtx(ctxOverrides?.savedElements)}>
+			<SettingsContext value={defaultSettingsCtx(ctxOverrides?.settings)}>
+				<Toolbar {...defaultProps(props)} />
+			</SettingsContext>
+		</SavedElementsContext>,
+	)
 }
 
 beforeEach(() => {
@@ -81,7 +120,7 @@ function mockToolbarDockRect() {
 describe("Toolbar", () => {
 	describe("rendering", () => {
 		it("renders the toolbar buttons", () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			expect(screen.getByLabelText("Pages")).toBeInTheDocument()
 			expect(screen.getByLabelText("Explode scene")).toBeInTheDocument()
 			expect(screen.getByLabelText("Reset scene")).toBeInTheDocument()
@@ -89,8 +128,8 @@ describe("Toolbar", () => {
 			expect(screen.getByLabelText("Hide toolbar")).toBeInTheDocument()
 		})
 
-		it("shows picker as active when pickerMode is true", () => {
-			render(<Toolbar {...defaultProps({ pickerMode: true })} />)
+		it("shows picker as active when pickerMode is throwable", () => {
+			renderToolbar({ pickerMode: "throwable" })
 			expect(screen.getByLabelText("Exit component picker")).toBeInTheDocument()
 		})
 	})
@@ -98,21 +137,39 @@ describe("Toolbar", () => {
 	describe("button interactions", () => {
 		it("calls onExplode when explode clicked", async () => {
 			const props = defaultProps()
-			render(<Toolbar {...props} />)
+			render(
+				<SavedElementsContext value={defaultSavedElementsCtx()}>
+					<SettingsContext value={defaultSettingsCtx()}>
+						<Toolbar {...props} />
+					</SettingsContext>
+				</SavedElementsContext>,
+			)
 			await userEvent.click(screen.getByLabelText("Explode scene"))
 			expect(props.onExplode).toHaveBeenCalledOnce()
 		})
 
 		it("calls onReset when reset clicked", async () => {
 			const props = defaultProps()
-			render(<Toolbar {...props} />)
+			render(
+				<SavedElementsContext value={defaultSavedElementsCtx()}>
+					<SettingsContext value={defaultSettingsCtx()}>
+						<Toolbar {...props} />
+					</SettingsContext>
+				</SavedElementsContext>,
+			)
 			await userEvent.click(screen.getByLabelText("Reset scene"))
 			expect(props.onReset).toHaveBeenCalledOnce()
 		})
 
 		it("calls onTogglePicker when component picker clicked", async () => {
 			const props = defaultProps()
-			render(<Toolbar {...props} />)
+			render(
+				<SavedElementsContext value={defaultSavedElementsCtx()}>
+					<SettingsContext value={defaultSettingsCtx()}>
+						<Toolbar {...props} />
+					</SettingsContext>
+				</SavedElementsContext>,
+			)
 			await userEvent.click(screen.getByLabelText("Enter component picker"))
 			expect(props.onTogglePicker).toHaveBeenCalledOnce()
 		})
@@ -120,13 +177,13 @@ describe("Toolbar", () => {
 
 	describe("collapse/expand", () => {
 		it("hides toolbar content when collapsed", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Hide toolbar"))
 			expect(screen.getByLabelText("Show toolbar")).toBeInTheDocument()
 		})
 
 		it("shows toolbar content when expanded", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			// Collapse first
 			await userEvent.click(screen.getByLabelText("Hide toolbar"))
 			// Then expand
@@ -135,7 +192,7 @@ describe("Toolbar", () => {
 		})
 
 		it("hides the collapsed reveal until the pointer returns near the dock", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Hide toolbar"))
 			mockToolbarDockRect()
 
@@ -150,7 +207,7 @@ describe("Toolbar", () => {
 
 	describe("pages panel", () => {
 		it("opens pages panel when Pages clicked", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Pages"))
 			expect(screen.getByText("Editorial")).toBeInTheDocument()
 			expect(screen.getByText("Landing")).toBeInTheDocument()
@@ -160,20 +217,26 @@ describe("Toolbar", () => {
 
 		it("calls onSelectPreset when a preset is clicked", async () => {
 			const props = defaultProps()
-			render(<Toolbar {...props} />)
+			render(
+				<SavedElementsContext value={defaultSavedElementsCtx()}>
+					<SettingsContext value={defaultSettingsCtx()}>
+						<Toolbar {...props} />
+					</SettingsContext>
+				</SavedElementsContext>,
+			)
 			await userEvent.click(screen.getByLabelText("Pages"))
 			await userEvent.click(screen.getByText("Landing"))
 			expect(props.onSelectPreset).toHaveBeenCalledWith("landing")
 		})
 
 		it("shows URL fetch tab by default", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Pages"))
 			expect(screen.getByPlaceholderText("example.com")).toBeInTheDocument()
 		})
 
 		it("switches to HTML paste tab", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Pages"))
 			await userEvent.click(screen.getByText("Paste HTML"))
 			expect(screen.getByPlaceholderText("Name")).toBeInTheDocument()
@@ -181,7 +244,13 @@ describe("Toolbar", () => {
 
 		it("calls onFetchUrl when fetch button clicked", async () => {
 			const props = defaultProps()
-			render(<Toolbar {...props} />)
+			render(
+				<SavedElementsContext value={defaultSavedElementsCtx()}>
+					<SettingsContext value={defaultSettingsCtx()}>
+						<Toolbar {...props} />
+					</SettingsContext>
+				</SavedElementsContext>,
+			)
 			await userEvent.click(screen.getByLabelText("Pages"))
 			const input = screen.getByPlaceholderText("example.com")
 			await userEvent.type(input, "test.com")
@@ -190,10 +259,9 @@ describe("Toolbar", () => {
 		})
 
 		it("shows fetch error on failure", async () => {
-			const props = defaultProps({
+			renderToolbar({
 				onFetchUrl: vi.fn().mockRejectedValue(new Error("Network failed")),
 			})
-			render(<Toolbar {...props} />)
 			await userEvent.click(screen.getByLabelText("Pages"))
 			const input = screen.getByPlaceholderText("example.com")
 			await userEvent.type(input, "bad.com")
@@ -203,7 +271,13 @@ describe("Toolbar", () => {
 
 		it("calls onImportHtml when paste import button clicked", async () => {
 			const props = defaultProps()
-			render(<Toolbar {...props} />)
+			render(
+				<SavedElementsContext value={defaultSavedElementsCtx()}>
+					<SettingsContext value={defaultSettingsCtx()}>
+						<Toolbar {...props} />
+					</SettingsContext>
+				</SavedElementsContext>,
+			)
 			await userEvent.click(screen.getByLabelText("Pages"))
 			await userEvent.click(screen.getByText("Paste HTML"))
 			// Two textboxes on the paste tab (Name input + HTML textarea); get the textarea
@@ -217,7 +291,7 @@ describe("Toolbar", () => {
 
 	describe("settings panel", () => {
 		it("opens settings panel", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Settings"))
 			expect(screen.getByText("Physics")).toBeInTheDocument()
 			expect(screen.getByText("Letter bodies")).toBeInTheDocument()
@@ -226,7 +300,7 @@ describe("Toolbar", () => {
 		})
 
 		it("shows FPS, body count, and line count", async () => {
-			render(<Toolbar {...defaultProps({ fps: 58, bodyCount: 12, lineCount: 250 })} />)
+			renderToolbar({}, { settings: { fps: 58, bodyCount: 12, lineCount: 250 } })
 			await userEvent.click(screen.getByLabelText("Settings"))
 			expect(screen.getByText("58")).toBeInTheDocument()
 			expect(screen.getByText(/12 bodies/)).toBeInTheDocument()
@@ -234,19 +308,18 @@ describe("Toolbar", () => {
 		})
 
 		it("shows reset all button", async () => {
-			const props = defaultProps()
-			render(<Toolbar {...props} />)
+			const onResetAll = vi.fn()
+			renderToolbar({}, { settings: { onResetAll } })
 			await userEvent.click(screen.getByLabelText("Settings"))
 			const resetBtn = screen.getByText("Reset all state")
 			await userEvent.click(resetBtn)
-			expect(props.onResetAll).toHaveBeenCalledOnce()
+			expect(onResetAll).toHaveBeenCalledOnce()
 		})
 
 		it("disables reflow controls when letter bodies are on", async () => {
-			render(
-				<Toolbar
-					{...defaultProps({ settings: { ...defaultSettings(), textBodiesEnabled: true } })}
-				/>,
+			renderToolbar(
+				{},
+				{ settings: { settings: { ...defaultSettings(), textBodiesEnabled: true } } },
 			)
 			await userEvent.click(screen.getByLabelText("Settings"))
 			expect(screen.getByRole("switch", { name: "Pretext reflow" })).toBeDisabled()
@@ -256,7 +329,7 @@ describe("Toolbar", () => {
 
 	describe("stash panel", () => {
 		it("shows empty state when no saved elements", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Saved components"))
 			// "Pick from page" appears as both a button and in help text; check the button
 			expect(screen.getByText("Pick from page")).toBeInTheDocument()
@@ -277,7 +350,7 @@ describe("Toolbar", () => {
 					sourceScene: "Editorial",
 				},
 			]
-			render(<Toolbar {...defaultProps({ savedElements: saved })} />)
+			renderToolbar({}, { savedElements: { savedElements: saved } })
 			await userEvent.click(screen.getByLabelText("Saved components"))
 			expect(screen.getByText("Click Me")).toBeInTheDocument()
 		})
@@ -296,27 +369,25 @@ describe("Toolbar", () => {
 					sourceScene: "Test",
 				},
 			]
-			render(<Toolbar {...defaultProps({ savedElements: saved })} />)
+			renderToolbar({}, { savedElements: { savedElements: saved } })
 			expect(screen.getByText("1")).toBeInTheDocument()
 		})
 
 		it("shows remove button for saved elements", async () => {
-			const props = defaultProps({
-				savedElements: [
-					{
-						element: {
-							id: "el-1",
-							type: "button",
-							rect: { x: 0, y: 0, width: 100, height: 40 },
-							throwable: true,
-							pinned: false,
-						},
-						savedAt: Date.now(),
-						sourceScene: "Test",
+			const saved: SavedElement[] = [
+				{
+					element: {
+						id: "el-1",
+						type: "button",
+						rect: { x: 0, y: 0, width: 100, height: 40 },
+						throwable: true,
+						pinned: false,
 					},
-				],
-			})
-			render(<Toolbar {...props} />)
+					savedAt: Date.now(),
+					sourceScene: "Test",
+				},
+			]
+			renderToolbar({}, { savedElements: { savedElements: saved } })
 			await userEvent.click(screen.getByLabelText("Saved components"))
 			expect(screen.getByText("Drop")).toBeInTheDocument()
 			expect(screen.getByText("×")).toBeInTheDocument()
@@ -325,7 +396,7 @@ describe("Toolbar", () => {
 
 	describe("panel toggling", () => {
 		it("closes panel when same button clicked again", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Pages"))
 			expect(screen.getByText("Editorial")).toBeInTheDocument()
 			await userEvent.click(screen.getByLabelText("Pages"))
@@ -333,7 +404,7 @@ describe("Toolbar", () => {
 		})
 
 		it("switches panels when different button clicked", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Pages"))
 			expect(screen.getByText("Editorial")).toBeInTheDocument()
 			await userEvent.click(screen.getByLabelText("Settings"))
@@ -342,7 +413,7 @@ describe("Toolbar", () => {
 		})
 
 		it("closes panel on outside pointerdown", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Pages"))
 			expect(screen.getByText("Editorial")).toBeInTheDocument()
 			fireEvent.pointerDown(document.body)
@@ -352,7 +423,7 @@ describe("Toolbar", () => {
 
 	describe("website presets", () => {
 		it("shows website presets in pages panel", async () => {
-			render(<Toolbar {...defaultProps()} />)
+			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Pages"))
 			expect(screen.getByText("Wikipedia")).toBeInTheDocument()
 			expect(screen.getByText("NYTimes")).toBeInTheDocument()

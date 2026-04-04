@@ -1,37 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DominoScene } from "./components/DominoScene"
+import { FetchOverlay, Hint, PageReloadOverlay } from "./components/Overlays"
 import { SnapshotPageView } from "./components/SnapshotPageView"
+import { SavedElementsContext } from "./contexts/SavedElementsContext"
 import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot"
 import type { PresetKey } from "./scene/presets"
-import { DEFAULT_PRESET, getPresetScene, isPresetKey } from "./scene/presets"
-import type { SavedElement, SceneDescription, SceneElement } from "./scene/types"
+import { DEFAULT_PRESET, getPresetScene } from "./scene/presets"
+import type {
+	CustomPage,
+	SavedElement,
+	SceneCustomPage,
+	SceneDescription,
+	SceneElement,
+	SnapshotCustomPage,
+} from "./scene/types"
+import { clearPersistedState, loadState, saveState } from "./utils/persistence"
 import { savedElementFromImageFile } from "./utils/stashImageFromFile"
-
-export interface SceneCustomPage {
-	id: string
-	name: string
-	kind: "scene"
-	scene: SceneDescription
-}
-
-export interface SnapshotCustomPage {
-	id: string
-	name: string
-	kind: "snapshot"
-	preparedHtml: string
-	sourceUrl?: string
-}
-
-export type CustomPage = SceneCustomPage | SnapshotCustomPage
-
-const LS_KEY = "domino-state"
-
-interface PersistedState {
-	currentPreset: PresetKey | "custom"
-	activeCustomId: string | null
-	savedElements: SavedElement[]
-	customPages: CustomPage[]
-}
 
 interface AppProps {
 	initialFetchUrl?: string | null
@@ -40,100 +24,6 @@ interface AppProps {
 }
 
 let consumedInitialFetchUrl: string | null = null
-
-function normalizeCustomPages(pages: unknown): CustomPage[] {
-	if (!Array.isArray(pages)) return []
-	return pages.reduce<CustomPage[]>((acc, page) => {
-		if (!page || typeof page !== "object") return acc
-		const p = page as Record<string, unknown>
-		if (typeof p.id !== "string" || typeof p.name !== "string") return acc
-		if (p.kind === "snapshot" && typeof p.preparedHtml === "string") {
-			acc.push({
-				id: p.id,
-				name: p.name,
-				kind: "snapshot" as const,
-				preparedHtml: p.preparedHtml,
-				sourceUrl: typeof p.sourceUrl === "string" ? p.sourceUrl : undefined,
-			})
-			return acc
-		}
-		if (p.kind === "scene" && p.scene && typeof p.scene === "object") {
-			acc.push({
-				id: p.id,
-				name: p.name,
-				kind: "scene" as const,
-				scene: p.scene as SceneDescription,
-			})
-			return acc
-		}
-		// Back-compat for older persisted shape
-		if (p.scene && typeof p.scene === "object") {
-			acc.push({
-				id: p.id,
-				name: p.name,
-				kind: "scene" as const,
-				scene: p.scene as SceneDescription,
-			})
-			return acc
-		}
-		return acc
-	}, [])
-}
-
-function loadState(): Partial<PersistedState> {
-	try {
-		const raw = localStorage.getItem(LS_KEY)
-		if (raw) {
-			const parsed = JSON.parse(raw) as Partial<PersistedState> & {
-				customPages?: unknown
-			}
-			const customPages = normalizeCustomPages(parsed.customPages).filter(
-				(page) => page.kind !== "scene" || page.scene.id !== "breakout",
-			)
-			const activeCustomId =
-				typeof parsed.activeCustomId === "string" &&
-				customPages.some((page) => page.id === parsed.activeCustomId)
-					? parsed.activeCustomId
-					: null
-			let currentPreset: PresetKey | "custom" | undefined =
-				parsed.currentPreset === "custom"
-					? "custom"
-					: isPresetKey(parsed.currentPreset)
-						? parsed.currentPreset
-						: undefined
-			if (currentPreset === "custom" && !activeCustomId) {
-				currentPreset = undefined
-			}
-			return {
-				...parsed,
-				activeCustomId,
-				currentPreset,
-				customPages,
-			}
-		}
-	} catch (e) {
-		console.warn("[DOMino] Failed to load persisted state:", e)
-	}
-	return {}
-}
-
-function saveState(s: PersistedState) {
-	try {
-		// Strip preparedHtml from snapshot pages to avoid localStorage quota issues.
-		// Pages with a sourceUrl will be re-fetched on reload.
-		const toSave: PersistedState = {
-			...s,
-			customPages: s.customPages.flatMap<CustomPage>((page) => {
-				if (page.kind !== "snapshot") return [page]
-				if (!page.sourceUrl) return [] // can't recover imported HTML, drop it
-				return [{ ...page, preparedHtml: "" }]
-			}),
-		}
-		localStorage.setItem(LS_KEY, JSON.stringify(toSave))
-	} catch (e) {
-		console.warn("[DOMino] Failed to save state:", e)
-	}
-}
 
 export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
 	const persisted = useMemo(() => loadState(), [])
@@ -197,6 +87,8 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		return null
 	}, [activeCustomPage, currentPreset, windowSize.width, windowSize.height])
 
+	// ─── Navigation handlers ───
+
 	const handleSelectPreset = useCallback((key: PresetKey) => {
 		setCurrentPreset(key)
 		setActiveCustomId(null)
@@ -234,7 +126,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			try {
 				const result = await fetchPageHtml(url)
 				let name = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
-				// For long URLs, use the last path segment for a shorter, distinguishable name
 				if (name.length > 25) {
 					const parts = name.split("/")
 					const last = parts[parts.length - 1]
@@ -263,7 +154,8 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		})
 	}, [initialFetchUrl, handleFetchUrl])
 
-	// Re-fetch snapshot pages that were persisted without preparedHtml
+	// ─── Re-fetch persisted snapshot pages ───
+
 	const refetchedRef = useRef<Set<string>>(new Set())
 	const [refetchError, setRefetchError] = useState<string | null>(null)
 	useEffect(() => {
@@ -296,9 +188,8 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		})
 	}, [activeCustomPage])
 
-	// Ensures modifying a preset creates exactly one scene-backed custom page fork.
-	// pendingForkIdRef prevents duplicate forks when called multiple times before
-	// React re-renders and updates activeCustomPage.
+	// ─── Scene forking ───
+
 	const pendingForkIdRef = useRef<string | null>(null)
 	if (activeCustomPage?.kind === "scene") {
 		pendingForkIdRef.current = null
@@ -340,6 +231,8 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		[ensureCustomScenePage],
 	)
 
+	// ─── Saved element handlers ───
+
 	const handleSaveElement = useCallback(
 		(el: SceneElement) => {
 			setSavedElements((prev) => {
@@ -360,7 +253,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			if (!scene) return
 			const el = { ...saved.element }
 			el.id = `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-			el.sourceSavedId = saved.element.id
 			el.throwable = true
 			el.pinned = false
 			el.rect = {
@@ -383,7 +275,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		[scene, ensureCustomScenePage, windowSize],
 	)
 
-	const handleClearSaved = useCallback(() => setSavedElements([]), [])
 	const handleRemoveSaved = useCallback((index: number) => {
 		setSavedElements((prev) => prev.filter((_, i) => i !== index))
 	}, [])
@@ -434,7 +325,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 	)
 
 	const handleResetAll = useCallback(() => {
-		localStorage.removeItem(LS_KEY)
+		clearPersistedState()
 		setCurrentPreset(DEFAULT_PRESET)
 		setCustomPages([])
 		setActiveCustomId(null)
@@ -442,8 +333,29 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		setSceneKey((k) => k + 1)
 	}, [])
 
+	// ─── Context values ───
+
+	const savedElementsCtx = useMemo(
+		() => ({
+			savedElements,
+			saveElement: handleSaveElement,
+			unsaveElement: handleUnsaveElement,
+			removeSaved: handleRemoveSaved,
+			saveStashImageFiles: handleSaveStashImageFiles,
+		}),
+		[
+			savedElements,
+			handleSaveElement,
+			handleUnsaveElement,
+			handleRemoveSaved,
+			handleSaveStashImageFiles,
+		],
+	)
+
+	// ─── Render ───
+
 	return (
-		<>
+		<SavedElementsContext value={savedElementsCtx}>
 			{activeCustomPage?.kind === "snapshot" && !activeCustomPage.preparedHtml ? (
 				<PageReloadOverlay
 					url={activeCustomPage.sourceUrl}
@@ -467,12 +379,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 					onSelectPreset={handleSelectPreset}
 					onImportHtml={handleImportHtml}
 					onFetchUrl={handleFetchUrl}
-					savedElements={savedElements}
-					onSaveElement={handleSaveElement}
-					onUnsaveElement={handleUnsaveElement}
-					onClearSaved={handleClearSaved}
-					onRemoveSaved={handleRemoveSaved}
-					onSaveStashImageFiles={handleSaveStashImageFiles}
 					customPages={customPages}
 					activeCustomId={activeCustomId}
 					onSelectCustomPage={handleSelectCustomPage}
@@ -487,13 +393,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 					onSelectPreset={handleSelectPreset}
 					onImportHtml={handleImportHtml}
 					onFetchUrl={handleFetchUrl}
-					savedElements={savedElements}
-					onSaveElement={handleSaveElement}
-					onUnsaveElement={handleUnsaveElement}
 					onDropSaved={handleDropSaved}
-					onClearSaved={handleClearSaved}
-					onRemoveSaved={handleRemoveSaved}
-					onSaveStashImageFiles={handleSaveStashImageFiles}
 					onDropImageFiles={handleDropImageFilesOnScene}
 					customPages={customPages}
 					activeCustomId={activeCustomId}
@@ -503,81 +403,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			) : null}
 			{fetchingUrl && <FetchOverlay url={fetchingUrl} />}
 			{showHint && <Hint />}
-		</>
-	)
-}
-
-function Spinner() {
-	return (
-		<svg className="domino-spinner" width="24" height="24" viewBox="0 0 24 24">
-			<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
-			<circle
-				cx="12"
-				cy="12"
-				r="10"
-				fill="none"
-				stroke="#999"
-				strokeWidth="2.5"
-				strokeDasharray="20 43"
-				strokeLinecap="round"
-			/>
-		</svg>
-	)
-}
-
-function FetchOverlay({ url }: { url: string }) {
-	const displayUrl = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
-	return (
-		<div className="domino-overlay domino-overlay--fetch">
-			<Spinner />
-			<div className="domino-overlay-status">
-				Fetching {displayUrl.length > 40 ? `${displayUrl.slice(0, 40)}...` : displayUrl}
-			</div>
-		</div>
-	)
-}
-
-function PageReloadOverlay({
-	url,
-	error,
-	onRetry,
-	onBack,
-}: {
-	url?: string
-	error: string | null
-	onRetry: () => void
-	onBack: () => void
-}) {
-	const displayUrl = url ? url.replace(/^https?:\/\//, "").replace(/\/$/, "") : "page"
-	return (
-		<div className="domino-overlay domino-overlay--reload">
-			{!error ? (
-				<>
-					<Spinner />
-					<div className="domino-overlay-status">Fetching {displayUrl}</div>
-				</>
-			) : (
-				<>
-					<div className="domino-overlay-error">{error}</div>
-					<div className="domino-overlay-actions">
-						<button onClick={onRetry} className="domino-overlay-btn domino-overlay-btn--primary">
-							Retry
-						</button>
-						<button onClick={onBack} className="domino-overlay-btn domino-overlay-btn--secondary">
-							Go back
-						</button>
-					</div>
-				</>
-			)}
-		</div>
-	)
-}
-
-function Hint() {
-	return (
-		<div className="domino-hint">
-			<span className="domino-hint-arrow">&#8597;</span>
-			Grab any card, badge, or button and throw it
-		</div>
+		</SavedElementsContext>
 	)
 }

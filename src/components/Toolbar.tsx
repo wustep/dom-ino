@@ -7,9 +7,10 @@ import {
 	useRef,
 	useState,
 } from "react"
-import type { CustomPage } from "../App"
+import { useSavedElements } from "../contexts/SavedElementsContext"
+import type { PickerMode } from "../hooks/usePickerPause"
 import type { PresetKey } from "../scene/presets"
-import type { SavedElement } from "../scene/types"
+import type { CustomPage, SavedElement } from "../scene/types"
 import "./toolbar/Toolbar.css"
 import {
 	ChevronDownIcon,
@@ -25,45 +26,20 @@ import { PagesPanel } from "./toolbar/PagesPanel"
 import { SettingsPanel } from "./toolbar/SettingsPanel"
 import { StashPanel } from "./toolbar/StashPanel"
 
-export interface DebugSettings {
-	physicsEnabled: boolean
-	showObstacleBounds: boolean
-	showLineBounds: boolean
-	gravityX: number
-	gravityY: number
-	paused: boolean
-	pretextEnabled: boolean
-	textBodiesEnabled: boolean
-	maxAutoSelectComponents: number
-	allowWordBreaks: boolean
-	restitution: number
-}
-
 interface ToolbarProps {
-	settings: DebugSettings
-	onSettingsChange: (s: DebugSettings) => void
 	onExplode: () => void
 	onReset: () => void
 	onTogglePicker: () => void
-	pickerMode: boolean
-	savePickerMode: boolean
+	pickerMode: PickerMode
 	onToggleSavePicker: () => void
-	fps: number
-	bodyCount: number
-	lineCount: number
 	currentPreset: PresetKey | "custom"
 	onSelectPreset: (key: PresetKey) => void
 	onImportHtml: (html: string, name: string) => void
 	onFetchUrl: (url: string) => Promise<void>
-	savedElements: SavedElement[]
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
-	onSaveStashImageFiles?: (files: File[]) => void
-	onClearSaved: () => void
-	onRemoveSaved: (index: number) => void
 	customPages: CustomPage[]
 	activeCustomId: string | null
 	onSelectCustomPage: (id: string) => void
-	onResetAll: () => void
 }
 
 type FlyoutPanel = "pages" | "settings" | "stash" | null
@@ -78,31 +54,22 @@ const COLLAPSED_REVEAL_PROXIMITY_PX = 128
 
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 	const {
-		settings,
-		onSettingsChange,
 		onExplode,
 		onReset,
 		onTogglePicker,
 		pickerMode,
-		savePickerMode,
 		onToggleSavePicker,
-		fps,
-		bodyCount,
-		lineCount,
 		currentPreset,
 		onSelectPreset,
 		onImportHtml,
 		onFetchUrl,
-		savedElements,
 		onDropSaved,
-		onSaveStashImageFiles,
-		onRemoveSaved,
 		customPages,
 		activeCustomId,
 		onSelectCustomPage,
-		onResetAll,
 	} = props
 
+	const { savedElements } = useSavedElements()
 	const [openPanel, setOpenPanel] = useState<FlyoutPanel>(null)
 	const [collapsed, setCollapsed] = useState(false)
 	const [focusedBtnIdx, setFocusedBtnIdx] = useState(0)
@@ -263,27 +230,14 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
 			{openPanel === "stash" && (
 				<StashPanel
-					savedElements={savedElements}
 					onDropSaved={onDropSaved}
-					onRemoveSaved={onRemoveSaved}
-					onSaveStashImageFiles={onSaveStashImageFiles}
-					savePickerMode={savePickerMode}
+					pickerMode={pickerMode}
 					onToggleSavePicker={onToggleSavePicker}
 					onClose={closePanel}
 				/>
 			)}
 
-			{openPanel === "settings" && (
-				<SettingsPanel
-					settings={settings}
-					onSettingsChange={onSettingsChange}
-					fps={fps}
-					bodyCount={bodyCount}
-					lineCount={lineCount}
-					onResetAll={onResetAll}
-					onClose={closePanel}
-				/>
-			)}
+			{openPanel === "settings" && <SettingsPanel onClose={closePanel} />}
 
 			<div
 				data-domino-toolbar-root="true"
@@ -368,10 +322,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					</Btn>
 					<Sep />
 					<Btn
-						active={pickerMode}
+						active={pickerMode === "throwable"}
 						onClick={onTogglePicker}
-						tip={pickerMode ? "Exit component picker" : "Enter component picker"}
-						accent={pickerMode ? "var(--dt-accent-blue, #3b82f6)" : undefined}
+						tip={pickerMode === "throwable" ? "Exit component picker" : "Enter component picker"}
+						accent={pickerMode === "throwable" ? "var(--dt-accent-blue, #3b82f6)" : undefined}
 						btnIndex={3}
 						focusedBtnIdx={focusedBtnIdx}
 						onBtnFocused={setFocusedBtnIdx}
@@ -381,11 +335,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						<PickerIcon />
 					</Btn>
 					<Btn
-						active={openPanel === "stash" || savePickerMode}
+						active={openPanel === "stash" || pickerMode === "save"}
 						onClick={() => toggle("stash")}
 						tip="Saved components"
 						accent={
-							savePickerMode
+							pickerMode === "save"
 								? "var(--dt-accent-light, #c4b5fd)"
 								: savedElements.length > 0
 									? "var(--dt-accent, #a78bfa)"

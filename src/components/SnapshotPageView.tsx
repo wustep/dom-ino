@@ -1,15 +1,22 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import type { CustomPage, SnapshotCustomPage } from "../App"
+import { useSavedElements } from "../contexts/SavedElementsContext"
+import { type DebugSettings, SettingsContext } from "../contexts/SettingsContext"
 import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
+import { useImportedTextLayouts } from "../hooks/useImportedTextLayouts"
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
 import { usePickerPause } from "../hooks/usePickerPause"
 import { useSnapshotScanner } from "../hooks/useSnapshotScanner"
 import type { PhysicsEngine } from "../physics/engine"
 import { createPhysicsEngine } from "../physics/engine"
 import type { PresetKey } from "../scene/presets"
-import type { ObstacleRect, SavedElement, SceneElement } from "../scene/types"
+import type {
+	CustomPage,
+	ObstacleRect,
+	SavedElement,
+	SceneElement,
+	SnapshotCustomPage,
+} from "../scene/types"
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
-import { computeTextFlow, type TextFlowResult } from "../textflow/useTextFlow"
 import { buildFontString, DEFAULT_SANS } from "../utils/fonts"
 import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
 import { ImportedPhysicsClone } from "./ImportedPhysicsClone"
@@ -17,8 +24,6 @@ import { PhysicsDomItem } from "./PhysicsDomItem"
 import { QuickSavePicker } from "./QuickSavePicker"
 import { SnapshotPickerOverlay, type SnapshotPickerOverlayItem } from "./SnapshotPickerOverlay"
 import {
-	extractInlineStyles,
-	type InlineStyleRun,
 	isStaticTextFlowObstacleCandidate,
 	restoreHiddenNodes,
 	restoreRevealedAncestors,
@@ -29,7 +34,7 @@ import {
 } from "./snapshotHelpers"
 import { hasMovedImportedElement, hasRenderableImportedText } from "./snapshotViewUtils"
 import { TextFlowRegion } from "./TextFlowRegion"
-import { type DebugSettings, Toolbar } from "./Toolbar"
+import { Toolbar } from "./Toolbar"
 
 interface SnapshotPageViewProps {
 	page: SnapshotCustomPage
@@ -37,27 +42,10 @@ interface SnapshotPageViewProps {
 	onSelectPreset: (key: PresetKey) => void
 	onImportHtml: (html: string, name: string) => void
 	onFetchUrl: (url: string) => Promise<void>
-	savedElements: SavedElement[]
-	onSaveElement: (el: SceneElement) => void
-	onUnsaveElement: (id: string) => void
-	onClearSaved: () => void
-	onRemoveSaved: (index: number) => void
-	onSaveStashImageFiles?: (files: File[]) => void
 	customPages: CustomPage[]
 	activeCustomId: string | null
 	onSelectCustomPage: (id: string) => void
 	onResetAll: () => void
-}
-
-type ImportedTextLayout = {
-	id: string
-	sceneElement: SceneElement
-	containerX: number
-	containerY: number
-	containerWidth: number
-	containerMaxHeight: number
-	flow: TextFlowResult
-	inlineStyles?: InlineStyleRun[]
 }
 
 function compareTextBlockPosition(a: SnapshotTextBlock, b: SnapshotTextBlock) {
@@ -73,17 +61,16 @@ export function SnapshotPageView({
 	onSelectPreset,
 	onImportHtml,
 	onFetchUrl,
-	savedElements,
-	onSaveElement,
-	onUnsaveElement,
-	onClearSaved,
-	onRemoveSaved,
-	onSaveStashImageFiles,
 	customPages,
 	activeCustomId,
 	onSelectCustomPage,
 	onResetAll,
 }: SnapshotPageViewProps) {
+	const {
+		savedElements,
+		saveElement: onSaveElement,
+		unsaveElement: onUnsaveElement,
+	} = useSavedElements()
 	const iframeRef = useRef<HTMLIFrameElement | null>(null)
 	const stageRef = useRef<HTMLDivElement | null>(null)
 	const physicsRef = useRef<PhysicsEngine | null>(null)
@@ -106,14 +93,8 @@ export function SnapshotPageView({
 		restitution: 0.3,
 	})
 
-	const {
-		pickerMode,
-		savePickerMode,
-		handleTogglePicker,
-		handleToggleSavePicker,
-		handleClosePicker,
-		handleCloseSavePicker,
-	} = usePickerPause({ physicsRef, isPaused: settings.paused })
+	const { pickerMode, handleTogglePicker, handleToggleSavePicker, handleClosePicker } =
+		usePickerPause({ physicsRef, isPaused: settings.paused })
 
 	const { bodyPositions, fps } = usePhysicsLoop({
 		physicsRef,
@@ -168,7 +149,7 @@ export function SnapshotPageView({
 		[selectableCandidates],
 	)
 
-	const gifPlaybackPaused = settings.paused || pickerMode || savePickerMode
+	const gifPlaybackPaused = settings.paused || pickerMode !== null
 	const animatedAlpha = useAnimatedAlpha(droppedElements, gifPlaybackPaused)
 	const savedElementIds = useMemo(
 		() => new Set(savedElements.map((saved) => saved.element.id)),
@@ -333,83 +314,13 @@ export function SnapshotPageView({
 		animatedAlpha,
 	])
 
-	const importedTextLayouts = useMemo(() => {
-		if (!importedTextFlowActive) return []
-
-		const placed: Array<
-			ImportedTextLayout & { textBottom: number; contentLeft: number; contentRight: number }
-		> = []
-		const layouts: ImportedTextLayout[] = []
-
-		for (const block of sortedTextBlocks) {
-			const el = block.sceneElement
-			const paddingX = el.padding ?? 0
-			const paddingY = el.paddingVertical ?? paddingX
-			const fs = el.fontSize ?? 16
-			const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS, el.fontStyle)
-			const contentLeft = el.rect.x + paddingX
-			const contentRight = el.rect.x + el.rect.width - paddingX
-			const originalTextTop = el.rect.y + paddingY
-
-			let shiftedTextTop = originalTextTop
-			for (const prev of placed) {
-				const overlapsHorizontally =
-					Math.min(contentRight, prev.contentRight) - Math.max(contentLeft, prev.contentLeft) > 12
-				if (!overlapsHorizontally) continue
-				if (prev.textBottom + 4 > shiftedTextTop) {
-					shiftedTextTop = prev.textBottom + 4
-				}
-			}
-
-			const remainingHeight = Math.max(0, iframeHeight - shiftedTextTop - paddingY - 24)
-			if (remainingHeight < fs) continue
-
-			const flow = computeTextFlow(
-				el.text ?? "",
-				font,
-				el.lineHeight ?? Math.round(fs * 1.5),
-				contentLeft,
-				shiftedTextTop,
-				Math.max(0, el.rect.width - paddingX * 2),
-				remainingHeight,
-				importedObstacles,
-			)
-
-			const containerWidth = Math.max(0, el.rect.width - paddingX * 2)
-			const win = iframeRef.current?.contentWindow
-			let inlineStyles: InlineStyleRun[] | undefined
-			if (win) {
-				const revealedNodes = revealHiddenAncestors(block.node)
-				try {
-					inlineStyles = extractInlineStyles(block.node, win)
-				} catch {
-					/* */
-				} finally {
-					restoreRevealedAncestors(revealedNodes)
-				}
-				if (inlineStyles && inlineStyles.length === 0) inlineStyles = undefined
-			}
-			const layout: ImportedTextLayout = {
-				id: block.id,
-				sceneElement: el,
-				containerX: contentLeft,
-				containerY: shiftedTextTop,
-				containerWidth,
-				containerMaxHeight: remainingHeight,
-				flow,
-				inlineStyles,
-			}
-			layouts.push(layout)
-			placed.push({
-				...layout,
-				textBottom: shiftedTextTop + flow.totalHeight,
-				contentLeft,
-				contentRight,
-			})
-		}
-
-		return layouts
-	}, [iframeHeight, importedObstacles, importedTextFlowActive, sortedTextBlocks])
+	const importedTextLayouts = useImportedTextLayouts(
+		importedTextFlowActive,
+		sortedTextBlocks,
+		importedObstacles,
+		iframeHeight,
+		iframeRef,
+	)
 
 	const savePickerCandidates = useMemo(
 		() =>
@@ -598,12 +509,12 @@ export function SnapshotPageView({
 	useEffect(() => {
 		const engine = physicsRef.current
 		if (!engine) return
-		if (!settings.physicsEnabled || settings.paused || pickerMode || savePickerMode) {
+		if (!settings.physicsEnabled || settings.paused || pickerMode !== null) {
 			engine.pause()
 		} else {
 			engine.resume()
 		}
-	}, [settings.physicsEnabled, settings.paused, pickerMode, savePickerMode])
+	}, [settings.physicsEnabled, settings.paused, pickerMode])
 
 	return (
 		<div
@@ -688,19 +599,21 @@ export function SnapshotPageView({
 						border: "none",
 						display: "block",
 						background: "#fff",
-						pointerEvents: pickerMode || settings.physicsEnabled ? "none" : "auto",
+						pointerEvents: pickerMode !== null || settings.physicsEnabled ? "none" : "auto",
 					}}
 					onLoad={handleIframeLoad}
 				/>
 
-				{pickerMode && <SnapshotPickerOverlay items={pickerItems} onClose={handleClosePicker} />}
+				{pickerMode === "throwable" && (
+					<SnapshotPickerOverlay items={pickerItems} onClose={handleClosePicker} />
+				)}
 
-				{savePickerMode && (
+				{pickerMode === "save" && (
 					<QuickSavePicker
 						candidates={savePickerCandidates}
 						onSave={onSaveElement}
 						onUnsave={onUnsaveElement}
-						onClose={handleCloseSavePicker}
+						onClose={handleClosePicker}
 					/>
 				)}
 
@@ -813,34 +726,33 @@ export function SnapshotPageView({
 				})}
 			</div>
 
-			<Toolbar
-				settings={settings}
-				onSettingsChange={setSettings}
-				onExplode={handleExplode}
-				onReset={handleReset}
-				onTogglePicker={handleTogglePicker}
-				pickerMode={pickerMode}
-				savePickerMode={savePickerMode}
-				onToggleSavePicker={handleToggleSavePicker}
-				fps={fps}
-				bodyCount={
-					selectedElements.length + droppedElements.length + importedTextBodyElements.length
-				}
-				lineCount={0}
-				currentPreset={currentPreset}
-				onSelectPreset={onSelectPreset}
-				onImportHtml={onImportHtml}
-				onFetchUrl={onFetchUrl}
-				savedElements={savedElements}
-				onDropSaved={handleDropSaved}
-				onClearSaved={onClearSaved}
-				onRemoveSaved={onRemoveSaved}
-				onSaveStashImageFiles={onSaveStashImageFiles}
-				customPages={customPages}
-				activeCustomId={activeCustomId}
-				onSelectCustomPage={onSelectCustomPage}
-				onResetAll={onResetAll}
-			/>
+			<SettingsContext
+				value={{
+					settings,
+					setSettings,
+					fps,
+					bodyCount:
+						selectedElements.length + droppedElements.length + importedTextBodyElements.length,
+					lineCount: 0,
+					onResetAll,
+				}}
+			>
+				<Toolbar
+					onExplode={handleExplode}
+					onReset={handleReset}
+					onTogglePicker={handleTogglePicker}
+					pickerMode={pickerMode}
+					onToggleSavePicker={handleToggleSavePicker}
+					currentPreset={currentPreset}
+					onSelectPreset={onSelectPreset}
+					onImportHtml={onImportHtml}
+					onFetchUrl={onFetchUrl}
+					onDropSaved={handleDropSaved}
+					customPages={customPages}
+					activeCustomId={activeCustomId}
+					onSelectCustomPage={onSelectCustomPage}
+				/>
+			</SettingsContext>
 		</div>
 	)
 }

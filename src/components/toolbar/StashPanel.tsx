@@ -1,26 +1,27 @@
 import { type DragEvent as ReactDragEvent, useCallback, useState } from "react"
+import { useSavedElements } from "../../contexts/SavedElementsContext"
+import type { PickerMode } from "../../hooks/usePickerPause"
 import type { SavedElement } from "../../scene/types"
 import { isAcceptableStashImageFile } from "../../utils/stashImageFromFile"
 
 interface StashPanelProps {
-	savedElements: SavedElement[]
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
-	onRemoveSaved: (index: number) => void
-	onSaveStashImageFiles?: (files: File[]) => void
-	savePickerMode: boolean
+	pickerMode: PickerMode
 	onToggleSavePicker: () => void
 	onClose: () => void
 }
 
 export function StashPanel({
-	savedElements,
 	onDropSaved,
-	onRemoveSaved,
-	onSaveStashImageFiles,
-	savePickerMode,
+	pickerMode,
 	onToggleSavePicker,
 	onClose,
 }: StashPanelProps) {
+	const {
+		savedElements,
+		removeSaved: onRemoveSaved,
+		saveStashImageFiles: onSaveStashImageFiles,
+	} = useSavedElements()
 	const [hoveredStash, setHoveredStash] = useState<{ index: number; top: number } | null>(null)
 
 	const handleStashImageDragOver = useCallback((e: ReactDragEvent) => {
@@ -66,11 +67,11 @@ export function StashPanel({
 						}}
 						className="dt-btn-tiny"
 						style={{
-							color: savePickerMode ? "var(--dt-accent-light)" : "var(--dt-accent)",
-							borderColor: savePickerMode ? "rgba(196,181,253,0.35)" : undefined,
+							color: pickerMode === "save" ? "var(--dt-accent-light)" : "var(--dt-accent)",
+							borderColor: pickerMode === "save" ? "rgba(196,181,253,0.35)" : undefined,
 						}}
 					>
-						{savePickerMode ? "Done picking" : "Pick from page"}
+						{pickerMode === "save" ? "Done picking" : "Pick from page"}
 					</button>
 				</div>
 				<div style={{ padding: "6px 10px", maxHeight: 260, overflowY: "auto" }}>

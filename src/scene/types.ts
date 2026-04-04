@@ -151,3 +151,20 @@ export interface SavedElement {
 	savedAt: number
 	sourceScene: string
 }
+
+export interface SceneCustomPage {
+	id: string
+	name: string
+	kind: "scene"
+	scene: SceneDescription
+}
+
+export interface SnapshotCustomPage {
+	id: string
+	name: string
+	kind: "snapshot"
+	preparedHtml: string
+	sourceUrl?: string
+}
+
+export type CustomPage = SceneCustomPage | SnapshotCustomPage

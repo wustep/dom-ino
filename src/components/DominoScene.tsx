@@ -1,13 +1,20 @@
 import type { LayoutCursor } from "@chenglou/pretext"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import type { CustomPage } from "../App"
+import { useSavedElements } from "../contexts/SavedElementsContext"
+import { type DebugSettings, SettingsContext } from "../contexts/SettingsContext"
 import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
 import { usePickerPause } from "../hooks/usePickerPause"
 import type { PhysicsEngine } from "../physics/engine"
 import { createPhysicsEngine } from "../physics/engine"
 import type { PresetKey } from "../scene/presets"
-import type { ObstacleRect, SavedElement, SceneDescription, SceneElement } from "../scene/types"
+import type {
+	CustomPage,
+	ObstacleRect,
+	SavedElement,
+	SceneDescription,
+	SceneElement,
+} from "../scene/types"
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
 import { getObstacleAABB } from "../textflow/obstacles"
 import { computeTextFlow } from "../textflow/useTextFlow"
@@ -18,7 +25,6 @@ import { PhysicsDomItem } from "./PhysicsDomItem"
 import { QuickSavePicker } from "./QuickSavePicker"
 import { TextFlowRegion } from "./TextFlowRegion"
 import { ThrowablePicker } from "./ThrowablePicker"
-import type { DebugSettings } from "./Toolbar"
 import { Toolbar } from "./Toolbar"
 
 const NOOP_SELECT_CUSTOM_PAGE: (id: string) => void = () => {}
@@ -32,13 +38,7 @@ interface DominoSceneProps {
 	onSelectPreset: (key: PresetKey) => void
 	onImportHtml: (html: string, name: string) => void
 	onFetchUrl: (url: string) => Promise<void>
-	savedElements: SavedElement[]
-	onSaveElement: (el: SceneElement) => void
-	onUnsaveElement: (id: string) => void
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
-	onClearSaved: () => void
-	onRemoveSaved: (index: number) => void
-	onSaveStashImageFiles?: (files: File[]) => void
 	onDropImageFiles?: (files: File[], x: number, y: number) => void
 	customPages?: CustomPage[]
 	activeCustomId?: string | null
@@ -79,19 +79,18 @@ export function DominoScene({
 	onSelectPreset,
 	onImportHtml,
 	onFetchUrl,
-	savedElements,
-	onSaveElement,
-	onUnsaveElement,
 	onDropSaved,
-	onClearSaved,
-	onRemoveSaved,
-	onSaveStashImageFiles,
 	onDropImageFiles,
 	customPages,
 	activeCustomId,
 	onSelectCustomPage,
 	onResetAll,
 }: DominoSceneProps) {
+	const {
+		savedElements,
+		saveElement: onSaveElement,
+		unsaveElement: onUnsaveElement,
+	} = useSavedElements()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const physicsRef = useRef<PhysicsEngine | null>(null)
 
@@ -114,16 +113,10 @@ export function DominoScene({
 		restitution: 0.3,
 	})
 
-	const {
-		pickerMode,
-		savePickerMode,
-		handleTogglePicker,
-		handleToggleSavePicker,
-		handleClosePicker,
-		handleCloseSavePicker,
-	} = usePickerPause({ physicsRef, isPaused: settings.paused })
+	const { pickerMode, handleTogglePicker, handleToggleSavePicker, handleClosePicker } =
+		usePickerPause({ physicsRef, isPaused: settings.paused })
 
-	const gifPlaybackPaused = settings.paused || pickerMode || savePickerMode
+	const gifPlaybackPaused = settings.paused || pickerMode !== null
 	const animatedAlpha = useAnimatedAlpha(effectiveElements, gifPlaybackPaused)
 
 	// Update physics body bounds when alpha changes for animated images
@@ -610,7 +603,7 @@ export function DominoScene({
 						)
 					})}
 
-				{pickerMode && (
+				{pickerMode === "throwable" && (
 					<ThrowablePicker
 						elements={pickerElements}
 						savedElements={savedElements}
@@ -622,42 +615,42 @@ export function DominoScene({
 					/>
 				)}
 
-				{savePickerMode && (
+				{pickerMode === "save" && (
 					<QuickSavePicker
 						candidates={saveCandidates}
 						onSave={onSaveElement}
 						onUnsave={onUnsaveElement}
-						onClose={handleCloseSavePicker}
+						onClose={handleClosePicker}
 					/>
 				)}
 			</div>
 
-			<Toolbar
-				settings={settings}
-				onSettingsChange={setSettings}
-				onExplode={handleExplode}
-				onReset={handleReset}
-				onTogglePicker={handleTogglePicker}
-				pickerMode={pickerMode}
-				savePickerMode={savePickerMode}
-				onToggleSavePicker={handleToggleSavePicker}
-				fps={fps}
-				bodyCount={throwableElements.length + textBodyElements.length}
-				lineCount={settings.textBodiesEnabled ? 0 : totalLineCount}
-				currentPreset={currentPreset}
-				onSelectPreset={onSelectPreset}
-				onImportHtml={onImportHtml}
-				onFetchUrl={onFetchUrl}
-				savedElements={savedElements}
-				onDropSaved={onDropSaved}
-				onSaveStashImageFiles={onSaveStashImageFiles}
-				onClearSaved={onClearSaved}
-				onRemoveSaved={onRemoveSaved}
-				customPages={customPages ?? EMPTY_CUSTOM_PAGES}
-				activeCustomId={activeCustomId ?? null}
-				onSelectCustomPage={onSelectCustomPage ?? NOOP_SELECT_CUSTOM_PAGE}
-				onResetAll={onResetAll ?? NOOP_RESET_ALL}
-			/>
+			<SettingsContext
+				value={{
+					settings,
+					setSettings,
+					fps,
+					bodyCount: throwableElements.length + textBodyElements.length,
+					lineCount: settings.textBodiesEnabled ? 0 : totalLineCount,
+					onResetAll: onResetAll ?? NOOP_RESET_ALL,
+				}}
+			>
+				<Toolbar
+					onExplode={handleExplode}
+					onReset={handleReset}
+					onTogglePicker={handleTogglePicker}
+					pickerMode={pickerMode}
+					onToggleSavePicker={handleToggleSavePicker}
+					currentPreset={currentPreset}
+					onSelectPreset={onSelectPreset}
+					onImportHtml={onImportHtml}
+					onFetchUrl={onFetchUrl}
+					onDropSaved={onDropSaved}
+					customPages={customPages ?? EMPTY_CUSTOM_PAGES}
+					activeCustomId={activeCustomId ?? null}
+					onSelectCustomPage={onSelectCustomPage ?? NOOP_SELECT_CUSTOM_PAGE}
+				/>
+			</SettingsContext>
 		</div>
 	)
 }
