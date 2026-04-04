@@ -168,7 +168,8 @@ export function SnapshotPageView({
 		[selectableCandidates],
 	)
 
-	const animatedAlpha = useAnimatedAlpha(droppedElements)
+	const gifPlaybackPaused = settings.paused || pickerMode || savePickerMode
+	const animatedAlpha = useAnimatedAlpha(droppedElements, gifPlaybackPaused)
 
 	// Update physics body bounds when alpha changes for animated images
 	useEffect(() => {
@@ -741,25 +742,25 @@ export function SnapshotPageView({
 							/>
 						)
 					})}
-				{!pickerMode &&
-					droppedElements.map((el) => {
-						const pos = bodyPositions.get(el.id)
-						const alphaEntry = animatedAlpha[el.id]
-						return (
-							<PhysicsDomItem
-								key={el.id}
-								element={el}
-								x={pos?.x ?? el.rect.x}
-								y={pos?.y ?? el.rect.y}
-								angle={pos?.angle ?? 0}
-								isPhysicsEnabled={true}
-								showDebug={settings.showObstacleBounds}
-								alphaBounds={alphaEntry?.bounds}
-								alphaRows={alphaEntry?.rows ?? el.alphaRows}
-								animatedGifController={alphaEntry?.controller}
-							/>
-						)
-					})}
+				{droppedElements.map((el) => {
+					const pos = bodyPositions.get(el.id)
+					const alphaEntry = animatedAlpha[el.id]
+					return (
+						<PhysicsDomItem
+							key={el.id}
+							element={el}
+							x={pos?.x ?? el.rect.x}
+							y={pos?.y ?? el.rect.y}
+							angle={pos?.angle ?? 0}
+							isPhysicsEnabled={true}
+							showDebug={settings.showObstacleBounds}
+							alphaBounds={alphaEntry?.bounds}
+							alphaRows={alphaEntry?.rows ?? el.alphaRows}
+							animatedGifController={alphaEntry?.controller}
+							isAnimationPaused={gifPlaybackPaused}
+						/>
+					)
+				})}
 			</div>
 
 			<Toolbar

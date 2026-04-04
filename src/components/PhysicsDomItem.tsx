@@ -17,6 +17,7 @@ interface PhysicsDomItemProps {
 	alphaRows?: AlphaRowInterval[] | null
 	/** Shared controller for manual animated GIF playback */
 	animatedGifController?: GifAlphaController
+	isAnimationPaused?: boolean
 }
 
 /** Build a CSS text style from a TextStyle-bearing element (or child). */
@@ -72,12 +73,14 @@ const AnimatedGifCanvas = memo(function AnimatedGifCanvas({
 	alt,
 	width,
 	height,
+	paused = false,
 }: {
 	elementId: string
 	controller: GifAlphaController
 	alt?: string
 	width: number
 	height: number
+	paused?: boolean
 }) {
 	const canvasRef = useRef<HTMLCanvasElement | null>(null)
 	const prevFrameIndexRef = useRef<number | null>(null)
@@ -85,8 +88,9 @@ const AnimatedGifCanvas = memo(function AnimatedGifCanvas({
 	useEffect(() => {
 		let running = true
 		let rafId: number | null = null
+		let timeoutId: number | null = null
 
-		const tick = () => {
+		const renderFrame = () => {
 			if (!running) return
 			const canvas = canvasRef.current
 			if (canvas) {
@@ -98,19 +102,27 @@ const AnimatedGifCanvas = memo(function AnimatedGifCanvas({
 						prevFrameIndexRef.current = frameState.frameIndex
 					}
 				}
+				if (!paused) {
+					const nextDelay = Math.max(0, controller.getFrameDelay(frameState.frameIndex))
+					timeoutId = window.setTimeout(() => {
+						rafId = requestAnimationFrame(renderFrame)
+					}, nextDelay)
+				}
 			}
-			rafId = requestAnimationFrame(tick)
 		}
 
-		tick()
+		rafId = requestAnimationFrame(renderFrame)
 
 		return () => {
 			running = false
 			if (rafId !== null) {
 				cancelAnimationFrame(rafId)
 			}
+			if (timeoutId !== null) {
+				window.clearTimeout(timeoutId)
+			}
 		}
-	}, [controller, width, height])
+	}, [controller, width, height, paused])
 
 	return (
 		<canvas
@@ -133,6 +145,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 	alphaBounds,
 	alphaRows,
 	animatedGifController,
+	isAnimationPaused = false,
 }: PhysicsDomItemProps) {
 	const isThrowable = element.throwable
 	const live = isPhysicsEnabled && isThrowable
@@ -283,6 +296,7 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 									alt={element.imageAlt}
 									width={element.rect.width}
 									height={element.rect.height}
+									paused={isAnimationPaused}
 								/>
 							) : (
 								<img

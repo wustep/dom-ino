@@ -115,4 +115,25 @@ describe("GifAlphaController", () => {
 		expect(createElementSpy).toHaveBeenCalledTimes(2)
 		expect(putImageData).toHaveBeenCalledTimes(2)
 	})
+
+	it("pauses and resumes without advancing the frame clock while paused", () => {
+		const controller = new GifAlphaController(makeGif([40, 80, 160]), 0)
+		const nowSpy = vi.spyOn(performance, "now")
+
+		nowSpy.mockReturnValue(50)
+		expect(controller.getCurrentFrameState().frameIndex).toBe(1)
+
+		controller.pause()
+
+		nowSpy.mockReturnValue(500)
+		expect(controller.getCurrentFrameState().frameIndex).toBe(1)
+
+		controller.resume()
+
+		nowSpy.mockReturnValue(569)
+		expect(controller.getCurrentFrameState().frameIndex).toBe(1)
+
+		nowSpy.mockReturnValue(570)
+		expect(controller.getCurrentFrameState().frameIndex).toBe(2)
+	})
 })

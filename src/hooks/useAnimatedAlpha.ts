@@ -3,7 +3,6 @@ import type { AlphaRowInterval, AlphaTightBounds, SceneElement } from "../scene/
 import { GifAlphaController, parseGifFromDataUrl } from "../utils/gifFrames"
 import { computeTightBoundsFromAlphaRows, isAnimatedImageSrc } from "../utils/imageAlpha"
 
-const DEBUG_HOOK = true
 const MAX_DISPLACEMENT_UPDATES_PER_SECOND = 12
 const MIN_DISPLACEMENT_UPDATE_INTERVAL_MS = 1000 / MAX_DISPLACEMENT_UPDATES_PER_SECOND
 
@@ -25,7 +24,10 @@ interface AnimatedAlphaState {
  */
 const EMPTY_ALPHA_STATE: AnimatedAlphaState = {}
 
-export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
+export function useAnimatedAlpha(
+	elements: SceneElement[],
+	paused: boolean = false,
+): AnimatedAlphaState {
 	const [alphaState, setAlphaState] = useState<AnimatedAlphaState>(EMPTY_ALPHA_STATE)
 	const controllersRef = useRef<Map<string, GifAlphaController>>(new Map())
 	const prevFrameRef = useRef<Map<string, number>>(new Map())
@@ -47,9 +49,6 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 		for (const el of animatedElements) {
 			if (!elementFirstSeenRef.current.has(el.id)) {
 				elementFirstSeenRef.current.set(el.id, now)
-				if (DEBUG_HOOK) {
-					console.log(`[useAnimatedAlpha] First saw ${el.id} at ${now.toFixed(0)}ms`)
-				}
 			}
 		}
 	}, [animatedElements])
@@ -63,20 +62,11 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 				if (!el.imageSrc?.startsWith("data:image/gif")) continue
 				if (controllersRef.current.has(el.id)) continue
 
-				if (DEBUG_HOOK) {
-					console.log(`[useAnimatedAlpha] Parsing GIF for ${el.id}...`)
-				}
-
 				const gif = await parseGifFromDataUrl(el.imageSrc)
 				if (gif && !cancelled) {
 					const startTime = elementFirstSeenRef.current.get(el.id) ?? performance.now()
 					const controller = new GifAlphaController(gif, startTime)
 					controllersRef.current.set(el.id, controller)
-					if (DEBUG_HOOK) {
-						console.log(
-							`[useAnimatedAlpha] Created controller for ${el.id}, ${gif.frames.length} frames, startTime=${startTime.toFixed(0)}ms`,
-						)
-					}
 				}
 			}
 		}
@@ -88,6 +78,13 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 		}
 	}, [animatedElements])
 
+	useEffect(() => {
+		for (const controller of controllersRef.current.values()) {
+			if (paused) controller.pause()
+			else controller.resume()
+		}
+	}, [paused])
+
 	// Animation loop - runs continuously to update alpha based on timing
 	useEffect(() => {
 		if (animatedElements.length === 0) {
@@ -96,9 +93,10 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 			setAlphaState(EMPTY_ALPHA_STATE)
 			return
 		}
+		if (paused) return
 
 		let running = true
-		let rafId: number | null = null
+		let timeoutId: number | null = null
 
 		const tick = () => {
 			if (!running) return
@@ -118,8 +116,7 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 				const lastPublishedAt = lastPublishedAtRef.current.get(el.id) ?? -Infinity
 				const shouldPublishFrame =
 					currentFrame !== prevFrame &&
-					(prevFrame === undefined ||
-						now - lastPublishedAt >= MIN_DISPLACEMENT_UPDATE_INTERVAL_MS)
+					(prevFrame === undefined || now - lastPublishedAt >= MIN_DISPLACEMENT_UPDATE_INTERVAL_MS)
 
 				// Update state when frame changes
 				if (shouldPublishFrame) {
@@ -128,12 +125,6 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 					prevFrameRef.current.set(el.id, currentFrame)
 					lastPublishedAtRef.current.set(el.id, now)
 					hasChanges = true
-
-					if (DEBUG_HOOK) {
-						console.log(
-							`[useAnimatedAlpha] ${el.id} frame ${prevFrame ?? "?"} -> ${currentFrame}, rows=${rows?.length ?? 0}`,
-						)
-					}
 				}
 			}
 
@@ -144,19 +135,19 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 			}
 
 			if (running) {
-				rafId = requestAnimationFrame(tick)
+				timeoutId = window.setTimeout(tick, MIN_DISPLACEMENT_UPDATE_INTERVAL_MS)
 			}
 		}
 
-		rafId = requestAnimationFrame(tick)
+		tick()
 
 		return () => {
 			running = false
-			if (rafId !== null) {
-				cancelAnimationFrame(rafId)
+			if (timeoutId !== null) {
+				window.clearTimeout(timeoutId)
 			}
 		}
-	}, [animatedElements])
+	}, [animatedElements, paused])
 
 	// Cleanup stale controllers
 	useEffect(() => {

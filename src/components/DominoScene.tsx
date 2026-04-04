@@ -100,18 +100,6 @@ export function DominoScene({
 	const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 	const effectiveElements = scene.elements
 
-	const animatedAlpha = useAnimatedAlpha(effectiveElements)
-
-	// Update physics body bounds when alpha changes for animated images
-	useEffect(() => {
-		const physics = physicsRef.current
-		if (!physics) return
-
-		for (const [id, entry] of Object.entries(animatedAlpha)) {
-			physics.updateAlphaBounds(id, entry.bounds)
-		}
-	}, [animatedAlpha])
-
 	const [settings, setSettings] = useState<DebugSettings>({
 		physicsEnabled: true,
 		showObstacleBounds: false,
@@ -134,6 +122,19 @@ export function DominoScene({
 		handleClosePicker,
 		handleCloseSavePicker,
 	} = usePickerPause({ physicsRef, isPaused: settings.paused })
+
+	const gifPlaybackPaused = settings.paused || pickerMode || savePickerMode
+	const animatedAlpha = useAnimatedAlpha(effectiveElements, gifPlaybackPaused)
+
+	// Update physics body bounds when alpha changes for animated images
+	useEffect(() => {
+		const physics = physicsRef.current
+		if (!physics) return
+
+		for (const [id, entry] of Object.entries(animatedAlpha)) {
+			physics.updateAlphaBounds(id, entry.bounds)
+		}
+	}, [animatedAlpha])
 
 	const { bodyPositions, fps } = usePhysicsLoop({
 		physicsRef,
@@ -582,6 +583,7 @@ export function DominoScene({
 							alphaBounds={alphaEntry?.bounds}
 							alphaRows={alphaEntry?.rows ?? el.alphaRows}
 							animatedGifController={alphaEntry?.controller}
+							isAnimationPaused={gifPlaybackPaused}
 						/>
 					)
 				})}

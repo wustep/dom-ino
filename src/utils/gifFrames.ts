@@ -3,7 +3,6 @@ import type { AlphaRowInterval } from "../scene/types"
 
 const ALPHA_THRESHOLD = 10 // Lower threshold catches more semi-transparent pixels
 const INTERVAL_PADDING = 0.02 // Padding on each side (2% of width)
-const DEBUG_GIF = true
 
 interface GifFrameData {
 	imageData: ImageData
@@ -80,7 +79,7 @@ export async function parseGifFromDataUrl(dataUrl: string): Promise<ParsedGif | 
 				}
 			}
 
-			const delay = frame.delay * 10 // gifuct-js returns delay in centiseconds
+			const delay = frame.delay // gifuct-js already converts delays to milliseconds
 			totalDuration += delay
 
 			frames.push({
@@ -89,11 +88,6 @@ export async function parseGifFromDataUrl(dataUrl: string): Promise<ParsedGif | 
 			})
 		}
 
-		if (DEBUG_GIF) {
-			console.log(
-				`[gifFrames] Parsed GIF: ${width}x${height}, ${frames.length} frames, ${totalDuration}ms total`,
-			)
-		}
 		return { width, height, frames, totalDuration }
 	} catch (e) {
 		console.error("[gifFrames] Failed to parse GIF:", e)
@@ -188,6 +182,7 @@ export class GifAlphaController {
 	private alphaCache: Map<number, AlphaRowInterval[] | null> = new Map()
 	private renderSurfaceCache: Map<number, HTMLCanvasElement | null> = new Map()
 	private startTime: number
+	private pausedAt: number | null = null
 
 	/**
 	 * @param gif - Parsed GIF data
@@ -201,9 +196,6 @@ export class GifAlphaController {
 		for (let i = 0; i < gif.frames.length; i++) {
 			const rows = extractAlphaRowsFromImageData(gif.frames[i].imageData)
 			this.alphaCache.set(i, rows)
-			if (DEBUG_GIF) {
-				console.log(`[gifFrames] Frame ${i}: ${rows?.length ?? 0} alpha rows`)
-			}
 		}
 	}
 
@@ -212,6 +204,17 @@ export class GifAlphaController {
 	 */
 	setStartTime(time: number): void {
 		this.startTime = time
+	}
+
+	pause(): void {
+		if (this.pausedAt !== null) return
+		this.pausedAt = performance.now()
+	}
+
+	resume(): void {
+		if (this.pausedAt === null) return
+		this.startTime += performance.now() - this.pausedAt
+		this.pausedAt = null
 	}
 
 	/**
@@ -223,7 +226,8 @@ export class GifAlphaController {
 		imageData: ImageData
 		alphaRows: AlphaRowInterval[] | null
 	} {
-		const elapsed = performance.now() - this.startTime
+		const now = this.pausedAt ?? performance.now()
+		const elapsed = now - this.startTime
 		const loopTime = getLoopTime(this.gif.totalDuration, elapsed)
 		this.currentFrameIndex = getFrameIndexAtLoopTime(this.gif, loopTime)
 
@@ -253,6 +257,14 @@ export class GifAlphaController {
 		ctx.putImageData(frame.imageData, 0, 0)
 		this.renderSurfaceCache.set(frameIndex, canvas)
 		return canvas
+	}
+
+	getFrameDelay(frameIndex: number = this.currentFrameIndex): number {
+		return this.gif.frames[frameIndex]?.delay ?? 0
+	}
+
+	get isPaused(): boolean {
+		return this.pausedAt !== null
 	}
 
 	/**
