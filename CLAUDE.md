@@ -9,17 +9,19 @@ DOMino is a physics-driven text layout experiment. Users grab interactive DOM el
 - **React 19** + **TypeScript** (strict mode) with **Vite 8**
 - **Matter.js** for 2D physics simulation
 - **@chenglou/pretext** for text measurement and line-by-line layout
-- ESLint 9 (flat config) for linting; no Prettier
+- **Biome** for linting and formatting
 
 ## Commands
 
 ```bash
-npm run dev       # Dev server on http://localhost:5173
-npm run build     # TypeScript check + Vite build → dist/
-npm run lint      # ESLint on .ts/.tsx files
-npm run test      # Vitest run (all tests)
+npm run dev        # Dev server on http://localhost:5173
+npm run build      # TypeScript check + Vite build → dist/
+npm run lint       # Biome check (lint + format)
+npm run lint:fix   # Biome check with auto-fix
+npm run format     # Biome format only
+npm run test       # Vitest run (all tests)
 npm run test:watch # Vitest watch mode
-npm run preview   # Preview production build
+npm run preview    # Preview production build
 ```
 
 ## Project Structure

@@ -274,25 +274,25 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 					/>
 				)
 
-			default:
-				return (
-					<div
-						style={{
-							width: "100%",
-							height: "100%",
-							...getBackgroundStyle(element.backgroundColor ?? "rgba(200,200,200,0.3)"),
-							borderRadius: element.borderRadius ?? 4,
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							boxSizing: "border-box",
-							border: element.border,
-							...textStyleOf(element, { fontSize: 12, color: "#888" }),
-						}}
-					>
-						{element.text}
-					</div>
-				)
+		default:
+			return (
+				<div
+					style={{
+						width: "100%",
+						height: "100%",
+						...getBackgroundStyle(element.backgroundColor),
+						borderRadius: element.borderRadius ?? 0,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						boxSizing: "border-box",
+						border: element.border,
+						...textStyleOf(element, { fontSize: 12, color: "#888" }),
+					}}
+				>
+					{element.text}
+				</div>
+			)
 		}
 	}
 

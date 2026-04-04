@@ -135,7 +135,6 @@ export const TextFlowRegion = memo(function TextFlowRegion({
 		containerWidth,
 		containerMaxHeight,
 		obstacles,
-		generation,
 		minSegmentWidth,
 		allowWordBreaks,
 		startCursor,

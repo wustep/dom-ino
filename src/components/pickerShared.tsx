@@ -328,7 +328,9 @@ export function useFlyAnimation() {
 
 	useEffect(() => {
 		return () => {
-			timeoutsRef.current.forEach((id) => window.clearTimeout(id))
+			timeoutsRef.current.forEach((id) => {
+				window.clearTimeout(id)
+			})
 			timeoutsRef.current = []
 		}
 	}, [])

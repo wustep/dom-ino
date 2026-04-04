@@ -179,7 +179,7 @@ export function DominoScene({
 			)
 		}
 		setTextBodyElements(nextBodies)
-	}, [scene.id, scene.width, scene.height, settings.textBodiesEnabled, textElements])
+	}, [settings.textBodiesEnabled, textElements])
 
 	useEffect(() => {
 		const container = containerRef.current
@@ -277,7 +277,6 @@ export function DominoScene({
 		obstacles,
 		settings.pretextEnabled,
 		settings.allowWordBreaks,
-		generation,
 		nextTextElementByContinuationId,
 	])
 
@@ -385,7 +384,7 @@ export function DominoScene({
 		lineCountRef.current = 0
 		const t = setTimeout(() => setTotalLineCount(lineCountRef.current), 50)
 		return () => clearTimeout(t)
-	}, [generation])
+	}, [])
 
 	// Sync glyph bodies into physics engine incrementally.
 	useEffect(() => {

@@ -187,7 +187,7 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 			const cssUrl =
 				rawHref.startsWith("http") || rawHref.startsWith("//")
 					? rawHref.startsWith("//")
-						? "https:" + rawHref
+						? `https:${rawHref}`
 						: rawHref
 					: origin + (rawHref.startsWith("/") ? "" : "/") + rawHref
 			try {
@@ -237,7 +237,7 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 				const cssUrl =
 					href.startsWith("http") || href.startsWith("//")
 						? href.startsWith("//")
-							? "https:" + href
+							? `https:${href}`
 							: href
 						: origin + (href.startsWith("/") ? "" : "/") + href
 				try {
@@ -279,7 +279,7 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 					`<style data-domino-site-css>${inlinedSiteCss}</style></head>`,
 				)
 			} else {
-				modified = `<style data-domino-site-css>${inlinedSiteCss}</style>` + modified
+				modified = `<style data-domino-site-css>${inlinedSiteCss}</style>${modified}`
 			}
 		}
 	}
@@ -322,7 +322,7 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 	const removeSelectors = getSiteRemoveSelectors(sourceUrl)
 	const removeCSS =
 		removeSelectors.length > 0
-			? removeSelectors.join(",\n    ") + " { display: none !important; }"
+			? `${removeSelectors.join(",\n    ")} { display: none !important; }`
 			: ""
 	const headerFix = `<style data-domino-fix>
     header, nav, [role="banner"], [role="navigation"],
@@ -337,7 +337,7 @@ async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 	if (/<head[^>]*>/i.test(modified)) {
 		modified = modified.replace(/<head[^>]*>/i, (m) => m + base + headerFix)
 	} else {
-		modified = `<head>${base}${headerFix}</head>` + modified
+		modified = `<head>${base}${headerFix}</head>${modified}`
 	}
 
 	return modified
@@ -614,7 +614,7 @@ function walkElement(
 			continue
 		}
 		const fontSize = parsePx(cs.fontSize) || 16
-		const fontWeight = parseInt(cs.fontWeight) || 400
+		const fontWeight = parseInt(cs.fontWeight, 10) || 400
 		const fontFamily = cs.fontFamily || "sans-serif"
 		const lineHeight = parsePx(cs.lineHeight) || fontSize * 1.5
 		const element: SceneElement = {
@@ -788,7 +788,7 @@ function parseHtmlStructure(
 						walk(child)
 						continue
 					}
-					const level = parseInt(tag[1])
+					const level = parseInt(tag[1], 10)
 					const fs = [0, 28, 24, 20, 17, 15, 14][level]
 					const lh = [0, 34, 30, 26, 24, 22, 20][level]
 					const h = Math.min(
@@ -845,7 +845,7 @@ function parseHtmlStructure(
 						rect: { x: mx + 16, y, width: contentW - 16, height: h },
 						throwable: false,
 						pinned: true,
-						text: "\u2022 " + text,
+						text: `\u2022 ${text}`,
 						fontSize: 14,
 						fontWeight: 400,
 						fontFamily: SANS,
@@ -876,7 +876,7 @@ function parseHtmlStructure(
 export async function fetchPageHtml(url: string): Promise<{ html: string; url: string }> {
 	let normalizedUrl = url.trim()
 	if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
-		normalizedUrl = "https://" + normalizedUrl
+		normalizedUrl = `https://${normalizedUrl}`
 	}
 	try {
 		const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(normalizedUrl)}`, {

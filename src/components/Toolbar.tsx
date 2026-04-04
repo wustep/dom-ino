@@ -386,7 +386,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						{importTab === "url" ? (
 							<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 								<input
-									autoFocus
 									value={urlInput}
 									onChange={(e) => setUrlInput(e.target.value)}
 									placeholder="example.com"
@@ -508,13 +507,13 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 											const pw = Math.min(s.element.rect.width, 200)
 											const ph = Math.min(s.element.rect.height, 120)
 											const preview = document.createElement("div")
-											preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${pw}px;height:${ph}px;background:${s.element.backgroundColor || "#fff"};border-radius:${s.element.borderRadius ?? 6}px;border:${s.element.border || "1px solid #ddd"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:8px;box-sizing:border-box;overflow:hidden;`
+											preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${pw}px;height:${ph}px;background:${s.element.backgroundColor || "transparent"};border-radius:${s.element.borderRadius ?? 0}px;border:${s.element.border || "none"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:8px;box-sizing:border-box;overflow:hidden;`
 											if (s.element.type === "image" && s.element.imageSrc) {
 												const im = document.createElement("img")
 												im.src = s.element.imageSrc
 												im.alt = ""
 												im.draggable = false
-												im.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 6) - 2)}px`
+												im.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
 												preview.textContent = ""
 												preview.appendChild(im)
 											} else {
@@ -553,7 +552,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 													height: 22,
 													borderRadius: 4,
 													flexShrink: 0,
-													backgroundColor: s.element.backgroundColor ?? "rgba(255,255,255,0.08)",
+													backgroundColor: s.element.backgroundColor ?? "transparent",
 													display: "flex",
 													alignItems: "center",
 													justifyContent: "center",
@@ -649,7 +648,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 								style={{
 									width: previewW,
 									height: previewH,
-									backgroundColor: el.backgroundColor || "#fff",
+									backgroundColor: el.backgroundColor || "transparent",
 									borderRadius: Math.round((el.borderRadius ?? 0) * scale),
 									border: el.border,
 									overflow: "hidden",

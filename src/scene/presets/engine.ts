@@ -177,7 +177,7 @@ export function createEngineScene(vw: number, vh: number): SceneDescription {
 	const col2X = mx + colW + colGap
 	const col3X = mx + (colW + colGap) * 2
 
-	const fullText = COL1_TEXT + " " + COL2_TEXT + " " + COL3_TEXT
+	const fullText = `${COL1_TEXT} ${COL2_TEXT} ${COL3_TEXT}`
 
 	if (colCount === 1) {
 		const q1W = Math.min(colW * 0.65, 320)

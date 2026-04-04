@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import {
-	autoSelectThrowables,
-	fetchPageHtml,
-	prepareHtmlForViewer,
-} from "./domSnapshot"
+import { autoSelectThrowables, fetchPageHtml, prepareHtmlForViewer } from "./domSnapshot"
 import type { SceneDescription, SceneElement } from "./types"
 
 function makeElement(overrides: Partial<SceneElement> = {}): SceneElement {
@@ -189,9 +185,7 @@ describe("fetchPageHtml", () => {
 	// fetchPageHtml rejects responses < 100 chars on the proxy path,
 	// so all mock HTML must be long enough.
 	const LONG_HTML =
-		"<html><head><title>Test</title></head><body>" +
-		"x".repeat(100) +
-		"</body></html>"
+		"<html><head><title>Test</title></head><body>" + "x".repeat(100) + "</body></html>"
 
 	beforeEach(() => {
 		vi.stubGlobal("fetch", vi.fn())
@@ -204,38 +198,30 @@ describe("fetchPageHtml", () => {
 	it("prepends https:// if no protocol given", async () => {
 		const mockFetch = vi.mocked(fetch)
 		// Return a fresh Response per call (body can only be read once)
-		mockFetch.mockImplementation(
-			async () => new Response(LONG_HTML, { status: 200 })
-		)
+		mockFetch.mockImplementation(async () => new Response(LONG_HTML, { status: 200 }))
 		const result = await fetchPageHtml("example.com")
 		expect(result.url).toBe("https://example.com")
 		expect(result.html).toBe(LONG_HTML)
 		expect(mockFetch).toHaveBeenCalledWith(
 			expect.stringContaining("https%3A%2F%2Fexample.com"),
-			expect.anything()
+			expect.anything(),
 		)
 	})
 
 	it("preserves existing https:// protocol", async () => {
-		vi.mocked(fetch).mockImplementation(
-			async () => new Response(LONG_HTML, { status: 200 })
-		)
+		vi.mocked(fetch).mockImplementation(async () => new Response(LONG_HTML, { status: 200 }))
 		const result = await fetchPageHtml("https://example.com")
 		expect(result.url).toBe("https://example.com")
 	})
 
 	it("preserves existing http:// protocol", async () => {
-		vi.mocked(fetch).mockImplementation(
-			async () => new Response(LONG_HTML, { status: 200 })
-		)
+		vi.mocked(fetch).mockImplementation(async () => new Response(LONG_HTML, { status: 200 }))
 		const result = await fetchPageHtml("http://example.com")
 		expect(result.url).toBe("http://example.com")
 	})
 
 	it("trims whitespace from URL", async () => {
-		vi.mocked(fetch).mockImplementation(
-			async () => new Response(LONG_HTML, { status: 200 })
-		)
+		vi.mocked(fetch).mockImplementation(async () => new Response(LONG_HTML, { status: 200 }))
 		const result = await fetchPageHtml("  example.com  ")
 		expect(result.url).toBe("https://example.com")
 	})
@@ -255,9 +241,7 @@ describe("fetchPageHtml", () => {
 
 	it("throws when both proxy and direct fail", async () => {
 		vi.mocked(fetch).mockRejectedValue(new Error("network error"))
-		await expect(fetchPageHtml("example.com")).rejects.toThrow(
-			"Could not fetch"
-		)
+		await expect(fetchPageHtml("example.com")).rejects.toThrow("Could not fetch")
 	})
 
 	it("rejects proxy response that looks like an error JSON", async () => {
@@ -298,10 +282,7 @@ describe("prepareHtmlForViewer", () => {
         <noscript><img src="https://static.nyt.com/image.jpg" alt="Photo" class="full"/></noscript>
       </picture>
     </body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.nytimes.com/article"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.nytimes.com/article")
 		// The empty sibling img should now have the noscript's src
 		expect(result).toContain('src="https://static.nyt.com/image.jpg"')
 		// Should force opacity:1 to override JS-dependent opacity:0 CSS
@@ -317,10 +298,7 @@ describe("prepareHtmlForViewer", () => {
         <noscript><img src="https://example.com/fallback.jpg" alt="Photo"/></noscript>
       </picture>
     </body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.example.com/page"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/page")
 		// Should keep existing src and remove noscript (original behavior)
 		expect(result).toContain("existing.jpg")
 		expect(result).not.toContain("<noscript>")
@@ -332,10 +310,7 @@ describe("prepareHtmlForViewer", () => {
         <noscript><img src="https://example.com/only.jpg" alt="Only image"/></noscript>
       </div>
     </body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.example.com/page"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/page")
 		// Should unwrap the noscript (original behavior)
 		expect(result).toContain('src="https://example.com/only.jpg"')
 		expect(result).not.toContain("<noscript>")
@@ -345,10 +320,7 @@ describe("prepareHtmlForViewer", () => {
 		const html = `<html><head><title>T</title></head><body>
       <img src="https://example.com/img.jpg" loading="lazy" alt="test"/>
     </body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.example.com/page"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/page")
 		expect(result).toContain('loading="eager"')
 		expect(result).not.toContain('loading="lazy"')
 	})
@@ -357,10 +329,7 @@ describe("prepareHtmlForViewer", () => {
 		const html = `<html><head><title>T</title></head><body>
       <img data-src="https://example.com/lazy.jpg" alt="lazy"/>
     </body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.example.com/page"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/page")
 		expect(result).toContain('src="https://example.com/lazy.jpg"')
 	})
 
@@ -369,10 +338,7 @@ describe("prepareHtmlForViewer", () => {
       <script>alert("xss")</script>
       <p>safe content</p>
     </body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.example.com/page"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/page")
 		expect(result).not.toContain("<script")
 		expect(result).toContain("safe content")
 	})
@@ -381,10 +347,7 @@ describe("prepareHtmlForViewer", () => {
 		const html = `<html><head><title>T</title></head><body>
       <header style="position: fixed; top: 0;">Header</header>
     </body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.example.com/page"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/page")
 		expect(result).toContain("position: relative")
 		expect(result).not.toContain("position: fixed")
 	})
@@ -399,16 +362,13 @@ describe("prepareHtmlForViewer", () => {
 					return new Response(fontCSS, { status: 200 })
 				}
 				return new Response("", { status: 404 })
-			})
+			}),
 		)
 
 		const html = `<html><head><title>T</title>
       <link href="https://g1.nyt.com/fonts/css/web-fonts.css" rel="stylesheet" />
     </head><body><p>text</p></body></html>`
-		const result = await prepareHtmlForViewer(
-			html,
-			"https://www.nytimes.com/article"
-		)
+		const result = await prepareHtmlForViewer(html, "https://www.nytimes.com/article")
 
 		// Font URL should resolve to g1.nyt.com, NOT nytimes.com
 		expect(result).toContain('url("https://g1.nyt.com/fonts/cheltenham.woff2")')
@@ -443,13 +403,10 @@ describe("snapshotHtmlToScene (structure-based fallback)", () => {
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					;(el as any).sandbox = { add: vi.fn() }
 					// Make the iframe immediately error so we skip the 10s timeout
-					setTimeout(
-						() => (el as HTMLIFrameElement).onerror?.(new Event("error")),
-						0
-					)
+					setTimeout(() => (el as HTMLIFrameElement).onerror?.(new Event("error")), 0)
 				}
 				return el
-			}
+			},
 		)
 	})
 
@@ -458,8 +415,7 @@ describe("snapshotHtmlToScene (structure-based fallback)", () => {
 	})
 
 	it("extracts title from HTML", async () => {
-		const html =
-			"<html><head><title>Test Page</title></head><body><p>text</p></body></html>"
+		const html = "<html><head><title>Test Page</title></head><body><p>text</p></body></html>"
 		const scene = await snapshotHtmlToScene(html, 1200, "Fallback")
 		const heading = scene.elements.find((el) => el.type === "heading")
 		expect(heading?.text).toBe("Test Page")
@@ -468,9 +424,7 @@ describe("snapshotHtmlToScene (structure-based fallback)", () => {
 	it("extracts meta description", async () => {
 		const html = `<html><head><title>T</title><meta name="description" content="A test page about testing"></head><body></body></html>`
 		const scene = await snapshotHtmlToScene(html, 1200, "Test")
-		const desc = scene.elements.find(
-			(el) => el.text === "A test page about testing"
-		)
+		const desc = scene.elements.find((el) => el.text === "A test page about testing")
 		expect(desc).toBeDefined()
 		expect(desc?.type).toBe("paragraph")
 	})
@@ -488,9 +442,7 @@ describe("snapshotHtmlToScene (structure-based fallback)", () => {
 		const html = `<html><head><title>T</title></head><body><p>Hello world this is a paragraph</p></body></html>`
 		const scene = await snapshotHtmlToScene(html, 1200)
 		const paras = scene.elements.filter((el) => el.type === "paragraph")
-		expect(
-			paras.some((p) => p.text === "Hello world this is a paragraph")
-		).toBe(true)
+		expect(paras.some((p) => p.text === "Hello world this is a paragraph")).toBe(true)
 	})
 
 	it("sets scene dimensions", async () => {
@@ -535,9 +487,7 @@ describe("snapshotHtmlToScene (structure-based fallback)", () => {
 	it("extracts list items as paragraphs with bullet prefix", async () => {
 		const html = `<html><head><title>T</title></head><body><ul><li>First item</li><li>Second item</li></ul></body></html>`
 		const scene = await snapshotHtmlToScene(html, 1200)
-		const listItems = scene.elements.filter((el) =>
-			el.text?.startsWith("\u2022")
-		)
+		const listItems = scene.elements.filter((el) => el.text?.startsWith("\u2022"))
 		expect(listItems).toHaveLength(2)
 		expect(listItems[0].text).toContain("First item")
 	})

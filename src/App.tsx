@@ -242,7 +242,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 						name = decodeURIComponent(last).replace(/_/g, " ")
 					}
 				}
-				if (name.length > 25) name = name.slice(0, 25) + "..."
+				if (name.length > 25) name = `${name.slice(0, 25)}...`
 				const elapsed = Date.now() - start
 				if (elapsed < 500) await new Promise((r) => setTimeout(r, 500 - elapsed))
 				await handleImportHtml(result.html, name, result.url)
@@ -530,7 +530,7 @@ function FetchOverlay({ url }: { url: string }) {
 				/>
 			</svg>
 			<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>
-				Fetching {displayUrl.length > 40 ? displayUrl.slice(0, 40) + "..." : displayUrl}
+				Fetching {displayUrl.length > 40 ? `${displayUrl.slice(0, 40)}...` : displayUrl}
 			</div>
 			<style>{`
 				@keyframes reloadSpin { to { transform: rotate(360deg); } }

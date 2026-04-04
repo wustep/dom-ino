@@ -144,7 +144,7 @@ export type InlineStyleRun = {
  */
 export function extractInlineStyles(el: HTMLElement, win: Window): InlineStyleRun[] {
 	const baseCs = win.getComputedStyle(el)
-	const baseWeight = parseInt(baseCs.fontWeight) || 400
+	const baseWeight = parseInt(baseCs.fontWeight, 10) || 400
 	const baseStyle = baseCs.fontStyle || "normal"
 	const baseFamily = baseCs.fontFamily || ""
 	const baseColor = baseCs.color || ""
@@ -194,7 +194,7 @@ export function extractInlineStyles(el: HTMLElement, win: Window): InlineStyleRu
 			return
 		}
 
-		const weight = parseInt(cs.fontWeight) || 400
+		const weight = parseInt(cs.fontWeight, 10) || 400
 		const style = cs.fontStyle || "normal"
 		const family = cs.fontFamily || ""
 		const color = cs.color || ""
@@ -370,7 +370,7 @@ export function elementToSceneElement(
 		pinned: false,
 		text: text || undefined,
 		fontSize: parseFloat(cs.fontSize) || 16,
-		fontWeight: parseInt(cs.fontWeight) || 400,
+		fontWeight: parseInt(cs.fontWeight, 10) || 400,
 		fontStyle: (cs.fontStyle as SceneElement["fontStyle"]) || "normal",
 		fontFamily: cs.fontFamily || '"DM Sans", sans-serif',
 		lineHeight: parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.5,

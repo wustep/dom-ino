@@ -273,7 +273,7 @@ describe("computeTextFlow", () => {
 
 	it("prepares separately for different fonts", () => {
 		mockLayout.mockReturnValue(null)
-		const text = "Unique text for font test " + Math.random()
+		const text = `Unique text for font test ${Math.random()}`
 
 		computeTextFlow(text, "16px serif", 20, 0, 0, 400, 200, [])
 		computeTextFlow(text, "700 16px sans-serif", 20, 0, 0, 400, 200, [])

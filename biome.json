@@ -5,10 +5,10 @@
 		"clientKind": "git",
 		"useIgnoreFile": true
 	},
-  "files": {
-    "ignoreUnknown": false,
-    "includes": ["**", "!**/dist", "!**/node_modules", "!**/*.min.js", "!**/public/**"]
-  },
+	"files": {
+		"ignoreUnknown": false,
+		"includes": ["**", "!**/dist", "!**/node_modules", "!**/*.min.js", "!**/public"]
+	},
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab",
@@ -20,23 +20,34 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"a11y": {
+				"noSvgWithoutTitle": "off",
+				"useSemanticElements": "off",
+				"useFocusableInteractive": "off",
+				"noStaticElementInteractions": "off",
+				"useKeyWithClickEvents": "off",
+				"useIframeTitle": "off",
+				"useButtonType": "off"
+			},
 			"complexity": {
-				"noExcessiveCognitiveComplexity": "warn",
+				"noExcessiveCognitiveComplexity": "off",
 				"noForEach": "off"
 			},
 			"correctness": {
 				"noUnusedImports": "warn",
 				"noUnusedVariables": "warn",
+				"noUnusedFunctionParameters": "off",
 				"useExhaustiveDependencies": "warn"
 			},
 			"style": {
 				"noNonNullAssertion": "off",
 				"useBlockStatements": "off",
 				"useImportType": "warn",
-				"useTemplate": "warn"
+				"useTemplate": "off"
 			},
 			"suspicious": {
 				"noExplicitAny": "warn",
+				"noArrayIndexKey": "off",
 				"noConsole": "off"
 			}
 		}

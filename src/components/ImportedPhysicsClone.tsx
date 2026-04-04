@@ -159,7 +159,7 @@ export function ImportedPhysicsClone({
 			cloneEl.style.overflow = "hidden"
 		}
 		mount.appendChild(clone)
-	}, [sourceNode, sourceWindow, renderVersion])
+	}, [sourceNode, sourceWindow])
 
 	return (
 		<>

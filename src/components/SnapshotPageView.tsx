@@ -166,7 +166,7 @@ export function SnapshotPageView({
 					.map((id) => nodesRef.current.get(id))
 					.filter((node): node is HTMLElement => Boolean(node))
 		syncHiddenNodes(hiddenSelectedNodesRef.current, desiredNodes)
-	}, [activeSelectedIds, candidates, nodesRef, pickerMode])
+	}, [activeSelectedIds, nodesRef, pickerMode])
 
 	useEffect(() => {
 		const hiddenSelectedNodes = hiddenSelectedNodesRef.current
@@ -217,27 +217,6 @@ export function SnapshotPageView({
 		() => [...textBlocks].sort(compareTextBlockPosition),
 		[textBlocks],
 	)
-
-	const importedInlineStylesById = useMemo(() => {
-		const win = iframeRef.current?.contentWindow
-		if (!iframeLoaded || !win || sortedTextBlocks.length === 0) {
-			return new Map<string, InlineStyleRun[] | undefined>()
-		}
-
-		const next = new Map<string, InlineStyleRun[] | undefined>()
-		for (const block of sortedTextBlocks) {
-			const revealedNodes = revealHiddenAncestors(block.node)
-			try {
-				const inlineStyles = extractInlineStyles(block.node, win)
-				next.set(block.id, inlineStyles.length > 0 ? inlineStyles : undefined)
-			} catch {
-				next.set(block.id, undefined)
-			} finally {
-				restoreRevealedAncestors(revealedNodes)
-			}
-		}
-		return next
-	}, [iframeLoaded, sortedTextBlocks])
 
 	// When letter-body mode is active, measure each text block's glyphs from
 	// the live iframe DOM and create throwable SceneElements for them.
@@ -358,6 +337,19 @@ export function SnapshotPageView({
 			)
 
 			const containerWidth = Math.max(0, el.rect.width - paddingX * 2)
+			const win = iframeRef.current?.contentWindow
+			let inlineStyles: InlineStyleRun[] | undefined
+			if (win) {
+				const revealedNodes = revealHiddenAncestors(block.node)
+				try {
+					inlineStyles = extractInlineStyles(block.node, win)
+				} catch {
+					/* */
+				} finally {
+					restoreRevealedAncestors(revealedNodes)
+				}
+				if (inlineStyles && inlineStyles.length === 0) inlineStyles = undefined
+			}
 			const layout: ImportedTextLayout = {
 				id: block.id,
 				sceneElement: el,
@@ -366,7 +358,7 @@ export function SnapshotPageView({
 				containerWidth,
 				containerMaxHeight: remainingHeight,
 				flow,
-				inlineStyles: importedInlineStylesById.get(block.id),
+				inlineStyles,
 			}
 			layouts.push(layout)
 			placed.push({
@@ -378,13 +370,7 @@ export function SnapshotPageView({
 		}
 
 		return layouts
-	}, [
-		iframeHeight,
-		importedInlineStylesById,
-		importedObstacles,
-		importedTextFlowActive,
-		sortedTextBlocks,
-	])
+	}, [iframeHeight, importedObstacles, importedTextFlowActive, sortedTextBlocks])
 
 	const savePickerCandidates = useMemo(
 		() =>
