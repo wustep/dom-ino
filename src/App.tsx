@@ -296,7 +296,13 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		})
 	}, [activeCustomPage])
 
-	// Ensures modifying a preset creates exactly one scene-backed custom page fork
+	// Ensures modifying a preset creates exactly one scene-backed custom page fork.
+	// pendingForkIdRef prevents duplicate forks when called multiple times before
+	// React re-renders and updates activeCustomPage.
+	const pendingForkIdRef = useRef<string | null>(null)
+	if (activeCustomPage?.kind === "scene") {
+		pendingForkIdRef.current = null
+	}
 	const ensureCustomScenePage = useCallback(
 		(newScene: SceneDescription): string => {
 			if (activeCustomPage?.kind === "scene") {
@@ -305,6 +311,13 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 				)
 				return activeCustomPage.id
 			}
+			if (pendingForkIdRef.current) {
+				const forkId = pendingForkIdRef.current
+				setCustomPages((prev) =>
+					prev.map((p) => (p.id === forkId ? { ...p, scene: newScene } : p)),
+				)
+				return forkId
+			}
 			const id = `custom-${Date.now()}`
 			const page: SceneCustomPage = {
 				id,
@@ -312,6 +325,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 				kind: "scene",
 				scene: newScene,
 			}
+			pendingForkIdRef.current = id
 			setCustomPages((prev) => [...prev, page])
 			setActiveCustomId(id)
 			setCurrentPreset("custom")
