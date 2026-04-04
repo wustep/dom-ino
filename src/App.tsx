@@ -17,6 +17,17 @@ interface AppProps {
 }
 
 export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
+	// Prevent browser from navigating away when files are dropped outside the scene container
+	useEffect(() => {
+		const prevent = (e: DragEvent) => e.preventDefault()
+		window.addEventListener("dragover", prevent)
+		window.addEventListener("drop", prevent)
+		return () => {
+			window.removeEventListener("dragover", prevent)
+			window.removeEventListener("drop", prevent)
+		}
+	}, [])
+
 	const persisted = useMemo(() => loadState(), [])
 	const [savedElements, setSavedElements] = useState<SavedElement[]>(persisted.savedElements ?? [])
 

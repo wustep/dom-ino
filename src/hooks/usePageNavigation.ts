@@ -198,15 +198,27 @@ export function usePageNavigation({
 				setCustomPages((prev) => prev.map((p) => (p.id === forkId ? { ...p, scene: newScene } : p)))
 				return forkId
 			}
-			const id = `custom-${Date.now()}`
-			const page: SceneCustomPage = {
-				id,
-				name: newScene.name || "Modified",
-				kind: "scene",
-				scene: newScene,
-			}
+			// Reuse an existing fork for the same scene ID to avoid duplicates
+			// when the user navigates back to a preset and modifies it again.
+			let reusedId: string | null = null
+			setCustomPages((prev) => {
+				const existing = prev.find((p) => p.kind === "scene" && p.scene.id === newScene.id)
+				if (existing) {
+					reusedId = existing.id
+					return prev.map((p) => (p.id === existing.id ? { ...p, scene: newScene } : p))
+				}
+				const id = `custom-${Date.now()}`
+				reusedId = id
+				const page: SceneCustomPage = {
+					id,
+					name: newScene.name || "Modified",
+					kind: "scene",
+					scene: newScene,
+				}
+				return [...prev, page]
+			})
+			const id = reusedId!
 			pendingForkIdRef.current = id
-			setCustomPages((prev) => [...prev, page])
 			setActiveCustomId(id)
 			setCurrentPreset("custom")
 			return id
