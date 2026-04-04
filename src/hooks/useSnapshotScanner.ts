@@ -64,7 +64,7 @@ export function useSnapshotScanner({
   const textNodesRef = useRef<Map<string, HTMLElement>>(new Map());
   const [iframeHeight, setIframeHeight] = useState(1600);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  const [candidates, setCandidates] = useState<SnapshotCandidate[]>([]);
+  const [scannedCandidates, setScannedCandidates] = useState<SnapshotCandidate[]>([]);
   const [textBlocks, setTextBlocks] = useState<SnapshotTextBlock[]>([]);
   const [textBodyBlocks, setTextBodyBlocks] = useState<SnapshotTextBlock[]>([]);
 
@@ -185,7 +185,7 @@ export function useSnapshotScanner({
         width: stageRect.width,
         height: stageRect.height,
         borderRadius: parseFloat(cs.borderRadius) || 0,
-        saved: savedIds.has(dominoId),
+        saved: false,
         node: childEl,
         sceneElement,
         display,
@@ -206,15 +206,16 @@ export function useSnapshotScanner({
       insideTextBodyBlock: boolean
     ) => {
       if (depth > 40) return;
-      for (const child of Array.from(el.children)) {
-        if (child.nodeType !== Node.ELEMENT_NODE) continue;
-        visitNode(child as HTMLElement, depth, insideTextBlock, insideTextBodyBlock);
+      for (let i = 0; i < el.children.length; i++) {
+        const child = el.children[i];
+        if (!(child instanceof HTMLElement)) continue;
+        visitNode(child, depth, insideTextBlock, insideTextBodyBlock);
       }
     };
 
     walk(root, 0, false, false);
     for (const selector of getForceAutoSelectSelectors(sourceUrl)) {
-      for (const node of Array.from(doc.querySelectorAll(selector))) {
+      for (const node of doc.querySelectorAll(selector)) {
         if (!(node instanceof HTMLElement)) continue;
         if (root.contains(node)) continue;
         visitNode(node, 0, false, false);
@@ -222,13 +223,13 @@ export function useSnapshotScanner({
     }
     nodesRef.current = nodes;
     textNodesRef.current = textNodes;
-    setCandidates(next);
+    setScannedCandidates(next);
     setTextBlocks(nextTextBlocks);
     setTextBodyBlocks(nextTextBodyBlocks);
 
     const bodyH = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0, iframe.clientHeight);
     setIframeHeight(Math.max(800, bodyH));
-  }, [iframeRef, stageRef, sourceUrl, savedIds]);
+  }, [iframeRef, stageRef, sourceUrl]);
 
   const scheduledScanRef = useRef<number | null>(null);
   const scheduleScanCandidates = useCallback(() => {
@@ -239,8 +240,16 @@ export function useSnapshotScanner({
     });
   }, [scanCandidates]);
 
-  const selectableCandidates = useMemo(
-    () => candidates.filter((c) =>
+  const candidates = useMemo(
+    () => scannedCandidates.map((candidate) => {
+      const saved = savedIds.has(candidate.id);
+      return candidate.saved === saved ? candidate : { ...candidate, saved };
+    }),
+    [scannedCandidates, savedIds]
+  );
+
+  const selectableCandidatesBase = useMemo(
+    () => scannedCandidates.filter((c) =>
       c.sceneElement &&
       c.sceneElement.type !== "paragraph" &&
       c.sceneElement.type !== "heading" &&
@@ -248,7 +257,15 @@ export function useSnapshotScanner({
       c.width >= 40 &&
       c.height >= 20
     ),
-    [candidates]
+    [scannedCandidates]
+  );
+
+  const selectableCandidates = useMemo(
+    () => selectableCandidatesBase.map((candidate) => {
+      const saved = savedIds.has(candidate.id);
+      return candidate.saved === saved ? candidate : { ...candidate, saved };
+    }),
+    [selectableCandidatesBase, savedIds]
   );
 
   // Reset all selection state when the page changes.
@@ -277,13 +294,13 @@ export function useSnapshotScanner({
 
   // Auto-selection — re-runs whenever the candidate list or the cap changes.
   useEffect(() => {
-    if (selectableCandidates.length === 0) return;
+    if (selectableCandidatesBase.length === 0) return;
 
     const throwableTypes = new Set(["image", "badge", "button", "card", "link", "input"]);
     const picked: SnapshotCandidate[] = [];
 
     if (maxAutoSelectComponents > 0) {
-      for (const c of selectableCandidates) {
+      for (const c of selectableCandidatesBase) {
         if (!c.sceneElement) continue;
         const t = c.sceneElement.type;
         const forceAutoSelect = isForceAutoSelectNode(c.node, sourceUrl);
@@ -328,11 +345,11 @@ export function useSnapshotScanner({
     }
 
     setAutoSelectedIds(new Set(picked.map((c) => c.id)));
-  }, [maxAutoSelectComponents, selectableCandidates, iframeRef, sourceUrl]);
+  }, [maxAutoSelectComponents, selectableCandidatesBase, iframeRef, sourceUrl]);
 
   // Keep manual override sets tidy when candidates change.
   useEffect(() => {
-    const ids = new Set(selectableCandidates.map((c) => c.id));
+    const ids = new Set(selectableCandidatesBase.map((c) => c.id));
     setManualSelectedIds((prev) => {
       const next = new Set(Array.from(prev).filter((id) => ids.has(id)));
       return next.size === prev.size ? prev : next;
@@ -341,7 +358,12 @@ export function useSnapshotScanner({
       const next = new Set(Array.from(prev).filter((id) => ids.has(id)));
       return next.size === prev.size ? prev : next;
     });
-  }, [selectableCandidates]);
+  }, [selectableCandidatesBase]);
+
+  const candidateMap = useMemo(
+    () => new Map(scannedCandidates.map((candidate) => [candidate.id, candidate])),
+    [scannedCandidates]
+  );
 
   // Merge auto + manual overrides into a single stable selectedIds set.
   const selectedIds = useMemo(() => {
@@ -411,10 +433,10 @@ export function useSnapshotScanner({
   }, [iframeRef, scanCandidates, scheduleScanCandidates]);
 
   const saveNode = useCallback((id: string) => {
-    const candidate = candidates.find((c) => c.id === id);
+    const candidate = candidateMap.get(id);
     const sceneEl = candidate?.sceneElement;
     if (sceneEl) onSaveElement(sceneEl);
-  }, [onSaveElement, candidates]);
+  }, [candidateMap, onSaveElement]);
 
   const unsaveNode = useCallback((id: string) => {
     onUnsaveElement(id);

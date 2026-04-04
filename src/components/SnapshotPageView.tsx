@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CustomPage, SnapshotCustomPage } from "../App";
 import type { SavedElement, SceneElement } from "../scene/types";
 import type { PresetKey } from "../scene/presets";
@@ -29,6 +29,7 @@ import {
   revealHiddenAncestors,
   restoreRevealedAncestors,
   type SnapshotCandidate,
+  type SnapshotTextBlock,
   type InlineStyleRun,
 } from "./snapshotHelpers";
 
@@ -60,6 +61,13 @@ type ImportedTextLayout = {
   flow: TextFlowResult;
   inlineStyles?: InlineStyleRun[];
 };
+
+function compareTextBlockPosition(a: SnapshotTextBlock, b: SnapshotTextBlock) {
+  const ay = a.sceneElement.rect.y;
+  const by = b.sceneElement.rect.y;
+  if (Math.abs(ay - by) > 1) return ay - by;
+  return a.sceneElement.rect.x - b.sceneElement.rect.x;
+}
 
 export function SnapshotPageView({
   page,
@@ -214,6 +222,32 @@ export function SnapshotPageView({
   const importedTextBodiesActive =
     settings.textBodiesEnabled && textBodyBlocks.length > 0;
 
+  const sortedTextBlocks = useMemo(
+    () => [...textBlocks].sort(compareTextBlockPosition),
+    [textBlocks]
+  );
+
+  const importedInlineStylesById = useMemo(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!iframeLoaded || !win || sortedTextBlocks.length === 0) {
+      return new Map<string, InlineStyleRun[] | undefined>();
+    }
+
+    const next = new Map<string, InlineStyleRun[] | undefined>();
+    for (const block of sortedTextBlocks) {
+      const revealedNodes = revealHiddenAncestors(block.node);
+      try {
+        const inlineStyles = extractInlineStyles(block.node, win);
+        next.set(block.id, inlineStyles.length > 0 ? inlineStyles : undefined);
+      } catch {
+        next.set(block.id, undefined);
+      } finally {
+        restoreRevealedAncestors(revealedNodes);
+      }
+    }
+    return next;
+  }, [iframeLoaded, sortedTextBlocks]);
+
   // When letter-body mode is active, measure each text block's glyphs from
   // the live iframe DOM and create throwable SceneElements for them.
   useLayoutEffect(() => {
@@ -225,12 +259,7 @@ export function SnapshotPageView({
     const nextBodies: SceneElement[] = [];
     const nextBlockIds = new Set<string>();
     const zeroRect = new DOMRect(0, 0, 0, 0);
-    const orderedBlocks = [...textBodyBlocks].sort((a, b) => {
-      const ay = a.sceneElement.rect.y;
-      const by = b.sceneElement.rect.y;
-      if (Math.abs(ay - by) > 1) return ay - by;
-      return a.sceneElement.rect.x - b.sceneElement.rect.x;
-    });
+    const orderedBlocks = [...textBodyBlocks].sort(compareTextBlockPosition);
     for (const block of orderedBlocks) {
       const revealedNodes = revealHiddenAncestors(block.node);
       try {
@@ -298,17 +327,10 @@ export function SnapshotPageView({
   const importedTextLayouts = useMemo(() => {
     if (!importedTextFlowActive) return [];
 
-    const sortedBlocks = [...textBlocks].sort((a, b) => {
-      const ay = a.sceneElement.rect.y;
-      const by = b.sceneElement.rect.y;
-      if (Math.abs(ay - by) > 1) return ay - by;
-      return a.sceneElement.rect.x - b.sceneElement.rect.x;
-    });
-
     const placed: Array<ImportedTextLayout & { textBottom: number; contentLeft: number; contentRight: number }> = [];
     const layouts: ImportedTextLayout[] = [];
 
-    for (const block of sortedBlocks) {
+    for (const block of sortedTextBlocks) {
       const el = block.sceneElement;
       const paddingX = el.padding ?? 0;
       const paddingY = el.paddingVertical ?? paddingX;
@@ -343,14 +365,6 @@ export function SnapshotPageView({
       );
 
       const containerWidth = Math.max(0, el.rect.width - paddingX * 2);
-      const win = iframeRef.current?.contentWindow;
-      let inlineStyles: InlineStyleRun[] | undefined;
-      if (win) {
-        const revealedNodes = revealHiddenAncestors(block.node);
-        try { inlineStyles = extractInlineStyles(block.node, win); } catch { /* */ }
-        finally { restoreRevealedAncestors(revealedNodes); }
-        if (inlineStyles && inlineStyles.length === 0) inlineStyles = undefined;
-      }
       const layout: ImportedTextLayout = {
         id: block.id,
         sceneElement: el,
@@ -359,7 +373,7 @@ export function SnapshotPageView({
         containerWidth,
         containerMaxHeight: remainingHeight,
         flow,
-        inlineStyles,
+        inlineStyles: importedInlineStylesById.get(block.id),
       };
       layouts.push(layout);
       placed.push({
@@ -371,7 +385,95 @@ export function SnapshotPageView({
     }
 
     return layouts;
-  }, [iframeHeight, importedObstacles, importedTextFlowActive, textBlocks]);
+  }, [iframeHeight, importedInlineStylesById, importedObstacles, importedTextFlowActive, sortedTextBlocks]);
+
+  const savePickerCandidates = useMemo(
+    () => selectableCandidates
+      .filter((candidate) => candidate.sceneElement)
+      .map((candidate) => ({
+        id: candidate.id,
+        element: candidate.sceneElement!,
+        x: candidate.x,
+        y: candidate.y,
+        width: candidate.width,
+        height: candidate.height,
+        borderRadius: candidate.borderRadius,
+        saved: candidate.saved,
+      })),
+    [selectableCandidates]
+  );
+
+  const handleExplode = useCallback(() => {
+    physicsRef.current?.explode();
+  }, []);
+
+  const handleReset = useCallback(() => {
+    physicsRef.current?.reset();
+  }, []);
+
+  const handleClosePicker = useCallback(() => {
+    setPickerMode(false);
+    if (!settings.paused) {
+      physicsRef.current?.resume();
+    }
+  }, [settings.paused]);
+
+  const handleCloseSavePicker = useCallback(() => {
+    setSavePickerMode(false);
+    if (!settings.paused) {
+      physicsRef.current?.resume();
+    }
+  }, [settings.paused]);
+
+  const handleTogglePicker = useCallback(() => {
+    setPickerMode((prev) => {
+      if (!prev) {
+        setSavePickerMode(false);
+        physicsRef.current?.pause();
+      } else if (!settings.paused) {
+        physicsRef.current?.resume();
+      }
+      return !prev;
+    });
+  }, [settings.paused]);
+
+  const handleToggleSavePicker = useCallback(() => {
+    setSavePickerMode((prev) => {
+      if (!prev) {
+        setPickerMode(false);
+        physicsRef.current?.pause();
+      } else if (!settings.paused) {
+        physicsRef.current?.resume();
+      }
+      return !prev;
+    });
+  }, [settings.paused]);
+
+  const handleDropSaved = useCallback((saved: SavedElement, x?: number, y?: number) => {
+    const el = {
+      ...saved.element,
+      id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      throwable: true,
+      pinned: false,
+      rect: {
+        ...saved.element.rect,
+        x:
+          x != null
+            ? x - saved.element.rect.width / 2
+            : (stageRef.current?.clientWidth || 1000) / 2 -
+              saved.element.rect.width / 2 +
+              (Math.random() - 0.5) * 120,
+        y:
+          y != null
+            ? y - saved.element.rect.height / 2
+            : window.scrollY +
+              window.innerHeight / 2 -
+              saved.element.rect.height / 2 +
+              (Math.random() - 0.5) * 60,
+      },
+    };
+    setDroppedElements((prev) => [...prev, el]);
+  }, []);
 
   useLayoutEffect(() => {
     const desiredNodes = importedTextFlowActive
@@ -539,33 +641,16 @@ export function SnapshotPageView({
             onToggleSelected={toggleSelected}
             onSaveNode={saveNode}
             onUnsaveNode={unsaveNode}
-            onClose={() => {
-              setPickerMode(false);
-              if (!settings.paused) physicsRef.current?.resume();
-            }}
+            onClose={handleClosePicker}
           />
         )}
 
         {savePickerMode && (
           <QuickSavePicker
-            candidates={selectableCandidates
-              .filter((candidate) => candidate.sceneElement)
-              .map((candidate) => ({
-                id: candidate.id,
-                element: candidate.sceneElement!,
-                x: candidate.x,
-                y: candidate.y,
-                width: candidate.width,
-                height: candidate.height,
-                borderRadius: candidate.borderRadius,
-                saved: candidate.saved,
-              }))}
+            candidates={savePickerCandidates}
             onSave={onSaveElement}
             onUnsave={onUnsaveElement}
-            onClose={() => {
-              setSavePickerMode(false);
-              if (!settings.paused) physicsRef.current?.resume();
-            }}
+            onClose={handleCloseSavePicker}
           />
         )}
 
@@ -672,32 +757,12 @@ export function SnapshotPageView({
       <Toolbar
         settings={settings}
         onSettingsChange={setSettings}
-        onExplode={() => physicsRef.current?.explode()}
-        onReset={() => physicsRef.current?.reset()}
-        onTogglePicker={() => {
-          setPickerMode((prev) => {
-            if (!prev) {
-              setSavePickerMode(false);
-              physicsRef.current?.pause();
-            } else if (!settings.paused) {
-              physicsRef.current?.resume();
-            }
-            return !prev;
-          });
-        }}
+        onExplode={handleExplode}
+        onReset={handleReset}
+        onTogglePicker={handleTogglePicker}
         pickerMode={pickerMode}
         savePickerMode={savePickerMode}
-        onToggleSavePicker={() => {
-          setSavePickerMode((prev) => {
-            if (!prev) {
-              setPickerMode(false);
-              physicsRef.current?.pause();
-            } else if (!settings.paused) {
-              physicsRef.current?.resume();
-            }
-            return !prev;
-          });
-        }}
+        onToggleSavePicker={handleToggleSavePicker}
         fps={fps}
         bodyCount={selectedElements.length + droppedElements.length + importedTextBodyElements.length}
         lineCount={0}
@@ -706,20 +771,7 @@ export function SnapshotPageView({
         onImportHtml={onImportHtml}
         onFetchUrl={onFetchUrl}
         savedElements={savedElements}
-        onDropSaved={(saved, x, y) => {
-          const el = {
-            ...saved.element,
-            id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            throwable: true,
-            pinned: false,
-            rect: {
-              ...saved.element.rect,
-              x: x != null ? x - saved.element.rect.width / 2 : (stageRef.current?.clientWidth || 1000) / 2 - saved.element.rect.width / 2 + (Math.random() - 0.5) * 120,
-              y: y != null ? y - saved.element.rect.height / 2 : window.scrollY + window.innerHeight / 2 - saved.element.rect.height / 2 + (Math.random() - 0.5) * 60,
-            },
-          };
-          setDroppedElements((prev) => [...prev, el]);
-        }}
+        onDropSaved={handleDropSaved}
         onClearSaved={onClearSaved}
         onRemoveSaved={onRemoveSaved}
         onSaveStashImageFiles={onSaveStashImageFiles}

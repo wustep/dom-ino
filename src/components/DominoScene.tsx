@@ -24,6 +24,9 @@ import { usePhysicsLoop } from "../hooks/usePhysicsLoop";
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies";
 import { isAcceptableStashImageFile } from "../utils/stashImageFromFile";
 
+const NOOP_SELECT_CUSTOM_PAGE: (id: string) => void = () => {};
+const NOOP_RESET_ALL = () => {};
+
 interface DominoSceneProps {
   scene: SceneDescription;
   onSceneChange?: (scene: SceneDescription, remount?: boolean) => void;
@@ -106,6 +109,21 @@ export function DominoScene({
     }
     return { textElements: text, throwableElements: throwable, staticElements: staticEls };
   }, [effectiveElements]);
+
+  const savedIds = useMemo(
+    () => new Set(savedElements.map((saved) => saved.element.id)),
+    [savedElements]
+  );
+
+  const nextTextElementByContinuationId = useMemo(() => {
+    const nextById = new Map<string, SceneElement>();
+    for (const el of textElements) {
+      if (el.textContinuationId) {
+        nextById.set(el.textContinuationId, el);
+      }
+    }
+    return nextById;
+  }, [textElements]);
 
   const textMaxHeights = useMemo(
     () => computeTextMaxHeights(textElements, effectiveElements, scene.height),
@@ -196,9 +214,7 @@ export function DominoScene({
           cursors.set(current.id, prevCursor);
         }
         // Find next element in chain
-        const nextEl = textElements.find(
-          (te) => te.textContinuationId === current!.id
-        );
+        const nextEl = nextTextElementByContinuationId.get(current.id);
         if (!nextEl) break;
 
         // Compute flow for current element to get end cursor
@@ -225,7 +241,7 @@ export function DominoScene({
     }
     return cursors;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [textElements, textMaxHeights, obstacles, settings.pretextEnabled, settings.allowWordBreaks, generation]);
+  }, [textElements, textMaxHeights, obstacles, settings.pretextEnabled, settings.allowWordBreaks, generation, nextTextElementByContinuationId]);
 
   const handleExplode = useCallback(() => physicsRef.current?.explode(), []);
   const handleReset = useCallback(() => {
@@ -254,10 +270,57 @@ export function DominoScene({
           width: pos?.w ?? el.rect.width,
           height: pos?.h ?? el.rect.height,
           borderRadius: el.borderRadius,
-          saved: savedElements.some((saved) => saved.element.id === el.id),
+          saved: savedIds.has(el.id),
         };
       });
-  }, [effectiveElements, bodyPositions, savedElements]);
+  }, [effectiveElements, bodyPositions, savedIds]);
+
+  const pickerElements = useMemo(
+    () => effectiveElements.map((el) => {
+      const pos = bodyPositions.get(el.id);
+      return pos ? { ...el, rect: { ...el.rect, x: pos.x, y: pos.y } } : el;
+    }),
+    [effectiveElements, bodyPositions]
+  );
+
+  const handleTogglePicker = useCallback(() => {
+    setPickerMode((prev) => {
+      if (!prev) {
+        setSavePickerMode(false);
+        physicsRef.current?.pause();
+      } else if (!settings.paused) {
+        physicsRef.current?.resume();
+      }
+      return !prev;
+    });
+  }, [settings.paused]);
+
+  const handleToggleSavePicker = useCallback(() => {
+    setSavePickerMode((prev) => {
+      if (!prev) {
+        setPickerMode(false);
+        physicsRef.current?.pause();
+      } else if (!settings.paused) {
+        physicsRef.current?.resume();
+      }
+      return !prev;
+    });
+  }, [settings.paused]);
+
+  const handleClosePicker = useCallback(() => {
+    setPickerMode(false);
+    if (!settings.paused) physicsRef.current?.resume();
+  }, [settings.paused]);
+
+  const handleCloseSavePicker = useCallback(() => {
+    setSavePickerMode(false);
+    if (!settings.paused) physicsRef.current?.resume();
+  }, [settings.paused]);
+
+  const handleDeletePickerElement = useCallback((id: string) => {
+    if (!onSceneChange) return;
+    onSceneChange({ ...scene, elements: scene.elements.filter((el) => el.id !== id) }, false);
+  }, [onSceneChange, scene]);
 
   const lineCountRef = useRef(0);
   const reportLines = useCallback((count: number) => { lineCountRef.current += count; }, []);
@@ -413,19 +476,10 @@ export function DominoScene({
         })}
 
         {pickerMode && (
-          <ThrowablePicker elements={effectiveElements.map((el) => {
-            const pos = bodyPositions.get(el.id);
-            return pos ? { ...el, rect: { ...el.rect, x: pos.x, y: pos.y } } : el;
-          })} savedElements={savedElements}
+          <ThrowablePicker elements={pickerElements} savedElements={savedElements}
             onToggle={handleToggleThrowable} onSave={handleSaveElement} onUnsave={onUnsaveElement}
-            onDelete={(id: string) => {
-              if (!onSceneChange) return;
-              onSceneChange({ ...scene, elements: scene.elements.filter((el) => el.id !== id) }, false);
-            }}
-            onClose={() => {
-              setPickerMode(false);
-              if (!settings.paused) physicsRef.current?.resume();
-            }} />
+            onDelete={handleDeletePickerElement}
+            onClose={handleClosePicker} />
         )}
 
         {savePickerMode && (
@@ -433,10 +487,7 @@ export function DominoScene({
             candidates={saveCandidates}
             onSave={handleSaveElement}
             onUnsave={onUnsaveElement}
-            onClose={() => {
-              setSavePickerMode(false);
-              if (!settings.paused) physicsRef.current?.resume();
-            }}
+            onClose={handleCloseSavePicker}
           />
         )}
 
@@ -445,29 +496,9 @@ export function DominoScene({
       <Toolbar
         settings={settings} onSettingsChange={setSettings}
         onExplode={handleExplode} onReset={handleReset}
-        onTogglePicker={() => {
-          setPickerMode((prev) => {
-            if (!prev) {
-              setSavePickerMode(false);
-              physicsRef.current?.pause();
-            } else {
-              if (!settings.paused) physicsRef.current?.resume();
-            }
-            return !prev;
-          });
-        }} pickerMode={pickerMode}
+        onTogglePicker={handleTogglePicker} pickerMode={pickerMode}
         savePickerMode={savePickerMode}
-        onToggleSavePicker={() => {
-          setSavePickerMode((prev) => {
-            if (!prev) {
-              setPickerMode(false);
-              physicsRef.current?.pause();
-            } else if (!settings.paused) {
-              physicsRef.current?.resume();
-            }
-            return !prev;
-          });
-        }}
+        onToggleSavePicker={handleToggleSavePicker}
         fps={fps} bodyCount={throwableElements.length + textBodyElements.length} lineCount={settings.textBodiesEnabled ? 0 : totalLineCount}
         currentPreset={currentPreset} onSelectPreset={onSelectPreset}
         onImportHtml={onImportHtml} onFetchUrl={onFetchUrl}
@@ -475,8 +506,8 @@ export function DominoScene({
         onSaveStashImageFiles={onSaveStashImageFiles}
         onClearSaved={onClearSaved} onRemoveSaved={onRemoveSaved}
         customPages={customPages ?? []} activeCustomId={activeCustomId ?? null}
-        onSelectCustomPage={onSelectCustomPage ?? (() => {})}
-        onResetAll={onResetAll ?? (() => {})}
+        onSelectCustomPage={onSelectCustomPage ?? NOOP_SELECT_CUSTOM_PAGE}
+        onResetAll={onResetAll ?? NOOP_RESET_ALL}
       />
     </div>
   );
