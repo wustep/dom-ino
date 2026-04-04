@@ -29,7 +29,6 @@ interface UseSnapshotScannerResult {
 	nodesRef: React.RefObject<Map<string, HTMLElement>>
 	textNodesRef: React.RefObject<Map<string, HTMLElement>>
 	handleIframeLoad: () => void
-	requestRescan: () => void
 	toggleSelected: (id: string) => void
 	saveNode: (id: string) => void
 	unsaveNode: (id: string) => void
@@ -322,7 +321,6 @@ export function useSnapshotScanner({
 		nodesRef,
 		textNodesRef,
 		handleIframeLoad,
-		requestRescan: scheduleScanCandidates,
 		toggleSelected,
 		saveNode,
 		unsaveNode,

@@ -93,7 +93,6 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		nodesRef,
 		textNodesRef,
 		handleIframeLoad,
-		requestRescan,
 		toggleSelected,
 		saveNode,
 		unsaveNode,
@@ -311,22 +310,14 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		[selectableCandidates],
 	)
 
-	const handleRemoveDropped = useCallback(
-		(id: string) => {
-			setDroppedElements((prev) => prev.filter((el) => el.id !== id))
-			requestRescan()
-		},
-		[requestRescan],
-	)
+	const handleRemoveDropped = useCallback((id: string) => {
+		setDroppedElements((prev) => prev.filter((el) => el.id !== id))
+	}, [])
 
-	const appendDroppedElements = useCallback(
-		(elements: SceneElement[]) => {
-			if (elements.length === 0) return
-			setDroppedElements((prev) => [...prev, ...elements])
-			requestRescan()
-		},
-		[requestRescan],
-	)
+	const appendDroppedElements = useCallback((elements: SceneElement[]) => {
+		if (elements.length === 0) return
+		setDroppedElements((prev) => [...prev, ...elements])
+	}, [])
 
 	const createDroppedElement = useCallback(
 		(saved: SavedElement, x?: number, y?: number): SceneElement => ({
