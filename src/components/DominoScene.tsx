@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { CustomPage } from "../App"
 import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
+import { usePickerPause } from "../hooks/usePickerPause"
 import type { PhysicsEngine } from "../physics/engine"
 import { createPhysicsEngine } from "../physics/engine"
 import type { PresetKey } from "../scene/presets"
@@ -95,8 +96,6 @@ export function DominoScene({
 
 	const [generation, setGeneration] = useState(0)
 	const [totalLineCount, setTotalLineCount] = useState(0)
-	const [pickerMode, setPickerMode] = useState(false)
-	const [savePickerMode, setSavePickerMode] = useState(false)
 	const [textBodyElements, setTextBodyElements] = useState<SceneElement[]>([])
 	const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 	const effectiveElements = scene.elements
@@ -136,6 +135,15 @@ export function DominoScene({
 		allowWordBreaks: true,
 		restitution: 0.3,
 	})
+
+	const {
+		pickerMode,
+		savePickerMode,
+		handleTogglePicker,
+		handleToggleSavePicker,
+		handleClosePicker,
+		handleCloseSavePicker,
+	} = usePickerPause({ physicsRef, isPaused: settings.paused })
 
 	const bumpGeneration = useCallback(() => setGeneration((g) => g + 1), [])
 	const { bodyPositions, fps } = usePhysicsLoop({
@@ -360,40 +368,6 @@ export function DominoScene({
 			}),
 		[effectiveElements, bodyPositions],
 	)
-
-	const handleTogglePicker = useCallback(() => {
-		setPickerMode((prev) => {
-			if (!prev) {
-				setSavePickerMode(false)
-				physicsRef.current?.pause()
-			} else if (!settings.paused) {
-				physicsRef.current?.resume()
-			}
-			return !prev
-		})
-	}, [settings.paused])
-
-	const handleToggleSavePicker = useCallback(() => {
-		setSavePickerMode((prev) => {
-			if (!prev) {
-				setPickerMode(false)
-				physicsRef.current?.pause()
-			} else if (!settings.paused) {
-				physicsRef.current?.resume()
-			}
-			return !prev
-		})
-	}, [settings.paused])
-
-	const handleClosePicker = useCallback(() => {
-		setPickerMode(false)
-		if (!settings.paused) physicsRef.current?.resume()
-	}, [settings.paused])
-
-	const handleCloseSavePicker = useCallback(() => {
-		setSavePickerMode(false)
-		if (!settings.paused) physicsRef.current?.resume()
-	}, [settings.paused])
 
 	const handleDeletePickerElement = useCallback(
 		(id: string) => {

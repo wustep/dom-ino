@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { CustomPage, SnapshotCustomPage } from "../App"
 import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
+import { usePickerPause } from "../hooks/usePickerPause"
 import { useSnapshotScanner } from "../hooks/useSnapshotScanner"
 import type { PhysicsEngine } from "../physics/engine"
 import { createPhysicsEngine } from "../physics/engine"
@@ -88,8 +89,6 @@ export function SnapshotPageView({
 	const physicsRef = useRef<PhysicsEngine | null>(null)
 	const hiddenSelectedNodesRef = useRef<Map<HTMLElement, string>>(new Map())
 	const hiddenTextNodesRef = useRef<Map<HTMLElement, string>>(new Map())
-	const [pickerMode, setPickerMode] = useState(false)
-	const [savePickerMode, setSavePickerMode] = useState(false)
 	const [droppedElements, setDroppedElements] = useState<SceneElement[]>([])
 	const [importedTextBodyElements, setImportedTextBodyElements] = useState<SceneElement[]>([])
 	const [importedTextBodyBlockIds, setImportedTextBodyBlockIds] = useState<Set<string>>(new Set())
@@ -106,6 +105,15 @@ export function SnapshotPageView({
 		allowWordBreaks: true,
 		restitution: 0.3,
 	})
+
+	const {
+		pickerMode,
+		savePickerMode,
+		handleTogglePicker,
+		handleToggleSavePicker,
+		handleClosePicker,
+		handleCloseSavePicker,
+	} = usePickerPause({ physicsRef, isPaused: settings.paused })
 
 	const { bodyPositions, fps } = usePhysicsLoop({
 		physicsRef,
@@ -432,44 +440,6 @@ export function SnapshotPageView({
 	const handleReset = useCallback(() => {
 		physicsRef.current?.reset()
 	}, [])
-
-	const handleClosePicker = useCallback(() => {
-		setPickerMode(false)
-		if (!settings.paused) {
-			physicsRef.current?.resume()
-		}
-	}, [settings.paused])
-
-	const handleCloseSavePicker = useCallback(() => {
-		setSavePickerMode(false)
-		if (!settings.paused) {
-			physicsRef.current?.resume()
-		}
-	}, [settings.paused])
-
-	const handleTogglePicker = useCallback(() => {
-		setPickerMode((prev) => {
-			if (!prev) {
-				setSavePickerMode(false)
-				physicsRef.current?.pause()
-			} else if (!settings.paused) {
-				physicsRef.current?.resume()
-			}
-			return !prev
-		})
-	}, [settings.paused])
-
-	const handleToggleSavePicker = useCallback(() => {
-		setSavePickerMode((prev) => {
-			if (!prev) {
-				setPickerMode(false)
-				physicsRef.current?.pause()
-			} else if (!settings.paused) {
-				physicsRef.current?.resume()
-			}
-			return !prev
-		})
-	}, [settings.paused])
 
 	const handleDropSaved = useCallback((saved: SavedElement, x?: number, y?: number) => {
 		const el = {
