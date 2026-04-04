@@ -11,7 +11,8 @@
 		"format": "biome format --write .",
 		"preview": "vite preview",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"prepare": "husky"
 	},
 	"dependencies": {
 		"@chenglou/pretext": "^0.0.3",
@@ -31,6 +32,7 @@
 		"@types/react-dom": "^19.2.3",
 		"@vercel/node": "^5.6.24",
 		"@vitejs/plugin-react": "^6.0.1",
+		"husky": "^9.1.7",
 		"jsdom": "^29.0.1",
 		"typescript": "~5.9.3",
 		"vite": "^8.0.1",
