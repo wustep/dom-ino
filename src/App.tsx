@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DominoScene } from "./components/DominoScene"
 import { FetchOverlay, Hint, PageReloadOverlay } from "./components/Overlays"
 import { SnapshotPageView } from "./components/SnapshotPageView"
@@ -9,7 +9,35 @@ import type { PresetKey } from "./scene/presets"
 import { DEFAULT_PRESET } from "./scene/presets"
 import type { SavedElement, SceneElement } from "./scene/types"
 import { clearPersistedState, loadState, saveState } from "./utils/persistence"
-import { savedElementFromImageFile } from "./utils/stashImageFromFile"
+import { isAcceptableStashImageFile, savedElementFromImageFile } from "./utils/stashImageFromFile"
+
+function DropToast({ message, isError }: { message: string; isError?: boolean }) {
+	return (
+		<div
+			style={{
+				position: "fixed",
+				bottom: 76,
+				left: "50%",
+				transform: "translateX(-50%)",
+				zIndex: 100000,
+				padding: "10px 20px",
+				borderRadius: 10,
+				backgroundColor: isError ? "rgba(180, 40, 40, 0.9)" : "rgba(20, 20, 24, 0.88)",
+				backdropFilter: "blur(12px)",
+				color: "#ddd",
+				fontSize: 13,
+				fontFamily: '"DM Sans", sans-serif',
+				fontWeight: 500,
+				boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
+				pointerEvents: "none",
+				animation: "hintFade 0.5s ease both",
+				whiteSpace: "nowrap",
+			}}
+		>
+			{message}
+		</div>
+	)
+}
 
 interface AppProps {
 	initialFetchUrl?: string | null
@@ -17,16 +45,44 @@ interface AppProps {
 }
 
 export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
-	// Prevent browser from navigating away when files are dropped outside the scene container
+	// ─── Invalid file drop toast ───
+	const [dropError, setDropError] = useState<string | null>(null)
+	const dropErrorTimer = useRef<ReturnType<typeof setTimeout>>()
+
+	const showDropError = useCallback((msg: string) => {
+		clearTimeout(dropErrorTimer.current)
+		setDropError(msg)
+		dropErrorTimer.current = setTimeout(() => setDropError(null), 3000)
+	}, [])
+
 	useEffect(() => {
 		const prevent = (e: DragEvent) => e.preventDefault()
+
+		const onDrop = (e: DragEvent) => {
+			e.preventDefault()
+			const files = e.dataTransfer?.files
+			if (!files || files.length === 0) return
+			const allFiles = Array.from(files)
+			const hasValidImage = allFiles.some(isAcceptableStashImageFile)
+			if (!hasValidImage) {
+				const ext = allFiles
+					.map((f) => {
+						const dot = f.name.lastIndexOf(".")
+						return dot >= 0 ? f.name.slice(dot) : f.name
+					})
+					.join(", ")
+				showDropError(`Unsupported file type (${ext}) — drop an image instead`)
+			}
+		}
+
 		window.addEventListener("dragover", prevent)
-		window.addEventListener("drop", prevent)
+		window.addEventListener("drop", onDrop)
 		return () => {
 			window.removeEventListener("dragover", prevent)
-			window.removeEventListener("drop", prevent)
+			window.removeEventListener("drop", onDrop)
+			clearTimeout(dropErrorTimer.current)
 		}
-	}, [])
+	}, [showDropError])
 
 	const persisted = useMemo(() => loadState(), [])
 	const [savedElements, setSavedElements] = useState<SavedElement[]>(persisted.savedElements ?? [])
@@ -60,33 +116,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		setSavedElements((prev) => prev.filter((s) => s.element.id !== id))
 	}, [])
 
-	const handleDropSaved = useCallback(
-		(saved: SavedElement, dropX?: number, dropY?: number) => {
-			if (!nav.scene) return
-			const el = { ...saved.element }
-			el.id = `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-			el.throwable = true
-			el.pinned = false
-			el.rect = {
-				...el.rect,
-				x:
-					dropX != null
-						? dropX - el.rect.width / 2
-						: (nav.windowSize.width - el.rect.width) / 2 + (Math.random() - 0.5) * 120,
-				y:
-					dropY != null
-						? dropY - el.rect.height / 2
-						: window.scrollY +
-							nav.windowSize.height / 2 -
-							el.rect.height / 2 +
-							(Math.random() - 0.5) * 60,
-			}
-			const newScene = { ...nav.scene, elements: [...nav.scene.elements, el] }
-			nav.ensureCustomScenePage(newScene)
-		},
-		[nav.scene, nav.ensureCustomScenePage, nav.windowSize],
-	)
-
 	const handleRemoveSaved = useCallback((index: number) => {
 		setSavedElements((prev) => prev.filter((_, i) => i !== index))
 	}, [])
@@ -104,36 +133,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			})()
 		},
 		[nav.activeCustomPage?.name, nav.scene?.name],
-	)
-
-	const handleDropImageFilesOnScene = useCallback(
-		(files: File[], dropX: number, dropY: number) => {
-			void (async () => {
-				const sourceName = nav.scene?.name ?? "Dropped image"
-				const newSaved: SavedElement[] = []
-				for (const file of files) {
-					const saved = await savedElementFromImageFile(file, sourceName)
-					if (saved) newSaved.push(saved)
-				}
-				if (!newSaved.length) return
-				setSavedElements((prev) => [...prev, ...newSaved])
-				if (!nav.scene) return
-				const newElements: SceneElement[] = newSaved.map((saved) => ({
-					...saved.element,
-					id: `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-					throwable: true,
-					pinned: false,
-					rect: {
-						...saved.element.rect,
-						x: dropX - saved.element.rect.width / 2,
-						y: dropY - saved.element.rect.height / 2,
-					},
-				}))
-				const newScene = { ...nav.scene, elements: [...nav.scene.elements, ...newElements] }
-				nav.ensureCustomScenePage(newScene)
-			})()
-		},
-		[nav.scene, nav.ensureCustomScenePage],
 	)
 
 	const handleResetAll = useCallback(() => {
@@ -208,13 +207,12 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 						key={nav.sceneKey}
 						scene={nav.scene}
 						onSceneChange={nav.handleSceneChange}
-						onDropSaved={handleDropSaved}
-						onDropImageFiles={handleDropImageFilesOnScene}
 						onResetAll={handleResetAll}
 					/>
 				) : null}
 				{nav.fetchingUrl && <FetchOverlay url={nav.fetchingUrl} />}
 				{nav.showHint && <Hint />}
+				{dropError && <DropToast message={dropError} isError />}
 			</SavedElementsContext>
 		</NavigationContext>
 	)

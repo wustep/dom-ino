@@ -134,11 +134,13 @@ export const SITE_RULES: SiteRule[] = [
 				"#mp-welcome h1",
 				"#mp-welcome .mw-heading1",
 				"#mp-tfa",
+				"#mp-tfp p",
 				".tfa-recent",
 				".tfa-footer",
 				".itn-footer > div",
 				".otd-footer",
 				".potd-recent",
+				".potd-footer",
 			],
 			neverPretextWithin: [
 				"table",

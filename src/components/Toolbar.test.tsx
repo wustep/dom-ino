@@ -135,7 +135,7 @@ describe("Toolbar", () => {
 			renderToolbar()
 			expect(screen.getByLabelText("Pages")).toBeInTheDocument()
 			expect(screen.getByLabelText("Explode scene")).toBeInTheDocument()
-			expect(screen.getByLabelText("Reset scene")).toBeInTheDocument()
+			expect(screen.getByLabelText("Reset scene (⌥ click to keep components)")).toBeInTheDocument()
 			expect(screen.getByLabelText("Settings")).toBeInTheDocument()
 			expect(screen.getByLabelText("Hide toolbar")).toBeInTheDocument()
 		})
@@ -173,7 +173,7 @@ describe("Toolbar", () => {
 					</SavedElementsContext>
 				</NavigationContext>,
 			)
-			await userEvent.click(screen.getByLabelText("Reset scene"))
+			await userEvent.click(screen.getByLabelText("Reset scene (⌥ click to keep components)"))
 			expect(props.onReset).toHaveBeenCalledOnce()
 		})
 

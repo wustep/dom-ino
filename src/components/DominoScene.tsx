@@ -11,7 +11,7 @@ import { getObstacleAABB } from "../textflow/obstacles"
 import { computeTextFlow } from "../textflow/useTextFlow"
 import { buildFontString } from "../utils/fonts"
 import { loadSettings, saveSettings } from "../utils/persistence"
-import { isAcceptableStashImageFile } from "../utils/stashImageFromFile"
+import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
 import { getBackgroundStyle } from "../utils/styles"
 import { PhysicsDomItem } from "./PhysicsDomItem"
 import { QuickSavePicker } from "./picker/QuickSavePicker"
@@ -24,8 +24,6 @@ const NOOP = () => {}
 interface DominoSceneProps {
 	scene: SceneDescription
 	onSceneChange?: (scene: SceneDescription, remount?: boolean) => void
-	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
-	onDropImageFiles?: (files: File[], x: number, y: number) => void
 	onResetAll?: () => void
 }
 
@@ -56,17 +54,12 @@ function computeTextMaxHeights(
 }
 
 /** Orchestrates a preset scene: physics simulation, text reflow, throwable elements, and picker overlays. */
-export function DominoScene({
-	scene,
-	onSceneChange,
-	onDropSaved,
-	onDropImageFiles,
-	onResetAll,
-}: DominoSceneProps) {
+export function DominoScene({ scene, onSceneChange, onResetAll }: DominoSceneProps) {
 	const {
 		savedElements,
 		saveElement: onSaveElement,
 		unsaveElement: onUnsaveElement,
+		saveStashImageFiles,
 	} = useSavedElements()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const physicsRef = useRef<PhysicsEngine | null>(null)
@@ -74,7 +67,12 @@ export function DominoScene({
 	const [totalLineCount, setTotalLineCount] = useState(0)
 	const [textBodyElements, setTextBodyElements] = useState<SceneElement[]>([])
 	const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-	const effectiveElements = scene.elements
+	const [addedElements, setAddedElements] = useState<SceneElement[]>([])
+	const addedElementIdsRef = useRef<Set<string>>(new Set())
+	const effectiveElements = useMemo(
+		() => [...scene.elements, ...addedElements],
+		[scene.elements, addedElements],
+	)
 
 	const [settings, setSettingsRaw] = useState<SceneSettings>(loadSettings)
 	const setSettings = useCallback((s: SceneSettings) => {
@@ -150,16 +148,36 @@ export function DominoScene({
 		setTextBodyElements(nextBodies)
 	}, [settings.textBodiesEnabled, textElements])
 
+	// Track element identity so we can distinguish resize (same elements,
+	// different dimensions) from real element changes (drop, delete, toggle).
+	const prevElementsKeyRef = useRef("")
+
 	useEffect(() => {
 		const container = containerRef.current
 		if (!container) return
-		const engine = createPhysicsEngine(scene, container)
-		physicsRef.current = engine
-		return () => {
-			engine.destroy()
-			physicsRef.current = null
+
+		const newKey = scene.elements.map((el) => `${el.id}:${el.throwable}`).join(",")
+
+		if (physicsRef.current && prevElementsKeyRef.current === newKey) {
+			// Only dimensions changed (window resize) — update walls, keep bodies
+			physicsRef.current.resize(scene.width, scene.height)
+			return
 		}
+
+		// Element change or first mount — recreate engine
+		physicsRef.current?.destroy()
+		physicsRef.current = createPhysicsEngine(scene, container)
+		prevElementsKeyRef.current = newKey
 	}, [scene])
+
+	// Cleanup on unmount (component remounts on preset change via key={sceneKey})
+	useEffect(
+		() => () => {
+			physicsRef.current?.destroy()
+			physicsRef.current = null
+		},
+		[],
+	)
 
 	useEffect(() => {
 		if (settings.paused) physicsRef.current?.pause()
@@ -254,23 +272,34 @@ export function DominoScene({
 	])
 
 	const handleExplode = useCallback(() => physicsRef.current?.explode(), [])
-	const handleReset = useCallback(() => {
+	const handleReset = useCallback((keepComponents?: boolean) => {
+		if (!keepComponents) {
+			// Remove manually added elements from physics and state
+			for (const id of addedElementIdsRef.current) {
+				physicsRef.current?.removeBody(id)
+			}
+			addedElementIdsRef.current.clear()
+			setAddedElements([])
+		}
 		physicsRef.current?.reset()
 	}, [])
 	const handleToggleThrowable = useCallback(
 		(elementId: string) => {
 			if (!onSceneChange) return
+			const allElements = [...scene.elements, ...addedElements]
 			onSceneChange(
 				{
 					...scene,
-					elements: scene.elements.map((el) =>
+					elements: allElements.map((el) =>
 						el.id === elementId ? { ...el, throwable: !el.throwable } : el,
 					),
 				},
 				false,
 			)
+			setAddedElements([])
+			addedElementIdsRef.current.clear()
 		},
-		[scene, onSceneChange],
+		[scene, onSceneChange, addedElements],
 	)
 
 	const saveCandidates = useMemo(() => {
@@ -307,10 +336,20 @@ export function DominoScene({
 
 	const handleDeletePickerElement = useCallback(
 		(id: string) => {
+			// If it's an added element, just remove from local state
+			if (addedElementIdsRef.current.has(id)) {
+				physicsRef.current?.removeBody(id)
+				addedElementIdsRef.current.delete(id)
+				setAddedElements((prev) => prev.filter((el) => el.id !== id))
+				return
+			}
 			if (!onSceneChange) return
-			onSceneChange({ ...scene, elements: scene.elements.filter((el) => el.id !== id) }, false)
+			const allElements = [...scene.elements, ...addedElements]
+			onSceneChange({ ...scene, elements: allElements.filter((el) => el.id !== id) }, false)
+			setAddedElements([])
+			addedElementIdsRef.current.clear()
 		},
-		[onSceneChange, scene],
+		[onSceneChange, scene, addedElements],
 	)
 
 	const lineCountRef = useRef(0)
@@ -336,6 +375,75 @@ export function DominoScene({
 		}
 	}, [textBodyElements])
 
+	// Sync added element bodies into physics engine (e.g. after engine recreation).
+	useEffect(() => {
+		const engine = physicsRef.current
+		if (!engine) return
+		for (const el of addedElements) {
+			if (!engine.bodies.has(el.id)) engine.addBody(el)
+		}
+	}, [addedElements])
+
+	const handleDropSavedOnScene = useCallback(
+		(saved: SavedElement, dropX?: number, dropY?: number) => {
+			const el: SceneElement = {
+				...saved.element,
+				id: `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+				throwable: true,
+				pinned: false,
+				rect: {
+					...saved.element.rect,
+					x:
+						dropX != null
+							? dropX - saved.element.rect.width / 2
+							: (scene.width - saved.element.rect.width) / 2 + (Math.random() - 0.5) * 120,
+					y:
+						dropY != null
+							? dropY - saved.element.rect.height / 2
+							: scene.height / 2 - saved.element.rect.height / 2 + (Math.random() - 0.5) * 60,
+				},
+			}
+			addedElementIdsRef.current.add(el.id)
+			setAddedElements((prev) => [...prev, el])
+			physicsRef.current?.addBody(el)
+		},
+		[scene.width, scene.height],
+	)
+
+	const handleDropImageFilesOnScene = useCallback(
+		(files: File[], dropX: number, dropY: number) => {
+			saveStashImageFiles(files)
+			void (async () => {
+				const newElements: SceneElement[] = []
+				for (const file of files) {
+					const saved = await savedElementFromImageFile(file, scene.name)
+					if (!saved) continue
+					const el: SceneElement = {
+						...saved.element,
+						id: `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+						throwable: true,
+						pinned: false,
+						rect: {
+							...saved.element.rect,
+							x: dropX - saved.element.rect.width / 2,
+							y: dropY - saved.element.rect.height / 2,
+						},
+					}
+					newElements.push(el)
+				}
+				if (!newElements.length) return
+				for (const el of newElements) {
+					addedElementIdsRef.current.add(el.id)
+				}
+				setAddedElements((prev) => [...prev, ...newElements])
+				for (const el of newElements) {
+					physicsRef.current?.addBody(el)
+				}
+			})()
+		},
+		[saveStashImageFiles, scene.name],
+	)
+
 	const handleDragOver = useCallback((e: React.DragEvent) => {
 		e.preventDefault()
 		e.dataTransfer.dropEffect = "copy"
@@ -347,7 +455,7 @@ export function DominoScene({
 				const data = JSON.parse(e.dataTransfer.getData("application/domino-saved"))
 				if (data) {
 					const rect = e.currentTarget.getBoundingClientRect()
-					onDropSaved(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top)
+					handleDropSavedOnScene(data as SavedElement, e.clientX - rect.left, e.clientY - rect.top)
 					return
 				}
 			} catch {
@@ -356,10 +464,10 @@ export function DominoScene({
 			const imageFiles = Array.from(e.dataTransfer.files).filter(isAcceptableStashImageFile)
 			if (imageFiles.length > 0) {
 				const rect = e.currentTarget.getBoundingClientRect()
-				onDropImageFiles?.(imageFiles, e.clientX - rect.left, e.clientY - rect.top)
+				handleDropImageFilesOnScene(imageFiles, e.clientX - rect.left, e.clientY - rect.top)
 			}
 		},
-		[onDropSaved, onDropImageFiles],
+		[handleDropSavedOnScene, handleDropImageFilesOnScene],
 	)
 
 	return (
@@ -492,7 +600,7 @@ export function DominoScene({
 					onTogglePicker={handleTogglePicker}
 					pickerMode={pickerMode}
 					onToggleSavePicker={handleToggleSavePicker}
-					onDropSaved={onDropSaved}
+					onDropSaved={handleDropSavedOnScene}
 				/>
 			</SettingsContext>
 		</div>

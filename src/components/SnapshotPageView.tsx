@@ -463,11 +463,16 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 
 	// Sync physics bodies incrementally so adding/removing elements doesn't
 	// destroy the engine and reset existing body positions.
+	// Resize engine when iframe height changes OR window width changes.
 	useEffect(() => {
 		const engine = physicsRef.current
 		if (!engine) return
-
-		engine.resize(stageRef.current?.clientWidth || window.innerWidth, iframeHeight)
+		const doResize = () => {
+			engine.resize(stageRef.current?.clientWidth || window.innerWidth, iframeHeight)
+		}
+		doResize()
+		window.addEventListener("resize", doResize)
+		return () => window.removeEventListener("resize", doResize)
 	}, [iframeHeight])
 
 	useEffect(() => {
