@@ -400,7 +400,10 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 					y:
 						dropY != null
 							? dropY - saved.element.rect.height / 2
-							: scene.height / 2 - saved.element.rect.height / 2 + (Math.random() - 0.5) * 60,
+							: window.scrollY +
+								window.innerHeight / 2 -
+								saved.element.rect.height / 2 +
+								(Math.random() - 0.5) * 60,
 				},
 			}
 			addedElementIdsRef.current.add(el.id)
