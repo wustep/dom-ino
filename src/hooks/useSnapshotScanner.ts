@@ -170,7 +170,8 @@ export function useSnapshotScanner({
 				})()
 				if (isInfobox || id.includes("infobox")) continue
 				if ((isGallery || isTable) && !isMediaWrapper && !isNoticeBox) continue
-				if (isFloatAnchor && t !== "image" && (c.width > 200 || c.height > 200)) continue
+				if (!forceAutoSelect && isFloatAnchor && t !== "image" && (c.width > 200 || c.height > 200))
+					continue
 				if (t === "card" && !isNoticeBox && (c.width > 400 || c.height > 300)) continue
 				if (isNoticeBox && (c.width > 980 || c.height > 320)) continue
 				if (picked.some((p) => p.node.contains(c.node))) continue

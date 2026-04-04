@@ -326,7 +326,8 @@ export function inferSnapshotElementType(
 	// Generic elements (div, span, section, etc.) that are primarily text containers
 	// — all children are inline elements and there is meaningful text content
 	if (text.length > 20) {
-		const children = Array.from(el.children)
+		const NON_VISUAL = new Set(["STYLE", "LINK", "SCRIPT", "NOSCRIPT", "META", "TEMPLATE"])
+		const children = Array.from(el.children).filter((c) => !NON_VISUAL.has(c.tagName))
 		const allInline = children.length === 0 || children.every((c) => INLINE_TAGS.has(c.tagName))
 		if (allInline) return "paragraph"
 	}
