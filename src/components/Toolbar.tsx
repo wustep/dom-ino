@@ -10,6 +10,7 @@ import {
 import type { CustomPage } from "../App"
 import type { PresetKey } from "../scene/presets"
 import type { SavedElement } from "../scene/types"
+import "./toolbar/Toolbar.css"
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
@@ -267,17 +268,14 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 				data-domino-toolbar-root="true"
 				data-domino-toolbar-dock="true"
 				ref={toolbarDockRef}
-				style={toolbarDockStyle}
+				className="dt-dock"
 			>
 				<div
-					className="domino-toolbar-tooltip-wrap"
-					style={{
-						...toolbarOverlayItemStyle,
-						pointerEvents: collapsed && showCollapsedReveal ? "auto" : "none",
-					}}
+					className="dt-overlay-item"
+					style={{ pointerEvents: collapsed && showCollapsedReveal ? "auto" : "none" }}
 				>
 					<button
-						className="domino-toolbar-reveal"
+						className="dt-reveal"
 						type="button"
 						onClick={handleExpandToolbar}
 						aria-label="Show toolbar"
@@ -289,7 +287,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						}}
 						onBlur={clearTooltip}
 						style={{
-							...collapsedBtnStyle,
 							opacity: collapsed && showCollapsedReveal ? 0.86 : 0,
 							transform:
 								collapsed && showCollapsedReveal
@@ -303,8 +300,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
 				{/* ─── Compact pill ─── */}
 				<div
+					className="dt-pill"
 					style={{
-						...toolbarPillStyle,
 						opacity: collapsed ? 0 : 1,
 						transform: collapsed ? "translateY(16px) scale(0.96)" : "translateY(0) scale(1)",
 						pointerEvents: collapsed ? "none" : "auto",
@@ -341,7 +338,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						active={pickerMode}
 						onClick={onTogglePicker}
 						tip={pickerMode ? "Exit component picker" : "Enter component picker"}
-						accent={pickerMode ? "#3b82f6" : undefined}
+						accent={pickerMode ? "var(--dt-accent-blue, #3b82f6)" : undefined}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
@@ -351,24 +348,19 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						active={openPanel === "stash" || savePickerMode}
 						onClick={() => toggle("stash")}
 						tip="Saved components"
-						accent={savePickerMode ? "#c4b5fd" : savedElements.length > 0 ? "#a78bfa" : undefined}
+						accent={
+							savePickerMode
+								? "var(--dt-accent-light, #c4b5fd)"
+								: savedElements.length > 0
+									? "var(--dt-accent, #a78bfa)"
+									: undefined
+						}
 						dataAttrs={{ "data-domino-stash-trigger": "true" }}
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
 						<StashIcon />
-						{savedElements.length > 0 && (
-							<span
-								style={{
-									fontSize: 8,
-									fontWeight: 700,
-									color: "#a78bfa",
-									marginLeft: -2,
-								}}
-							>
-								{savedElements.length}
-							</span>
-						)}
+						{savedElements.length > 0 && <span className="dt-badge">{savedElements.length}</span>}
 					</Btn>
 					<Sep />
 					<Btn
@@ -395,8 +387,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 			{activeTooltip && (
 				<div
 					ref={tooltipRef}
+					className="dt-tooltip"
 					style={{
-						...toolbarTooltipStyle,
 						left: tooltipPosition?.left ?? -9999,
 						bottom: tooltipPosition?.bottom ?? 0,
 						opacity: tooltipPosition ? 1 : 0,
@@ -405,105 +397,13 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					{activeTooltip.label}
 				</div>
 			)}
-
-			<style>{`
-        @keyframes flyUp { from { opacity:0; transform:translateY(10px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
-        .domino-toolbar-reveal:hover,
-        .domino-toolbar-reveal:focus-visible {
-          opacity: 1 !important;
-          transform: translateY(-2px) scale(1.03) !important;
-          color: #f3f4f6;
-          border-color: rgba(255,255,255,0.22);
-        }
-      `}</style>
 		</>
 	)
 })
 
-// ─── Styles ───
-const toolbarDockStyle: React.CSSProperties = {
-	position: "fixed",
-	bottom: 16,
-	right: 16,
-	zIndex: 9999,
-	display: "grid",
-	alignItems: "end",
-	justifyItems: "end",
-}
-const toolbarOverlayItemStyle: React.CSSProperties = {
-	gridArea: "1 / 1",
-	position: "relative",
-	display: "flex",
-	alignItems: "center",
-}
-const toolbarPillStyle: React.CSSProperties = {
-	gridArea: "1 / 1",
-	display: "flex",
-	alignItems: "center",
-	gap: 1,
-	height: 36,
-	padding: "0 2px",
-	borderRadius: 10,
-	backgroundColor: "rgba(20,20,24,0.92)",
-	backdropFilter: "blur(20px)",
-	border: "1px solid rgba(255,255,255,0.08)",
-	boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-	transformOrigin: "bottom right",
-	willChange: "opacity, transform",
-	transition:
-		"opacity 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 260ms cubic-bezier(0.22, 1, 0.36, 1)",
-}
-const collapsedBtnStyle: React.CSSProperties = {
-	width: 34,
-	height: 34,
-	borderRadius: 10,
-	border: "1px solid rgba(255,255,255,0.12)",
-	backgroundColor: "rgba(20,20,24,0.88)",
-	backdropFilter: "blur(16px)",
-	color: "#9ca3af",
-	cursor: "pointer",
-	display: "flex",
-	alignItems: "center",
-	justifyContent: "center",
-	boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
-	transformOrigin: "bottom right",
-	willChange: "opacity, transform",
-	transition:
-		"opacity 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 260ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms ease, border-color 160ms ease",
-}
-const toolbarTooltipStyle: React.CSSProperties = {
-	position: "fixed",
-	zIndex: 10001,
-	pointerEvents: "none",
-	whiteSpace: "nowrap",
-	maxWidth: "calc(100vw - 24px)",
-	overflow: "hidden",
-	textOverflow: "ellipsis",
-	padding: "5px 8px",
-	borderRadius: 6,
-	border: "1px solid rgba(255,255,255,0.08)",
-	background: "rgba(10,10,14,0.94)",
-	color: "#f3f4f6",
-	boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-	fontFamily: '"DM Sans", sans-serif',
-	fontSize: 10,
-	lineHeight: 1,
-	letterSpacing: "0.01em",
-	transition: "opacity 0.12s ease",
-}
-
 // ─── Sub-components ───
 function Sep() {
-	return (
-		<div
-			style={{
-				width: 1,
-				height: 16,
-				backgroundColor: "rgba(255,255,255,0.06)",
-				margin: "0 1px",
-			}}
-		/>
-	)
+	return <div className="dt-sep" />
 }
 
 function Btn({
@@ -527,11 +427,16 @@ function Btn({
 	onShowTooltip: (label: string | undefined, target: HTMLButtonElement) => void
 	onHideTooltip: () => void
 }) {
+	const className = ["dt-btn", active && "dt-btn--active", compact && "dt-btn--compact"]
+		.filter(Boolean)
+		.join(" ")
+
 	return (
-		<div className="domino-toolbar-tooltip-wrap">
+		<div>
 			<button
 				{...dataAttrs}
 				type="button"
+				className={className}
 				onClick={() => {
 					onHideTooltip()
 					onClick()
@@ -541,21 +446,7 @@ function Btn({
 				onFocus={(e) => onShowTooltip(tip, e.currentTarget)}
 				onBlur={onHideTooltip}
 				aria-label={tip}
-				style={{
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					gap: 2,
-					padding: compact ? "0 4px" : "0 7px",
-					borderRadius: 7,
-					border: "none",
-					backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent",
-					color: accent ?? (active ? "#fff" : "#777"),
-					cursor: "pointer",
-					transition: "all 0.12s",
-					height: 30,
-					minWidth: compact ? 24 : 30,
-				}}
+				style={accent ? { color: accent } : undefined}
 			>
 				{children}
 			</button>

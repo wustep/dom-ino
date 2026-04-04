@@ -1,0 +1,580 @@
+/* ─── Semantic Tokens ─── */
+:root {
+	/* Backgrounds */
+	--dt-bg: rgba(20, 20, 24, 0.92);
+	--dt-bg-solid: rgba(20, 20, 24, 0.95);
+	--dt-bg-dim: rgba(20, 20, 24, 0.88);
+	--dt-bg-tooltip: rgba(10, 10, 14, 0.94);
+	--dt-bg-input: rgba(255, 255, 255, 0.04);
+	--dt-bg-hover: rgba(255, 255, 255, 0.06);
+	--dt-bg-active: rgba(255, 255, 255, 0.1);
+	--dt-bg-stash-item: rgba(255, 255, 255, 0.03);
+
+	/* Borders */
+	--dt-border: rgba(255, 255, 255, 0.08);
+	--dt-border-hover: rgba(255, 255, 255, 0.12);
+	--dt-border-active: rgba(255, 255, 255, 0.2);
+	--dt-border-subtle: rgba(255, 255, 255, 0.04);
+	--dt-border-divider: rgba(255, 255, 255, 0.06);
+	--dt-border-section: rgba(255, 255, 255, 0.05);
+
+	/* Text */
+	--dt-text: #ccc;
+	--dt-text-primary: #fff;
+	--dt-text-bright: #f3f4f6;
+	--dt-text-secondary: #ddd;
+	--dt-text-tertiary: #999;
+	--dt-text-muted: #888;
+	--dt-text-dim: #777;
+	--dt-text-faint: #666;
+	--dt-text-ghost: #555;
+	--dt-text-reveal: #9ca3af;
+
+	/* Accent */
+	--dt-accent: #a78bfa;
+	--dt-accent-light: #c4b5fd;
+	--dt-accent-bold: #7c3aed;
+
+	/* Status */
+	--dt-success: #4ade80;
+	--dt-success-bg: rgba(74, 222, 128, 0.5);
+	--dt-warning: #fbbf24;
+	--dt-danger: #f87171;
+	--dt-danger-border: rgba(248, 113, 113, 0.2);
+
+	/* Shadows */
+	--dt-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+	--dt-shadow-heavy: 0 12px 48px rgba(0, 0, 0, 0.45);
+	--dt-shadow-tooltip: 0 8px 24px rgba(0, 0, 0, 0.35);
+	--dt-shadow-reveal: 0 8px 24px rgba(0, 0, 0, 0.28);
+
+	/* Effects */
+	--dt-blur: blur(20px);
+	--dt-blur-light: blur(16px);
+
+	/* Radii */
+	--dt-radius: 10px;
+	--dt-radius-flyout: 12px;
+	--dt-radius-btn: 7px;
+	--dt-radius-sm: 6px;
+	--dt-radius-xs: 4px;
+
+	/* Typography */
+	--dt-font: "DM Sans", sans-serif;
+	--dt-font-mono: "JetBrains Mono", monospace;
+
+	/* Animation */
+	--dt-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Animation ─── */
+@keyframes dt-fly-up {
+	from {
+		opacity: 0;
+		transform: translateY(10px) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+/* ─── Dock ─── */
+.dt-dock {
+	position: fixed;
+	bottom: 16px;
+	right: 16px;
+	z-index: 9999;
+	display: grid;
+	align-items: end;
+	justify-items: end;
+}
+
+.dt-overlay-item {
+	grid-area: 1 / 1;
+	position: relative;
+	display: flex;
+	align-items: center;
+}
+
+/* ─── Pill ─── */
+.dt-pill {
+	grid-area: 1 / 1;
+	display: flex;
+	align-items: center;
+	gap: 1px;
+	height: 36px;
+	padding: 0 2px;
+	border-radius: var(--dt-radius);
+	background-color: var(--dt-bg);
+	backdrop-filter: var(--dt-blur);
+	border: 1px solid var(--dt-border);
+	box-shadow: var(--dt-shadow);
+	transform-origin: bottom right;
+	will-change: opacity, transform;
+	transition:
+		opacity 260ms var(--dt-ease),
+		transform 260ms var(--dt-ease);
+}
+
+/* ─── Toolbar Button ─── */
+.dt-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	padding: 0 7px;
+	border-radius: var(--dt-radius-btn);
+	border: none;
+	background-color: transparent;
+	color: var(--dt-text-dim);
+	cursor: pointer;
+	transition:
+		background-color 0.12s,
+		color 0.12s;
+	height: 30px;
+	min-width: 30px;
+}
+
+.dt-btn:hover {
+	background-color: var(--dt-bg-hover);
+	color: var(--dt-text);
+}
+
+.dt-btn--active {
+	background-color: var(--dt-bg-active);
+	color: var(--dt-text-primary);
+}
+
+.dt-btn--active:hover {
+	background-color: var(--dt-bg-active);
+}
+
+.dt-btn--compact {
+	padding: 0 4px;
+	min-width: 24px;
+}
+
+/* ─── Separator ─── */
+.dt-sep {
+	width: 1px;
+	height: 16px;
+	background-color: var(--dt-border-divider);
+	margin: 0 1px;
+}
+
+/* ─── Collapse / Reveal ─── */
+.dt-reveal {
+	width: 34px;
+	height: 34px;
+	border-radius: var(--dt-radius);
+	border: 1px solid var(--dt-border-hover);
+	background-color: var(--dt-bg-dim);
+	backdrop-filter: var(--dt-blur-light);
+	color: var(--dt-text-reveal);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: var(--dt-shadow-reveal);
+	transform-origin: bottom right;
+	will-change: opacity, transform;
+	transition:
+		opacity 260ms var(--dt-ease),
+		transform 260ms var(--dt-ease),
+		color 160ms ease,
+		border-color 160ms ease;
+}
+
+.dt-reveal:hover,
+.dt-reveal:focus-visible {
+	opacity: 1 !important;
+	transform: translateY(-2px) scale(1.03) !important;
+	color: var(--dt-text-bright);
+	border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* ─── Tooltip ─── */
+.dt-tooltip {
+	position: fixed;
+	z-index: 10001;
+	pointer-events: none;
+	white-space: nowrap;
+	max-width: calc(100vw - 24px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding: 5px 8px;
+	border-radius: var(--dt-radius-sm);
+	border: 1px solid var(--dt-border);
+	background: var(--dt-bg-tooltip);
+	color: var(--dt-text-bright);
+	box-shadow: var(--dt-shadow-tooltip);
+	font-family: var(--dt-font);
+	font-size: 10px;
+	line-height: 1;
+	letter-spacing: 0.01em;
+	transition: opacity 0.12s ease;
+}
+
+/* ─── Flyout Panel ─── */
+.dt-flyout {
+	position: fixed;
+	z-index: 9998;
+	bottom: 56px;
+	right: 16px;
+	max-height: calc(100vh - 80px);
+	overflow-y: auto;
+	border-radius: var(--dt-radius-flyout);
+	border: 1px solid var(--dt-border);
+	background-color: var(--dt-bg-solid);
+	backdrop-filter: var(--dt-blur);
+	box-shadow: var(--dt-shadow-heavy);
+	font-family: var(--dt-font);
+	color: var(--dt-text);
+	animation: dt-fly-up 0.22s var(--dt-ease);
+}
+
+.dt-flyout-header {
+	padding: 12px 14px 8px;
+	border-bottom: 1px solid var(--dt-border-divider);
+}
+
+.dt-flyout-title {
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--dt-text-primary);
+	margin-bottom: 8px;
+}
+
+/* ─── Chip ─── */
+.dt-chip {
+	padding: 5px 12px;
+	border-radius: var(--dt-radius-sm);
+	border: 1px solid var(--dt-border-divider);
+	background-color: transparent;
+	color: var(--dt-text-tertiary);
+	font-size: 11px;
+	font-weight: 400;
+	font-family: var(--dt-font);
+	cursor: pointer;
+	transition:
+		border-color 0.12s,
+		background-color 0.12s,
+		color 0.12s;
+}
+
+.dt-chip:hover {
+	border-color: var(--dt-border-hover);
+	color: var(--dt-text-secondary);
+}
+
+.dt-chip--active {
+	border: 1px solid var(--dt-border-active);
+	background-color: var(--dt-bg-active);
+	color: var(--dt-text-primary);
+	font-weight: 600;
+}
+
+/* ─── Form Controls ─── */
+.dt-input {
+	width: 100%;
+	padding: 6px 8px;
+	border-radius: var(--dt-radius-sm);
+	border: 1px solid var(--dt-border);
+	background-color: var(--dt-bg-input);
+	color: var(--dt-text-secondary);
+	font-size: 11px;
+	font-family: var(--dt-font);
+	outline: none;
+	box-sizing: border-box;
+}
+
+.dt-input:focus {
+	border-color: var(--dt-border-hover);
+}
+
+.dt-input--mono {
+	font-family: var(--dt-font-mono);
+}
+
+.dt-btn-primary {
+	padding: 6px 0;
+	border-radius: var(--dt-radius-sm);
+	border: none;
+	background-color: var(--dt-accent-bold);
+	color: var(--dt-text-primary);
+	font-size: 11px;
+	font-weight: 600;
+	font-family: var(--dt-font);
+	cursor: pointer;
+	transition: opacity 0.12s;
+}
+
+.dt-btn-primary:hover {
+	opacity: 0.9;
+}
+
+.dt-btn-primary:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.dt-btn-tiny {
+	padding: 2px 6px;
+	border-radius: var(--dt-radius-xs);
+	border: 1px solid var(--dt-border);
+	background-color: transparent;
+	font-size: 9px;
+	font-weight: 600;
+	font-family: var(--dt-font);
+	cursor: pointer;
+	white-space: nowrap;
+	transition: border-color 0.12s;
+}
+
+.dt-btn-tiny:hover {
+	border-color: var(--dt-border-hover);
+}
+
+/* ─── Import Tabs ─── */
+.dt-tab {
+	flex: 1;
+	padding: 5px 0;
+	border: none;
+	border-bottom: 2px solid transparent;
+	background-color: transparent;
+	color: var(--dt-text-faint);
+	font-size: 10px;
+	font-weight: 600;
+	font-family: var(--dt-font);
+	cursor: pointer;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	transition:
+		color 0.12s,
+		border-color 0.12s;
+}
+
+.dt-tab:hover {
+	color: var(--dt-text-tertiary);
+}
+
+.dt-tab--active {
+	border-bottom-color: var(--dt-accent);
+	color: var(--dt-text-primary);
+}
+
+/* ─── Settings ─── */
+.dt-stats {
+	padding: 8px 12px;
+	display: flex;
+	gap: 10px;
+	border-bottom: 1px solid var(--dt-border-section);
+	font-size: 9px;
+	color: var(--dt-text-muted);
+	font-family: var(--dt-font-mono);
+}
+
+.dt-settings-body {
+	padding: 8px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font-family: var(--dt-font-mono);
+	font-size: 10px;
+}
+
+.dt-label {
+	font-size: 8px;
+	font-weight: 700;
+	color: var(--dt-text-ghost);
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	margin-top: 4px;
+	margin-bottom: -2px;
+}
+
+.dt-hint {
+	margin-top: -1px;
+	color: var(--dt-text-faint);
+	font-size: 9px;
+	line-height: 1.45;
+}
+
+/* ─── Toggle ─── */
+.dt-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	cursor: pointer;
+}
+
+.dt-toggle--disabled {
+	cursor: not-allowed;
+	opacity: 0.42;
+}
+
+.dt-toggle-track {
+	width: 28px;
+	height: 16px;
+	padding: 0;
+	border: none;
+	border-radius: 8px;
+	background-color: var(--dt-bg-active);
+	position: relative;
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.dt-toggle-track--checked {
+	background-color: var(--dt-success-bg);
+}
+
+.dt-toggle-track:disabled {
+	cursor: not-allowed;
+}
+
+.dt-toggle-thumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background-color: var(--dt-text-ghost);
+	transition: left 0.2s;
+}
+
+.dt-toggle-thumb--checked {
+	left: 14px;
+	background-color: var(--dt-success);
+}
+
+/* ─── Slider ─── */
+.dt-slider-header {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 2px;
+}
+
+.dt-slider-label {
+	font-size: 9px;
+	color: var(--dt-text-muted);
+}
+
+.dt-slider-reset {
+	background: none;
+	border: none;
+	color: var(--dt-text-ghost);
+	font-size: 8px;
+	cursor: pointer;
+	padding: 0;
+	text-decoration: underline;
+	font-family: var(--dt-font-mono);
+}
+
+.dt-slider-input {
+	width: 100%;
+	accent-color: var(--dt-text-ghost);
+	height: 4px;
+}
+
+/* ─── Reset Button ─── */
+.dt-reset-all {
+	width: 100%;
+	padding: 5px 0;
+	border-radius: 5px;
+	border: 1px solid var(--dt-danger-border);
+	background-color: transparent;
+	color: var(--dt-danger);
+	font-size: 9px;
+	font-weight: 600;
+	font-family: var(--dt-font);
+	cursor: pointer;
+	transition: background-color 0.12s;
+}
+
+.dt-reset-all:hover {
+	background-color: rgba(248, 113, 113, 0.06);
+}
+
+/* ─── Stash ─── */
+.dt-stash-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 5px 6px;
+	border-radius: var(--dt-radius-sm);
+	background-color: var(--dt-bg-stash-item);
+	border: 1px solid var(--dt-border-subtle);
+	cursor: grab;
+	transition: background-color 0.12s;
+}
+
+.dt-stash-item:hover {
+	background-color: var(--dt-bg-hover);
+}
+
+.dt-stash-swatch {
+	width: 22px;
+	height: 22px;
+	border-radius: var(--dt-radius-xs);
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 7px;
+	font-family: var(--dt-font-mono);
+	overflow: hidden;
+}
+
+.dt-stash-name {
+	font-size: 10px;
+	color: var(--dt-text-secondary);
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dt-stash-source {
+	font-size: 8px;
+	color: var(--dt-text-faint);
+}
+
+.dt-stash-empty {
+	padding: 14px 4px;
+	color: var(--dt-text-ghost);
+	font-size: 10px;
+	font-family: var(--dt-font);
+	line-height: 1.6;
+}
+
+.dt-stash-preview {
+	position: fixed;
+	z-index: 10000;
+	padding: 8px;
+	border-radius: 8px;
+	background-color: var(--dt-bg-solid);
+	backdrop-filter: var(--dt-blur);
+	border: 1px solid var(--dt-border);
+	box-shadow: var(--dt-shadow-tooltip);
+	pointer-events: none;
+	font-family: var(--dt-font);
+}
+
+.dt-stash-preview-size {
+	margin-top: 4px;
+	font-size: 8px;
+	color: var(--dt-text-ghost);
+	text-align: center;
+}
+
+/* ─── Stash Badge ─── */
+.dt-badge {
+	font-size: 8px;
+	font-weight: 700;
+	color: var(--dt-accent);
+	margin-left: -2px;
+}

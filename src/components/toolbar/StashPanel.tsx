@@ -42,28 +42,31 @@ export function StashPanel({
 		<>
 			<div
 				data-domino-toolbar-root="true"
-				style={{ ...flyoutBase, bottom: 56, right: 16, width: 300 }}
+				className="dt-flyout"
+				style={{ width: 300 }}
 				onDragOver={handleStashImageDragOver}
 				onDrop={handleStashImageDrop}
 			>
 				<div
 					style={{
 						padding: "10px 14px 6px",
-						borderBottom: "1px solid rgba(255,255,255,0.06)",
+						borderBottom: "1px solid var(--dt-border-divider)",
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
 					}}
 				>
-					<div style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>Saved Components</div>
+					<div style={{ fontSize: 11, fontWeight: 700, color: "var(--dt-text-primary)" }}>
+						Saved Components
+					</div>
 					<button
 						onClick={() => {
 							onClose()
 							onToggleSavePicker()
 						}}
+						className="dt-btn-tiny"
 						style={{
-							...tinyBtnStyle,
-							color: savePickerMode ? "#c4b5fd" : "#a78bfa",
+							color: savePickerMode ? "var(--dt-accent-light)" : "var(--dt-accent)",
 							borderColor: savePickerMode ? "rgba(196,181,253,0.35)" : undefined,
 						}}
 					>
@@ -72,15 +75,7 @@ export function StashPanel({
 				</div>
 				<div style={{ padding: "6px 10px", maxHeight: 260, overflowY: "auto" }}>
 					{savedElements.length === 0 ? (
-						<div
-							style={{
-								padding: "14px 4px",
-								color: "#555",
-								fontSize: 10,
-								fontFamily: '"DM Sans", sans-serif',
-								lineHeight: 1.6,
-							}}
-						>
+						<div className="dt-stash-empty">
 							Drop image files here, or use `Pick from page` or the component picker.
 						</div>
 					) : (
@@ -122,16 +117,7 @@ export function StashPanel({
 										})
 									}
 									onMouseLeave={() => setHoveredStash(null)}
-									style={{
-										display: "flex",
-										alignItems: "center",
-										justifyContent: "space-between",
-										padding: "5px 6px",
-										borderRadius: 6,
-										backgroundColor: "rgba(255,255,255,0.03)",
-										border: "1px solid rgba(255,255,255,0.04)",
-										cursor: "grab",
-									}}
+									className="dt-stash-item"
 								>
 									<div
 										style={{
@@ -142,19 +128,10 @@ export function StashPanel({
 										}}
 									>
 										<div
+											className="dt-stash-swatch"
 											style={{
-												width: 22,
-												height: 22,
-												borderRadius: 4,
-												flexShrink: 0,
 												backgroundColor: s.element.backgroundColor ?? "transparent",
-												display: "flex",
-												alignItems: "center",
-												justifyContent: "center",
-												fontSize: 7,
-												color: s.element.color ?? "#999",
-												fontFamily: '"JetBrains Mono", monospace',
-												overflow: "hidden",
+												color: s.element.color ?? "var(--dt-text-tertiary)",
 											}}
 										>
 											{s.element.type === "image" && s.element.imageSrc ? (
@@ -173,33 +150,26 @@ export function StashPanel({
 											)}
 										</div>
 										<div style={{ minWidth: 0 }}>
-											<div
-												style={{
-													fontSize: 10,
-													color: "#ddd",
-													fontWeight: 500,
-													overflow: "hidden",
-													textOverflow: "ellipsis",
-													whiteSpace: "nowrap",
-												}}
-											>
+											<div className="dt-stash-name">
 												{s.element.type === "image"
 													? (s.element.imageAlt || "Image").slice(0, 24)
 													: s.element.text?.slice(0, 20) || s.element.type}
 											</div>
-											<div style={{ fontSize: 8, color: "#666" }}>{s.sourceScene}</div>
+											<div className="dt-stash-source">{s.sourceScene}</div>
 										</div>
 									</div>
 									<div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
 										<button
 											onClick={() => onDropSaved(s)}
-											style={{ ...tinyBtnStyle, color: "#a78bfa" }}
+											className="dt-btn-tiny"
+											style={{ color: "var(--dt-accent)" }}
 										>
 											Drop
 										</button>
 										<button
 											onClick={() => onRemoveSaved(i)}
-											style={{ ...tinyBtnStyle, color: "#666" }}
+											className="dt-btn-tiny"
+											style={{ color: "var(--dt-text-faint)" }}
 										>
 											&times;
 										</button>
@@ -223,22 +193,13 @@ export function StashPanel({
 					const previewH = Math.round(el.rect.height * scale)
 					return (
 						<div
+							className="dt-stash-preview"
 							style={{
-								position: "fixed",
 								right: 326,
 								top: Math.max(
 									12,
 									Math.min(hoveredStash.top - 10, window.innerHeight - previewH - 50),
 								),
-								zIndex: 10000,
-								padding: 8,
-								borderRadius: 8,
-								backgroundColor: "rgba(20,20,24,0.95)",
-								backdropFilter: "blur(20px)",
-								border: "1px solid rgba(255,255,255,0.08)",
-								boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-								pointerEvents: "none",
-								fontFamily: '"DM Sans", sans-serif',
 							}}
 						>
 							<div
@@ -280,17 +241,17 @@ export function StashPanel({
 										{el.text.slice(0, 80)}
 									</div>
 								) : (
-									<div style={{ color: "#999", fontSize: 9 }}>{el.type}</div>
+									<div
+										style={{
+											color: "var(--dt-text-tertiary)",
+											fontSize: 9,
+										}}
+									>
+										{el.type}
+									</div>
 								)}
 							</div>
-							<div
-								style={{
-									marginTop: 4,
-									fontSize: 8,
-									color: "#555",
-									textAlign: "center",
-								}}
-							>
+							<div className="dt-stash-preview-size">
 								{Math.round(el.rect.width)} × {Math.round(el.rect.height)}
 							</div>
 						</div>
@@ -298,31 +259,4 @@ export function StashPanel({
 				})()}
 		</>
 	)
-}
-
-// ─── Styles ───
-const flyoutBase: React.CSSProperties = {
-	position: "fixed",
-	zIndex: 9998,
-	maxHeight: "calc(100vh - 80px)",
-	overflowY: "auto",
-	borderRadius: 12,
-	border: "1px solid rgba(255,255,255,0.08)",
-	backgroundColor: "rgba(20,20,24,0.95)",
-	backdropFilter: "blur(20px)",
-	boxShadow: "0 12px 48px rgba(0,0,0,0.45)",
-	fontFamily: '"DM Sans", sans-serif',
-	color: "#ccc",
-	animation: "flyUp 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
-}
-const tinyBtnStyle: React.CSSProperties = {
-	padding: "2px 6px",
-	borderRadius: 4,
-	border: "1px solid rgba(255,255,255,0.08)",
-	backgroundColor: "transparent",
-	fontSize: 9,
-	fontWeight: 600,
-	fontFamily: '"DM Sans", sans-serif',
-	cursor: "pointer",
-	whiteSpace: "nowrap" as const,
 }

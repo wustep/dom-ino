@@ -59,12 +59,9 @@ export function PagesPanel({
 	}, [htmlInput, importName, onImportHtml, onClose])
 
 	return (
-		<div
-			data-domino-toolbar-root="true"
-			style={{ ...flyoutBase, bottom: 56, right: 16, width: 340 }}
-		>
-			<div style={{ padding: "12px 14px 8px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-				<div style={{ fontSize: 11, fontWeight: 700, color: "#fff", marginBottom: 8 }}>Pages</div>
+		<div data-domino-toolbar-root="true" className="dt-flyout" style={{ width: 340 }}>
+			<div className="dt-flyout-header">
+				<div className="dt-flyout-title">Pages</div>
 				<div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
 					{PRESET_LIST.map(({ key, label }) => (
 						<button
@@ -73,10 +70,7 @@ export function PagesPanel({
 								onSelectPreset(key)
 								onClose()
 							}}
-							style={{
-								...chipStyle,
-								...(currentPreset === key && !activeCustomId ? chipActiveStyle : {}),
-							}}
+							className={`dt-chip${currentPreset === key && !activeCustomId ? " dt-chip--active" : ""}`}
 						>
 							{label}
 						</button>
@@ -106,10 +100,7 @@ export function PagesPanel({
 									}
 								}}
 								disabled={fetchStatus === "loading"}
-								style={{
-									...chipStyle,
-									...(existing && activeCustomId === existing.id ? chipActiveStyle : {}),
-								}}
+								className={`dt-chip${existing && activeCustomId === existing.id ? " dt-chip--active" : ""}`}
 							>
 								{label}
 							</button>
@@ -127,9 +118,8 @@ export function PagesPanel({
 									onSelectCustomPage(cp.id)
 									onClose()
 								}}
+								className={`dt-chip${activeCustomId === cp.id ? " dt-chip--active" : ""}`}
 								style={{
-									...chipStyle,
-									...(activeCustomId === cp.id ? chipActiveStyle : {}),
 									maxWidth: 140,
 									overflow: "hidden",
 									textOverflow: "ellipsis",
@@ -146,20 +136,7 @@ export function PagesPanel({
 						<button
 							key={tab}
 							onClick={() => setImportTab(tab)}
-							style={{
-								flex: 1,
-								padding: "5px 0",
-								border: "none",
-								borderBottom: importTab === tab ? "2px solid #a78bfa" : "2px solid transparent",
-								backgroundColor: "transparent",
-								color: importTab === tab ? "#fff" : "#666",
-								fontSize: 10,
-								fontWeight: 600,
-								fontFamily: '"DM Sans", sans-serif',
-								cursor: "pointer",
-								textTransform: "uppercase",
-								letterSpacing: "0.06em",
-							}}
+							className={`dt-tab${importTab === tab ? " dt-tab--active" : ""}`}
 						>
 							{tab === "url" ? "Fetch URL" : "Paste HTML"}
 						</button>
@@ -174,25 +151,17 @@ export function PagesPanel({
 							onKeyDown={(e) => {
 								if (e.key === "Enter") handleFetchUrl()
 							}}
-							style={{
-								...inputStyle,
-								fontFamily: '"JetBrains Mono", monospace',
-								fontSize: 11,
-							}}
+							className="dt-input dt-input--mono"
 						/>
 						{fetchStatus === "error" && (
-							<div style={{ fontSize: 10, color: "#f87171" }}>
+							<div style={{ fontSize: 10, color: "var(--dt-danger)" }}>
 								{fetchError || "Could not fetch."}
 							</div>
 						)}
 						<button
 							onClick={handleFetchUrl}
 							disabled={!urlInput.trim() || fetchStatus === "loading"}
-							style={{
-								...primaryBtnStyle,
-								opacity: urlInput.trim() ? 1 : 0.4,
-								cursor: urlInput.trim() ? "pointer" : "not-allowed",
-							}}
+							className="dt-btn-primary"
 						>
 							{fetchStatus === "loading" ? "Fetching..." : "Import"}
 						</button>
@@ -203,17 +172,16 @@ export function PagesPanel({
 							value={importName}
 							onChange={(e) => setImportName(e.target.value)}
 							placeholder="Name"
-							style={{ ...inputStyle, fontSize: 11 }}
+							className="dt-input"
 						/>
 						<textarea
 							value={htmlInput}
 							onChange={(e) => setHtmlInput(e.target.value)}
 							placeholder={"<h1>Hello</h1>\n<p>Content</p>"}
+							className="dt-input dt-input--mono"
 							style={{
-								...inputStyle,
 								height: 90,
 								resize: "vertical",
-								fontFamily: '"JetBrains Mono", monospace',
 								fontSize: 10,
 								lineHeight: 1.5,
 							}}
@@ -221,11 +189,7 @@ export function PagesPanel({
 						<button
 							onClick={handlePasteImport}
 							disabled={!htmlInput.trim()}
-							style={{
-								...primaryBtnStyle,
-								opacity: htmlInput.trim() ? 1 : 0.4,
-								cursor: htmlInput.trim() ? "pointer" : "not-allowed",
-							}}
+							className="dt-btn-primary"
 						>
 							Import
 						</button>
@@ -235,60 +199,4 @@ export function PagesPanel({
 			<div style={{ height: 6 }} />
 		</div>
 	)
-}
-
-// ─── Styles ───
-const flyoutBase: React.CSSProperties = {
-	position: "fixed",
-	zIndex: 9998,
-	maxHeight: "calc(100vh - 80px)",
-	overflowY: "auto",
-	borderRadius: 12,
-	border: "1px solid rgba(255,255,255,0.08)",
-	backgroundColor: "rgba(20,20,24,0.95)",
-	backdropFilter: "blur(20px)",
-	boxShadow: "0 12px 48px rgba(0,0,0,0.45)",
-	fontFamily: '"DM Sans", sans-serif',
-	color: "#ccc",
-	animation: "flyUp 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
-}
-const chipStyle: React.CSSProperties = {
-	padding: "5px 12px",
-	borderRadius: 6,
-	border: "1px solid rgba(255,255,255,0.06)",
-	backgroundColor: "transparent",
-	color: "#999",
-	fontSize: 11,
-	fontWeight: 400,
-	fontFamily: '"DM Sans", sans-serif',
-	cursor: "pointer",
-}
-const chipActiveStyle: React.CSSProperties = {
-	border: "1px solid rgba(255,255,255,0.2)",
-	backgroundColor: "rgba(255,255,255,0.1)",
-	color: "#fff",
-	fontWeight: 600,
-}
-const inputStyle: React.CSSProperties = {
-	width: "100%",
-	padding: "6px 8px",
-	borderRadius: 6,
-	border: "1px solid rgba(255,255,255,0.08)",
-	backgroundColor: "rgba(255,255,255,0.04)",
-	color: "#ddd",
-	fontSize: 11,
-	fontFamily: '"DM Sans", sans-serif',
-	outline: "none",
-	boxSizing: "border-box",
-}
-const primaryBtnStyle: React.CSSProperties = {
-	padding: "6px 0",
-	borderRadius: 6,
-	border: "none",
-	backgroundColor: "#7c3aed",
-	color: "#fff",
-	fontSize: 11,
-	fontWeight: 600,
-	fontFamily: '"DM Sans", sans-serif',
-	transition: "opacity 0.12s",
 }

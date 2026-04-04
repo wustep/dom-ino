@@ -28,25 +28,17 @@ export function SettingsPanel({
 	const showDebugBounds = settings.showObstacleBounds || settings.showLineBounds
 
 	return (
-		<div
-			data-domino-toolbar-root="true"
-			style={{ ...flyoutBase, bottom: 56, right: 16, width: 240 }}
-		>
-			<div
-				style={{
-					padding: "8px 12px",
-					display: "flex",
-					gap: 10,
-					borderBottom: "1px solid rgba(255,255,255,0.05)",
-					fontSize: 9,
-					color: "#888",
-					fontFamily: '"JetBrains Mono", monospace',
-				}}
-			>
+		<div data-domino-toolbar-root="true" className="dt-flyout" style={{ width: 240 }}>
+			<div className="dt-stats">
 				<span>
 					<span
 						style={{
-							color: fps > 50 ? "#4ade80" : fps > 30 ? "#fbbf24" : "#f87171",
+							color:
+								fps > 50
+									? "var(--dt-success)"
+									: fps > 30
+										? "var(--dt-warning)"
+										: "var(--dt-danger)",
 						}}
 					>
 						{fps}
@@ -56,16 +48,7 @@ export function SettingsPanel({
 				<span>{bodyCount} bodies</span>
 				<span>{lineCount} lines</span>
 			</div>
-			<div
-				style={{
-					padding: "8px 12px",
-					display: "flex",
-					flexDirection: "column",
-					gap: 6,
-					fontFamily: '"JetBrains Mono", monospace',
-					fontSize: 10,
-				}}
-			>
+			<div className="dt-settings-body">
 				<Toggle
 					label="Physics"
 					checked={settings.physicsEnabled}
@@ -89,11 +72,11 @@ export function SettingsPanel({
 					onChange={(v) => update({ allowWordBreaks: v })}
 				/>
 				{settings.textBodiesEnabled && (
-					<div style={settingHintStyle}>
+					<div className="dt-hint">
 						Live text is replaced by individual glyph bodies. Reflow pauses while this is on.
 					</div>
 				)}
-				<Lbl text="Gravity" />
+				<div className="dt-label">Gravity</div>
 				<Slider
 					label="X"
 					value={settings.gravityX}
@@ -110,7 +93,7 @@ export function SettingsPanel({
 					onValue={(v) => update({ gravityY: v })}
 					onReset={() => update({ gravityY: 0 })}
 				/>
-				<Lbl text="Bodies" />
+				<div className="dt-label">Bodies</div>
 				<Slider
 					label="Bounce"
 					value={settings.restitution}
@@ -121,7 +104,7 @@ export function SettingsPanel({
 					step={0.05}
 					resetLabel="0.3"
 				/>
-				<Lbl text="Debug" />
+				<div className="dt-label">Debug</div>
 				<Toggle
 					label="Bounds"
 					checked={showDebugBounds}
@@ -131,7 +114,7 @@ export function SettingsPanel({
 					style={{
 						marginTop: 6,
 						paddingTop: 6,
-						borderTop: "1px solid rgba(255,255,255,0.06)",
+						borderTop: "1px solid var(--dt-border-divider)",
 					}}
 				>
 					<button
@@ -139,18 +122,7 @@ export function SettingsPanel({
 							onResetAll()
 							onClose()
 						}}
-						style={{
-							width: "100%",
-							padding: "5px 0",
-							borderRadius: 5,
-							border: "1px solid rgba(248,113,113,0.2)",
-							backgroundColor: "transparent",
-							color: "#f87171",
-							fontSize: 9,
-							fontWeight: 600,
-							fontFamily: '"DM Sans", sans-serif',
-							cursor: "pointer",
-						}}
+						className="dt-reset-all"
 					>
 						Reset all state
 					</button>
@@ -162,24 +134,6 @@ export function SettingsPanel({
 }
 
 // ─── Sub-components ───
-function Lbl({ text }: { text: string }) {
-	return (
-		<div
-			style={{
-				fontSize: 8,
-				fontWeight: 700,
-				color: "#555",
-				textTransform: "uppercase",
-				letterSpacing: "0.1em",
-				marginTop: 4,
-				marginBottom: -2,
-			}}
-		>
-			{text}
-		</div>
-	)
-}
-
 function Toggle({
 	label,
 	checked,
@@ -192,16 +146,7 @@ function Toggle({
 	disabled?: boolean
 }) {
 	return (
-		<label
-			style={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "space-between",
-				gap: 10,
-				cursor: disabled ? "not-allowed" : "pointer",
-				opacity: disabled ? 0.42 : 1,
-			}}
-		>
+		<label className={`dt-toggle${disabled ? " dt-toggle--disabled" : ""}`}>
 			<span>{label}</span>
 			<button
 				type="button"
@@ -210,30 +155,9 @@ function Toggle({
 				aria-checked={checked}
 				disabled={disabled}
 				onClick={() => onChange(!checked)}
-				style={{
-					width: 28,
-					height: 16,
-					padding: 0,
-					border: "none",
-					borderRadius: 8,
-					backgroundColor: checked ? "rgba(74,222,128,0.5)" : "rgba(255,255,255,0.1)",
-					position: "relative",
-					cursor: disabled ? "not-allowed" : "pointer",
-					flexShrink: 0,
-				}}
+				className={`dt-toggle-track${checked ? " dt-toggle-track--checked" : ""}`}
 			>
-				<div
-					style={{
-						position: "absolute",
-						top: 2,
-						left: checked ? 14 : 2,
-						width: 12,
-						height: 12,
-						borderRadius: "50%",
-						backgroundColor: checked ? "#4ade80" : "#555",
-						transition: "left 0.2s",
-					}}
-				/>
+				<div className={`dt-toggle-thumb${checked ? " dt-toggle-thumb--checked" : ""}`} />
 			</button>
 		</label>
 	)
@@ -260,23 +184,11 @@ function Slider({
 }) {
 	return (
 		<div>
-			<div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-				<span style={{ fontSize: 9, color: "#888" }}>
+			<div className="dt-slider-header">
+				<span className="dt-slider-label">
 					{label}: {value.toFixed(2)}
 				</span>
-				<button
-					onClick={onReset}
-					style={{
-						background: "none",
-						border: "none",
-						color: "#555",
-						fontSize: 8,
-						cursor: "pointer",
-						padding: 0,
-						textDecoration: "underline",
-						fontFamily: '"JetBrains Mono", monospace',
-					}}
-				>
+				<button onClick={onReset} className="dt-slider-reset">
 					{resetLabel ?? "0"}
 				</button>
 			</div>
@@ -287,30 +199,8 @@ function Slider({
 				step={step}
 				value={value}
 				onChange={(e) => onValue(Number.parseFloat(e.target.value))}
-				style={{ width: "100%", accentColor: "#555", height: 4 }}
+				className="dt-slider-input"
 			/>
 		</div>
 	)
-}
-
-// ─── Styles ───
-const flyoutBase: React.CSSProperties = {
-	position: "fixed",
-	zIndex: 9998,
-	maxHeight: "calc(100vh - 80px)",
-	overflowY: "auto",
-	borderRadius: 12,
-	border: "1px solid rgba(255,255,255,0.08)",
-	backgroundColor: "rgba(20,20,24,0.95)",
-	backdropFilter: "blur(20px)",
-	boxShadow: "0 12px 48px rgba(0,0,0,0.45)",
-	fontFamily: '"DM Sans", sans-serif',
-	color: "#ccc",
-	animation: "flyUp 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
-}
-const settingHintStyle: React.CSSProperties = {
-	marginTop: -1,
-	color: "#666",
-	fontSize: 9,
-	lineHeight: 1.45,
 }
