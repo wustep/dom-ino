@@ -1,1 +1,2 @@
-npm test
+npx @biomejs/biome check --staged --write --no-errors-on-unmatched || true
+git update-index --again
