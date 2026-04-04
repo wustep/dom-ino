@@ -52,12 +52,17 @@
 	--dt-blur: blur(20px);
 	--dt-blur-light: blur(16px);
 
-	/* Radii */
-	--dt-radius: 10px;
-	--dt-radius-flyout: 12px;
-	--dt-radius-btn: 7px;
-	--dt-radius-sm: 6px;
+	/* Radii — consistent 4→6→8→12 scale */
 	--dt-radius-xs: 4px;
+	--dt-radius-sm: 6px;
+	--dt-radius: 8px;
+	--dt-radius-lg: 12px;
+
+	/* Z-index — semantic layering */
+	--dt-z-flyout: 9998;
+	--dt-z-dock: 9999;
+	--dt-z-stash-preview: 10000;
+	--dt-z-tooltip: 10001;
 
 	/* Typography */
 	--dt-font: "DM Sans", sans-serif;
@@ -84,7 +89,7 @@
 	position: fixed;
 	bottom: 16px;
 	right: 16px;
-	z-index: 9999;
+	z-index: var(--dt-z-dock);
 	display: grid;
 	align-items: end;
 	justify-items: end;
@@ -124,7 +129,7 @@
 	justify-content: center;
 	gap: 2px;
 	padding: 0 7px;
-	border-radius: var(--dt-radius-btn);
+	border-radius: var(--dt-radius-sm);
 	border: none;
 	background-color: transparent;
 	color: var(--dt-text-dim);
@@ -197,7 +202,7 @@
 /* ─── Tooltip ─── */
 .dt-tooltip {
 	position: fixed;
-	z-index: 10001;
+	z-index: var(--dt-z-tooltip);
 	pointer-events: none;
 	white-space: nowrap;
 	max-width: calc(100vw - 24px);
@@ -219,12 +224,12 @@
 /* ─── Flyout Panel ─── */
 .dt-flyout {
 	position: fixed;
-	z-index: 9998;
+	z-index: var(--dt-z-flyout);
 	bottom: 56px;
 	right: 16px;
 	max-height: calc(100vh - 80px);
 	overflow-y: auto;
-	border-radius: var(--dt-radius-flyout);
+	border-radius: var(--dt-radius-lg);
 	border: 1px solid var(--dt-border);
 	background-color: var(--dt-bg-solid);
 	backdrop-filter: var(--dt-blur);
@@ -420,7 +425,7 @@
 	height: 16px;
 	padding: 0;
 	border: none;
-	border-radius: 8px;
+	border-radius: var(--dt-radius);
 	background-color: var(--dt-bg-active);
 	position: relative;
 	cursor: pointer;
@@ -484,7 +489,7 @@
 .dt-reset-all {
 	width: 100%;
 	padding: 5px 0;
-	border-radius: 5px;
+	border-radius: var(--dt-radius-sm);
 	border: 1px solid var(--dt-danger-border);
 	background-color: transparent;
 	color: var(--dt-danger);
@@ -553,9 +558,9 @@
 
 .dt-stash-preview {
 	position: fixed;
-	z-index: 10000;
+	z-index: var(--dt-z-stash-preview);
 	padding: 8px;
-	border-radius: 8px;
+	border-radius: var(--dt-radius);
 	background-color: var(--dt-bg-solid);
 	backdrop-filter: var(--dt-blur);
 	border: 1px solid var(--dt-border);
