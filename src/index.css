@@ -32,3 +32,122 @@ body {
 ::selection {
 	background: rgba(59, 130, 246, 0.15);
 }
+
+/* ── Overlay keyframes ── */
+@keyframes reloadSpin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+@keyframes reloadFadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@keyframes hintFade {
+	from {
+		opacity: 0;
+		transform: translateX(-50%) translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(-50%) translateY(0);
+	}
+}
+
+/* ── Shared overlay base ── */
+.domino-overlay {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	background-color: #fff;
+	font-family: "DM Sans", sans-serif;
+	animation: reloadFadeIn 0.3s ease both;
+}
+
+.domino-overlay--fetch {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+}
+
+.domino-overlay--reload {
+	height: 100vh;
+}
+
+/* ── Spinner ── */
+.domino-spinner {
+	animation: reloadSpin 0.9s linear infinite;
+	margin-bottom: 14px;
+}
+
+/* ── Overlay text ── */
+.domino-overlay-status {
+	color: #999;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.domino-overlay-error {
+	color: #999;
+	font-size: 13px;
+	margin-bottom: 12px;
+}
+
+/* ── Overlay buttons ── */
+.domino-overlay-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.domino-overlay-btn {
+	padding: 5px 14px;
+	border-radius: 6px;
+	border: 1px solid #ddd;
+	background-color: #fff;
+	font-size: 12px;
+	font-weight: 500;
+	font-family: "DM Sans", sans-serif;
+	cursor: pointer;
+}
+
+.domino-overlay-btn--primary {
+	color: #333;
+}
+
+.domino-overlay-btn--secondary {
+	color: #999;
+}
+
+/* ── Hint toast ── */
+.domino-hint {
+	position: fixed;
+	bottom: 76px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 10000;
+	padding: 10px 20px;
+	border-radius: 10px;
+	background-color: rgba(20, 20, 24, 0.88);
+	backdrop-filter: blur(12px);
+	color: #ddd;
+	font-size: 13px;
+	font-family: "DM Sans", sans-serif;
+	font-weight: 500;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+	pointer-events: none;
+	animation: hintFade 0.5s ease both;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	white-space: nowrap;
+}
+
+.domino-hint-arrow {
+	font-size: 15px;
+	opacity: 0.6;
+}

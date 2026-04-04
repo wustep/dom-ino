@@ -74,8 +74,6 @@ type TooltipAnchor = {
 	width: number
 }
 
-// Survives component remounts (scene key changes)
-let _pendingPanel: FlyoutPanel = null
 const COLLAPSED_REVEAL_PROXIMITY_PX = 128
 
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
@@ -105,7 +103,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 		onResetAll,
 	} = props
 
-	const [openPanel, setOpenPanel] = useState<FlyoutPanel>(_pendingPanel)
+	const [openPanel, setOpenPanel] = useState<FlyoutPanel>(null)
 	const [collapsed, setCollapsed] = useState(false)
 	const [focusedBtnIdx, setFocusedBtnIdx] = useState(0)
 	const [activeTooltip, setActiveTooltip] = useState<TooltipAnchor | null>(null)
@@ -116,11 +114,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 	const toolbarDockRef = useRef<HTMLDivElement | null>(null)
 	const [showCollapsedReveal, setShowCollapsedReveal] = useState(true)
 	const showCollapsedRevealRef = useRef(true)
-
-	useLayoutEffect(() => {
-		if (!_pendingPanel) return
-		_pendingPanel = null
-	}, [])
 
 	const toggle = (panel: FlyoutPanel) => setOpenPanel((p) => (p === panel ? null : panel))
 	const closePanel = useCallback(() => setOpenPanel(null), [])

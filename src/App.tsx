@@ -508,48 +508,32 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 	)
 }
 
+function Spinner() {
+	return (
+		<svg className="domino-spinner" width="24" height="24" viewBox="0 0 24 24">
+			<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
+			<circle
+				cx="12"
+				cy="12"
+				r="10"
+				fill="none"
+				stroke="#999"
+				strokeWidth="2.5"
+				strokeDasharray="20 43"
+				strokeLinecap="round"
+			/>
+		</svg>
+	)
+}
+
 function FetchOverlay({ url }: { url: string }) {
 	const displayUrl = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 	return (
-		<div
-			style={{
-				position: "fixed",
-				inset: 0,
-				zIndex: 9999,
-				display: "flex",
-				flexDirection: "column",
-				alignItems: "center",
-				justifyContent: "center",
-				backgroundColor: "#fff",
-				fontFamily: '"DM Sans", sans-serif',
-				animation: "reloadFadeIn 0.3s ease both",
-			}}
-		>
-			<svg
-				width="24"
-				height="24"
-				viewBox="0 0 24 24"
-				style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}
-			>
-				<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
-				<circle
-					cx="12"
-					cy="12"
-					r="10"
-					fill="none"
-					stroke="#999"
-					strokeWidth="2.5"
-					strokeDasharray="20 43"
-					strokeLinecap="round"
-				/>
-			</svg>
-			<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>
+		<div className="domino-overlay domino-overlay--fetch">
+			<Spinner />
+			<div className="domino-overlay-status">
 				Fetching {displayUrl.length > 40 ? `${displayUrl.slice(0, 40)}...` : displayUrl}
 			</div>
-			<style>{`
-				@keyframes reloadSpin { to { transform: rotate(360deg); } }
-				@keyframes reloadFadeIn { from { opacity: 0; } to { opacity: 1; } }
-			`}</style>
 		</div>
 	)
 }
@@ -567,116 +551,34 @@ function PageReloadOverlay({
 }) {
 	const displayUrl = url ? url.replace(/^https?:\/\//, "").replace(/\/$/, "") : "page"
 	return (
-		<div
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				alignItems: "center",
-				justifyContent: "center",
-				height: "100vh",
-				backgroundColor: "#fff",
-				fontFamily: '"DM Sans", sans-serif',
-				animation: "reloadFadeIn 0.3s ease both",
-			}}
-		>
+		<div className="domino-overlay domino-overlay--reload">
 			{!error ? (
 				<>
-					<svg
-						width="24"
-						height="24"
-						viewBox="0 0 24 24"
-						style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}
-					>
-						<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
-						<circle
-							cx="12"
-							cy="12"
-							r="10"
-							fill="none"
-							stroke="#999"
-							strokeWidth="2.5"
-							strokeDasharray="20 43"
-							strokeLinecap="round"
-						/>
-					</svg>
-					<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>Fetching {displayUrl}</div>
+					<Spinner />
+					<div className="domino-overlay-status">Fetching {displayUrl}</div>
 				</>
 			) : (
 				<>
-					<div style={{ color: "#999", fontSize: 13, marginBottom: 12 }}>{error}</div>
-					<div style={{ display: "flex", gap: 8 }}>
-						<button
-							onClick={onRetry}
-							style={{
-								padding: "5px 14px",
-								borderRadius: 6,
-								border: "1px solid #ddd",
-								backgroundColor: "#fff",
-								color: "#333",
-								fontSize: 12,
-								fontWeight: 500,
-								fontFamily: '"DM Sans", sans-serif',
-								cursor: "pointer",
-							}}
-						>
+					<div className="domino-overlay-error">{error}</div>
+					<div className="domino-overlay-actions">
+						<button onClick={onRetry} className="domino-overlay-btn domino-overlay-btn--primary">
 							Retry
 						</button>
-						<button
-							onClick={onBack}
-							style={{
-								padding: "5px 14px",
-								borderRadius: 6,
-								border: "1px solid #ddd",
-								backgroundColor: "#fff",
-								color: "#999",
-								fontSize: 12,
-								fontWeight: 500,
-								fontFamily: '"DM Sans", sans-serif',
-								cursor: "pointer",
-							}}
-						>
+						<button onClick={onBack} className="domino-overlay-btn domino-overlay-btn--secondary">
 							Go back
 						</button>
 					</div>
 				</>
 			)}
-			<style>{`
-				@keyframes reloadSpin { to { transform: rotate(360deg); } }
-				@keyframes reloadFadeIn { from { opacity: 0; } to { opacity: 1; } }
-			`}</style>
 		</div>
 	)
 }
 
 function Hint() {
 	return (
-		<div
-			style={{
-				position: "fixed",
-				bottom: 76,
-				left: "50%",
-				transform: "translateX(-50%)",
-				zIndex: 10000,
-				padding: "10px 20px",
-				borderRadius: 10,
-				backgroundColor: "rgba(20,20,24,0.88)",
-				backdropFilter: "blur(12px)",
-				color: "#ddd",
-				fontSize: 13,
-				fontFamily: '"DM Sans", sans-serif',
-				fontWeight: 500,
-				boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
-				pointerEvents: "none",
-				animation: "hintFade 0.5s ease both",
-				display: "flex",
-				alignItems: "center",
-				gap: 8,
-				whiteSpace: "nowrap",
-			}}
-		>
-			<span style={{ fontSize: 15, opacity: 0.6 }}>&#8597;</span>
+		<div className="domino-hint">
+			<span className="domino-hint-arrow">&#8597;</span>
 			Grab any card, badge, or button and throw it
-			<style>{`@keyframes hintFade { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
 		</div>
 	)
 }

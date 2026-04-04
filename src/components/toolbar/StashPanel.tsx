@@ -82,7 +82,7 @@ export function StashPanel({
 						<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
 							{savedElements.map((s, i) => (
 								<div
-									key={i}
+									key={`${s.element.id}-${s.savedAt}`}
 									draggable
 									onDragStart={(e) => {
 										e.dataTransfer.setData("application/domino-saved", JSON.stringify(s))

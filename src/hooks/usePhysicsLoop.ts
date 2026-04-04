@@ -45,11 +45,14 @@ export function usePhysicsLoop({
 	}, [onPositionsChanged])
 
 	useEffect(() => {
+		if (!physicsEnabled) return
 		let lastFpsUpdate = 0
 		const loop = () => {
-			rafRef.current = requestAnimationFrame(loop)
 			const engine = physicsRef.current
-			if (!engine || !physicsEnabled) return
+			if (!engine) {
+				rafRef.current = requestAnimationFrame(loop)
+				return
+			}
 			const now = performance.now()
 			fpsTimestamps.current.push(now)
 			while (fpsTimestamps.current.length > 0 && fpsTimestamps.current[0] < now - 1000)
@@ -64,6 +67,7 @@ export function usePhysicsLoop({
 				setBodyPositions(positions)
 				onChangedRef.current?.()
 			}
+			rafRef.current = requestAnimationFrame(loop)
 		}
 		rafRef.current = requestAnimationFrame(loop)
 		return () => cancelAnimationFrame(rafRef.current)
