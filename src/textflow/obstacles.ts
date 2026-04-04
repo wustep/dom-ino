@@ -250,8 +250,8 @@ function alphaIntervalForBand(
 		const localY = dx * sin + dy * cos
 
 		// Convert to normalized coordinates (0-1)
-		const normX = (localX / obs.width) + 0.5
-		const normY = (localY / obs.height) + 0.5
+		const normX = localX / obs.width + 0.5
+		const normY = localY / obs.height + 0.5
 
 		if (normX < 0 || normX > 1 || normY < 0 || normY > 1) continue
 
@@ -326,9 +326,7 @@ function getAlphaIntervalForNormalizedBand(
 
 	// If no direct overlap, interpolate only if we're between opaque rows
 	if (!foundAny) {
-		const closestAbove = alphaRows
-			.filter((r) => r.y < normalizedTop)
-			.sort((a, b) => b.y - a.y)[0]
+		const closestAbove = alphaRows.filter((r) => r.y < normalizedTop).sort((a, b) => b.y - a.y)[0]
 		const closestBelow = alphaRows
 			.filter((r) => r.y > normalizedBottom)
 			.sort((a, b) => a.y - b.y)[0]

@@ -162,6 +162,16 @@ export function SnapshotPageView({
 
 	const animatedAlpha = useAnimatedAlpha(droppedElements)
 
+	// Compute a generation counter that changes when animated alpha changes
+	const animatedAlphaGeneration = useMemo(() => {
+		let gen = 0
+		for (const entry of Object.values(animatedAlpha)) {
+			if (entry.rows) gen += entry.rows.length
+			if (entry.bounds) gen += Math.round(entry.bounds.left * 1000 + entry.bounds.right * 1000)
+		}
+		return gen
+	}, [animatedAlpha])
+
 	// Update physics body bounds when alpha changes for animated images
 	useEffect(() => {
 		const physics = physicsRef.current
@@ -281,7 +291,8 @@ export function SnapshotPageView({
 			const pos = pickerMode ? undefined : bodyPositions.get(el.id)
 			// For animated images, use live alpha rows from the hook if available
 			const liveAlphaEntry = animatedAlpha[el.id]
-			const alphaRows = liveAlphaEntry?.rows !== undefined ? liveAlphaEntry.rows ?? undefined : el.alphaRows
+			const alphaRows =
+				liveAlphaEntry?.rows !== undefined ? (liveAlphaEntry.rows ?? undefined) : el.alphaRows
 			obstacles.push({
 				id: el.id,
 				x: pos?.x ?? el.rect.x,
@@ -310,7 +321,14 @@ export function SnapshotPageView({
 		}
 
 		return obstacles
-	}, [selectedElements, droppedElements, staticObstacleCandidates, bodyPositions, pickerMode, animatedAlpha])
+	}, [
+		selectedElements,
+		droppedElements,
+		staticObstacleCandidates,
+		bodyPositions,
+		pickerMode,
+		animatedAlpha,
+	])
 
 	const importedTextLayouts = useMemo(() => {
 		if (!importedTextFlowActive) return []
@@ -719,7 +737,12 @@ export function SnapshotPageView({
 									flow={layout.flow}
 									inlineStyles={layout.inlineStyles}
 									showDebug={settings.showLineBounds}
-									generation={bodyPositions.size + selectedIds.size + droppedElements.length}
+									generation={
+										bodyPositions.size +
+										selectedIds.size +
+										droppedElements.length +
+										animatedAlphaGeneration
+									}
 								/>
 							</React.Fragment>
 						)

@@ -447,8 +447,8 @@ export function createPhysicsEngine(
 			// Offset from visual center to physics center
 			const visualCenterX = pb.originalW / 2
 			const visualCenterY = pb.originalH / 2
-			const physicsCenterX = (bounds.left + bounds.right) / 2 * pb.originalW
-			const physicsCenterY = (bounds.top + bounds.bottom) / 2 * pb.originalH
+			const physicsCenterX = ((bounds.left + bounds.right) / 2) * pb.originalW
+			const physicsCenterY = ((bounds.top + bounds.bottom) / 2) * pb.originalH
 			const dx = physicsCenterX - visualCenterX
 			const dy = physicsCenterY - visualCenterY
 

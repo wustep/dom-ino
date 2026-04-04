@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import type { AlphaRowInterval, AlphaTightBounds, SceneElement } from "../scene/types"
+import { GifAlphaController, parseGifFromDataUrl } from "../utils/gifFrames"
 import { computeTightBoundsFromAlphaRows, isAnimatedImageSrc } from "../utils/imageAlpha"
 
-const DEBUG_ALPHA = false
+const DEBUG_HOOK = true
+// Offset to compensate for delay between browser loading GIF and us detecting it
+// Negative = our animation is ahead, Positive = behind
+const TIMING_OFFSET_MS = -100
 
 interface AnimatedAlphaEntry {
 	rows: AlphaRowInterval[] | null
@@ -14,72 +18,109 @@ interface AnimatedAlphaState {
 }
 
 /**
- * Hook that continuously samples alpha rows from animated images (GIFs, WebP, APNG).
- * Uses createImageBitmap to capture the current animation frame.
- * Returns a map of element IDs to their current alpha rows and tight bounds.
+ * Hook that continuously updates alpha rows from animated GIFs.
+ * Uses gifuct-js to parse GIF frames and provides frame-synced alpha data
+ * based on timing (since browsers don't expose current GIF frame via canvas).
  */
 export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 	const [alphaState, setAlphaState] = useState<AnimatedAlphaState>({})
-	const rafRef = useRef<number | null>(null)
-	const prevJsonRef = useRef<Map<string, string>>(new Map())
+	const controllersRef = useRef<Map<string, GifAlphaController>>(new Map())
+	const prevFrameRef = useRef<Map<string, number>>(new Map())
+	// Track when each element was first seen (approximates when browser started playing)
+	const elementFirstSeenRef = useRef<Map<string, number>>(new Map())
 
 	const animatedElements = elements.filter(
 		(el) => el.type === "image" && el.imageSrc && isAnimatedImageSrc(el.imageSrc),
 	)
 
+	// Track when elements first appear
+	useEffect(() => {
+		const now = performance.now()
+		for (const el of animatedElements) {
+			if (!elementFirstSeenRef.current.has(el.id)) {
+				elementFirstSeenRef.current.set(el.id, now)
+				if (DEBUG_HOOK) {
+					console.log(`[useAnimatedAlpha] First saw ${el.id} at ${now.toFixed(0)}ms`)
+				}
+			}
+		}
+	}, [animatedElements])
+
+	// Parse GIFs and create controllers
+	useEffect(() => {
+		let cancelled = false
+
+		const initControllers = async () => {
+			for (const el of animatedElements) {
+				if (!el.imageSrc?.startsWith("data:image/gif")) continue
+				if (controllersRef.current.has(el.id)) continue
+
+				if (DEBUG_HOOK) {
+					console.log(`[useAnimatedAlpha] Parsing GIF for ${el.id}...`)
+				}
+
+				const gif = await parseGifFromDataUrl(el.imageSrc)
+				if (gif && !cancelled) {
+					// Use the time we first saw this element as the start time
+					// Apply offset to compensate for detection delay
+					const startTime =
+						(elementFirstSeenRef.current.get(el.id) ?? performance.now()) + TIMING_OFFSET_MS
+					controllersRef.current.set(el.id, new GifAlphaController(gif, startTime))
+					if (DEBUG_HOOK) {
+						console.log(
+							`[useAnimatedAlpha] Created controller for ${el.id}, ${gif.frames.length} frames, startTime=${startTime.toFixed(0)}ms`,
+						)
+					}
+				}
+			}
+		}
+
+		initControllers()
+
+		return () => {
+			cancelled = true
+		}
+	}, [animatedElements])
+
+	// Animation loop - runs continuously to update alpha based on timing
 	useEffect(() => {
 		if (animatedElements.length === 0) {
-			if (rafRef.current !== null) {
-				cancelAnimationFrame(rafRef.current)
-				rafRef.current = null
-			}
+			controllersRef.current.clear()
+			prevFrameRef.current.clear()
 			setAlphaState({})
-			prevJsonRef.current.clear()
 			return
 		}
 
 		let running = true
+		let rafId: number | null = null
 
-		const sampleAlpha = async () => {
+		const tick = () => {
 			if (!running) return
 
 			const updates: AnimatedAlphaState = {}
 			let hasChanges = false
 
 			for (const el of animatedElements) {
-				// Find the actual rendered <img> element in the DOM
-				const img = document.querySelector<HTMLImageElement>(
-					`img[data-domino-image-id="${el.id}"]`,
-				)
+				const controller = controllersRef.current.get(el.id)
+				if (!controller) continue
 
-				if (DEBUG_ALPHA && !img) {
-					console.log(`[useAnimatedAlpha] No img found for ${el.id}`)
-				}
+				// Get current frame based on timing
+				const rows = controller.getCurrentAlphaRows()
+				const currentFrame = controller.currentFrame
+				const prevFrame = prevFrameRef.current.get(el.id)
 
-				if (img?.complete && img.naturalWidth > 0) {
-					// Use the existing extractAlphaRowsFromElement which works for initial load
-					// For animated GIFs, this will only capture the current displayed frame
-					const { extractAlphaRowsFromElement } = await import("../utils/imageAlpha")
-					const rows = extractAlphaRowsFromElement(img)
-					const json = JSON.stringify(rows)
-					const prevJson = prevJsonRef.current.get(el.id)
+				// Update state when frame changes
+				if (currentFrame !== prevFrame) {
+					const bounds = rows ? computeTightBoundsFromAlphaRows(rows) : null
+					updates[el.id] = { rows, bounds }
+					prevFrameRef.current.set(el.id, currentFrame)
+					hasChanges = true
 
-					if (DEBUG_ALPHA) {
-						console.log(`[useAnimatedAlpha] ${el.id}: rows=${rows?.length ?? 0}, changed=${json !== prevJson}`)
+					if (DEBUG_HOOK) {
+						console.log(
+							`[useAnimatedAlpha] ${el.id} frame ${prevFrame ?? "?"} -> ${currentFrame}, rows=${rows?.length ?? 0}`,
+						)
 					}
-
-					if (json !== prevJson) {
-						const bounds = rows ? computeTightBoundsFromAlphaRows(rows) : null
-						updates[el.id] = { rows, bounds }
-						prevJsonRef.current.set(el.id, json)
-						hasChanges = true
-
-						if (DEBUG_ALPHA && bounds) {
-							console.log(`[useAnimatedAlpha] ${el.id}: bounds=`, bounds)
-						}
-					}
-				} else if (DEBUG_ALPHA) {
-					console.log(`[useAnimatedAlpha] ${el.id}: img not ready, complete=${img?.complete}, naturalWidth=${img?.naturalWidth}`)
 				}
 			}
 
@@ -87,30 +128,29 @@ export function useAnimatedAlpha(elements: SceneElement[]): AnimatedAlphaState {
 				setAlphaState((prev) => ({ ...prev, ...updates }))
 			}
 
-			// Schedule next frame
 			if (running) {
-				rafRef.current = requestAnimationFrame(sampleAlpha)
+				rafId = requestAnimationFrame(tick)
 			}
 		}
 
-		// Start sampling
-		rafRef.current = requestAnimationFrame(sampleAlpha)
+		rafId = requestAnimationFrame(tick)
 
 		return () => {
 			running = false
-			if (rafRef.current !== null) {
-				cancelAnimationFrame(rafRef.current)
-				rafRef.current = null
+			if (rafId !== null) {
+				cancelAnimationFrame(rafId)
 			}
 		}
 	}, [animatedElements])
 
-	// Cleanup stale entries
+	// Cleanup stale controllers
 	useEffect(() => {
 		const currentIds = new Set(animatedElements.map((el) => el.id))
-		for (const id of prevJsonRef.current.keys()) {
+		for (const id of controllersRef.current.keys()) {
 			if (!currentIds.has(id)) {
-				prevJsonRef.current.delete(id)
+				controllersRef.current.delete(id)
+				prevFrameRef.current.delete(id)
+				elementFirstSeenRef.current.delete(id)
 			}
 		}
 	}, [animatedElements])

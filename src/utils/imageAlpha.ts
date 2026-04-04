@@ -1,6 +1,8 @@
 import type { AlphaRowInterval } from "../scene/types"
 
-const ALPHA_THRESHOLD = 20
+const ALPHA_THRESHOLD = 10 // Lower threshold catches more semi-transparent pixels
+const INTERVAL_PADDING = 0.02 // Padding on each side (2% of width)
+const BOUNDS_PADDING = 0.02 // Padding for tight bounds (2% of dimension)
 
 /**
  * Extract per-row alpha intervals from an image element (captures current frame for GIFs).
@@ -42,28 +44,39 @@ export function extractAlphaRowsFromElement(
 	let hasTransparency = false
 
 	for (let row = 0; row < rows; row++) {
-		const pixelY = Math.floor((row / rows) * h)
-		const rowStart = pixelY * w * 4
+		// Sample multiple pixel rows for each interval row to catch thin features
+		const normalizedY = row / rows
+		const pixelYStart = Math.floor(normalizedY * h)
+		const pixelYEnd = Math.min(Math.floor(((row + 1) / rows) * h), h - 1)
 
 		let leftmost = -1
 		let rightmost = -1
 
-		for (let x = 0; x < w; x++) {
-			const alpha = data[rowStart + x * 4 + 3]
-			if (alpha > ALPHA_THRESHOLD) {
-				if (leftmost === -1) leftmost = x
-				rightmost = x
-			} else {
-				hasTransparency = true
+		// Check all pixel rows in this band
+		for (let pixelY = pixelYStart; pixelY <= pixelYEnd; pixelY++) {
+			const rowStart = pixelY * w * 4
+
+			for (let x = 0; x < w; x++) {
+				const alpha = data[rowStart + x * 4 + 3]
+				if (alpha > ALPHA_THRESHOLD) {
+					if (leftmost === -1) leftmost = x
+					rightmost = Math.max(rightmost, x)
+				} else {
+					hasTransparency = true
+				}
 			}
 		}
 
 		if (leftmost === -1) continue
 
+		// Add padding and clamp to [0, 1]
+		const left = Math.max(0, leftmost / w - INTERVAL_PADDING)
+		const right = Math.min(1, (rightmost + 1) / w + INTERVAL_PADDING)
+
 		intervals.push({
-			y: row / rows,
-			left: leftmost / w,
-			right: (rightmost + 1) / w,
+			y: normalizedY,
+			left,
+			right,
 		})
 	}
 
@@ -118,6 +131,7 @@ export function isAnimatedImageSrc(src: string): boolean {
 /**
  * Compute tight bounding box from alpha row intervals.
  * Returns normalized coordinates (0-1) for the smallest rectangle containing all opaque pixels.
+ * Adds padding for more conservative bounds.
  */
 export function computeTightBoundsFromAlphaRows(
 	alphaRows: AlphaRowInterval[],
@@ -138,7 +152,13 @@ export function computeTightBoundsFromAlphaRows(
 
 	if (maxY <= minY || maxX <= minX) return null
 
-	return { top: minY, bottom: maxY, left: minX, right: maxX }
+	// Add padding and clamp to [0, 1]
+	return {
+		top: Math.max(0, minY - BOUNDS_PADDING),
+		bottom: Math.min(1, maxY + BOUNDS_PADDING),
+		left: Math.max(0, minX - BOUNDS_PADDING),
+		right: Math.min(1, maxX + BOUNDS_PADDING),
+	}
 }
 
 /**

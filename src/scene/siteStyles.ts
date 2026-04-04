@@ -3,13 +3,9 @@
  * CSS, selectors, and Pretext/solid eligibility checks.
  */
 
-import type { SceneElement } from "./types"
-import type {
-	SnapshotAutoSelectRule,
-	SnapshotPretextRule,
-	SiteRule,
-} from "./siteRules"
+import type { SiteRule, SnapshotAutoSelectRule, SnapshotPretextRule } from "./siteRules"
 import { SITE_RULES } from "./siteRules"
+import type { SceneElement } from "./types"
 
 function getMatchingSiteRules(url?: string): SiteRule[] {
 	if (!url) return []
@@ -25,7 +21,7 @@ function getMatchingSiteRules(url?: string): SiteRule[] {
 }
 
 function isTextSceneElement(
-	sceneElement: SceneElement | null
+	sceneElement: SceneElement | null,
 ): sceneElement is SceneElement & { type: "paragraph" | "heading" } {
 	return sceneElement?.type === "paragraph" || sceneElement?.type === "heading"
 }
@@ -47,9 +43,7 @@ function getSnapshotPretextRule(url?: string): {
 
 	return {
 		pretextTags,
-		forceSelectors: rules
-			.flatMap((rule) => rule.forceSelectors ?? [])
-			.join(", "),
+		forceSelectors: rules.flatMap((rule) => rule.forceSelectors ?? []).join(", "),
 		neverPretextWithin: rules
 			.map((rule) => rule.neverPretextWithin)
 			.filter((selector): selector is string => Boolean(selector))
@@ -59,8 +53,7 @@ function getSnapshotPretextRule(url?: string): {
 
 function getSnapshotSolidSelectors(url?: string): string {
 	return getMatchingSiteRules(url)
-		.map((rule) => rule.snapshotSolid?.solidSelectors ?? [])
-		.flat()
+		.flatMap((rule) => rule.snapshotSolid?.solidSelectors ?? [])
 		.join(", ")
 }
 
@@ -75,9 +68,7 @@ function getSnapshotAutoSelectRule(url?: string): {
 	if (rules.length === 0) return null
 
 	return {
-		forceSelectors: rules
-			.flatMap((rule) => rule.forceSelectors ?? [])
-			.join(", "),
+		forceSelectors: rules.flatMap((rule) => rule.forceSelectors ?? []).join(", "),
 		neverAutoSelectWithin: rules
 			.map((rule) => rule.neverAutoSelectWithin)
 			.filter((selector): selector is string => Boolean(selector))
@@ -112,7 +103,7 @@ export function getSiteCSS(url: string): string {
 export function isPretextBlockEligible(
 	node: HTMLElement,
 	sceneElement: SceneElement | null,
-	sourceUrl?: string
+	sourceUrl?: string,
 ): boolean {
 	if (!isTextSceneElement(sceneElement)) return false
 
@@ -134,10 +125,7 @@ export function isPretextBlockEligible(
 	return true
 }
 
-export function isForcePretextNode(
-	node: HTMLElement,
-	sourceUrl?: string
-): boolean {
+export function isForcePretextNode(node: HTMLElement, sourceUrl?: string): boolean {
 	const rule = getSnapshotPretextRule(sourceUrl)
 	if (!rule?.forceSelectors) return false
 	return node.matches(rule.forceSelectors)
@@ -149,10 +137,7 @@ export function isSolidBlock(node: HTMLElement, sourceUrl?: string): boolean {
 	return node.matches(solidSelectors)
 }
 
-export function isAutoSelectEligible(
-	node: HTMLElement,
-	sourceUrl?: string
-): boolean {
+export function isAutoSelectEligible(node: HTMLElement, sourceUrl?: string): boolean {
 	const rule = getSnapshotAutoSelectRule(sourceUrl)
 	if (!rule) return true
 	if (
@@ -167,15 +152,10 @@ export function isAutoSelectEligible(
 	return true
 }
 
-export function isForceAutoSelectNode(
-	node: HTMLElement,
-	sourceUrl?: string
-): boolean {
+export function isForceAutoSelectNode(node: HTMLElement, sourceUrl?: string): boolean {
 	const rule = getSnapshotAutoSelectRule(sourceUrl)
 	if (!rule?.forceSelectors) return false
-	return Boolean(
-		node.matches(rule.forceSelectors) || node.closest(rule.forceSelectors)
-	)
+	return Boolean(node.matches(rule.forceSelectors) || node.closest(rule.forceSelectors))
 }
 
 export function getForceAutoSelectSelectors(url?: string): string[] {

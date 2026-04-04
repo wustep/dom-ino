@@ -166,14 +166,14 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 					</div>
 				)
 
-		case "image":
-			return (
-				<div
-					style={{
-						width: "100%",
-						height: "100%",
-						...getBackgroundStyle(element.backgroundColor),
-						borderRadius: element.borderRadius ?? 0,
+			case "image":
+				return (
+					<div
+						style={{
+							width: "100%",
+							height: "100%",
+							...getBackgroundStyle(element.backgroundColor),
+							borderRadius: element.borderRadius ?? 0,
 							overflow: "hidden",
 							display: "flex",
 							alignItems: "center",
@@ -181,14 +181,14 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 							boxShadow: element.boxShadow,
 						}}
 					>
-					{element.imageSrc ? (
-						<img
-							src={element.imageSrc}
-							alt={element.imageAlt ?? ""}
-							data-domino-image-id={element.id}
-							style={{ width: "100%", height: "100%", objectFit: "cover" }}
-							draggable={false}
-						/>
+						{element.imageSrc ? (
+							<img
+								src={element.imageSrc}
+								alt={element.imageAlt ?? ""}
+								data-domino-image-id={element.id}
+								style={{ width: "100%", height: "100%", objectFit: "cover" }}
+								draggable={false}
+							/>
 						) : (
 							<svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ opacity: 0.25 }}>
 								<rect
@@ -270,36 +270,36 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 					/>
 				)
 
-		case "divider":
-			return (
-				<div
-					style={{
-						width: "100%",
-						height: "100%",
-						backgroundColor: element.backgroundColor,
-					}}
-				/>
+			case "divider":
+				return (
+					<div
+						style={{
+							width: "100%",
+							height: "100%",
+							backgroundColor: element.backgroundColor,
+						}}
+					/>
 				)
 
-		default:
-			return (
-				<div
-					style={{
-						width: "100%",
-						height: "100%",
-						...getBackgroundStyle(element.backgroundColor),
-						borderRadius: element.borderRadius ?? 0,
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-						boxSizing: "border-box",
-						border: element.border,
-						...textStyleOf(element, { fontSize: 12, color: "#888" }),
-					}}
-				>
-					{element.text}
-				</div>
-			)
+			default:
+				return (
+					<div
+						style={{
+							width: "100%",
+							height: "100%",
+							...getBackgroundStyle(element.backgroundColor),
+							borderRadius: element.borderRadius ?? 0,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							boxSizing: "border-box",
+							border: element.border,
+							...textStyleOf(element, { fontSize: 12, color: "#888" }),
+						}}
+					>
+						{element.text}
+					</div>
+				)
 		}
 	}
 
@@ -353,23 +353,25 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 								overflow: "hidden",
 							}}
 						>
-							{alphaRows.filter((_, i) => i % 3 === 0).map((row, i) => {
-								const rowHeight = element.rect.height / alphaRows.length
-								return (
-									<div
-										key={i}
-										style={{
-											position: "absolute",
-											left: row.left * element.rect.width,
-											top: row.y * element.rect.height,
-											width: (row.right - row.left) * element.rect.width,
-											height: Math.max(2, rowHeight * 3),
-											backgroundColor: "rgba(46,204,113,0.5)",
-											pointerEvents: "none",
-										}}
-									/>
-								)
-							})}
+							{alphaRows
+								.filter((_, i) => i % 3 === 0)
+								.map((row, i) => {
+									const rowHeight = element.rect.height / alphaRows.length
+									return (
+										<div
+											key={i}
+											style={{
+												position: "absolute",
+												left: row.left * element.rect.width,
+												top: row.y * element.rect.height,
+												width: (row.right - row.left) * element.rect.width,
+												height: Math.max(2, rowHeight * 3),
+												backgroundColor: "rgba(46,204,113,0.5)",
+												pointerEvents: "none",
+											}}
+										/>
+									)
+								})}
 						</div>
 					)}
 					{/* Alpha tight bounds outline (green border) */}

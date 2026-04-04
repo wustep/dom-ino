@@ -109,6 +109,8 @@ export const TextFlowRegion = memo(function TextFlowRegion({
 	onEndCursor,
 }: TextFlowRegionProps) {
 	const flow = useMemo(() => {
+		// generation is included in deps to force recompute when obstacles change (e.g., animated alpha)
+		void generation
 		if (providedFlow) return providedFlow
 		return computeTextFlow(
 			text,
@@ -124,7 +126,6 @@ export const TextFlowRegion = memo(function TextFlowRegion({
 			allowWordBreaks,
 			startCursor,
 		)
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [
 		providedFlow,
 		text,
@@ -138,6 +139,7 @@ export const TextFlowRegion = memo(function TextFlowRegion({
 		minSegmentWidth,
 		allowWordBreaks,
 		startCursor,
+		generation,
 	])
 
 	useEffect(() => {

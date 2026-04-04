@@ -103,6 +103,16 @@ export function DominoScene({
 
 	const animatedAlpha = useAnimatedAlpha(effectiveElements)
 
+	// Compute a generation counter that changes when animated alpha changes
+	const animatedAlphaGeneration = useMemo(() => {
+		let gen = 0
+		for (const entry of Object.values(animatedAlpha)) {
+			if (entry.rows) gen += entry.rows.length
+			if (entry.bounds) gen += Math.round(entry.bounds.left * 1000 + entry.bounds.right * 1000)
+		}
+		return gen
+	}, [animatedAlpha])
+
 	// Update physics body bounds when alpha changes for animated images
 	useEffect(() => {
 		const physics = physicsRef.current
@@ -223,7 +233,8 @@ export function DominoScene({
 			.map((el) => {
 				const pos = bodyPositions.get(el.id)
 				const liveAlphaEntry = animatedAlpha[el.id]
-				const alphaRows = liveAlphaEntry?.rows !== undefined ? liveAlphaEntry.rows ?? undefined : el.alphaRows
+				const alphaRows =
+					liveAlphaEntry?.rows !== undefined ? (liveAlphaEntry.rows ?? undefined) : el.alphaRows
 				return {
 					id: el.id,
 					x: pos?.x ?? el.rect.x,
@@ -561,7 +572,7 @@ export function DominoScene({
 										containerMaxHeight={(textMaxHeights.get(el.id) ?? el.rect.height) - pad * 2}
 										obstacles={obstacles}
 										showDebug={settings.showLineBounds}
-										generation={generation}
+										generation={generation + animatedAlphaGeneration}
 										onLineCount={reportLines}
 										minSegmentWidth={flowMinSegmentWidth}
 										allowWordBreaks={allowWordBreaks}
