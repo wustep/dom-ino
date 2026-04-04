@@ -127,12 +127,7 @@ export const SITE_RULES: SiteRule[] = [
 				"TD",
 				"TH",
 			],
-			forceSelectors: [
-				"#mp-welcome",
-				"#mp-welcome h1",
-				"#mp-welcome .mw-heading1",
-				"#mp-tfa",
-			],
+			forceSelectors: ["#mp-welcome", "#mp-welcome h1", "#mp-welcome .mw-heading1", "#mp-tfa"],
 			neverPretextWithin: [
 				"table",
 				"figure",
@@ -183,13 +178,7 @@ export const SITE_RULES: SiteRule[] = [
 			].join(", "),
 		},
 		snapshotSolid: {
-			solidSelectors: [
-				".ambox",
-				".tmbox",
-				".ombox",
-				".infobox",
-				"table.sidebar",
-			],
+			solidSelectors: [".ambox", ".tmbox", ".ombox", ".infobox", "table.sidebar"],
 		},
 		snapshotAutoSelect: {
 			forceSelectors: [

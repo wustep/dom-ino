@@ -1,29 +1,26 @@
-import { prepareWithSegments, layoutNextLine } from "@chenglou/pretext";
-import type { PreparedTextWithSegments, LayoutCursor } from "@chenglou/pretext";
-import type { ObstacleRect } from "../scene/types";
-import {
-  getBlockedIntervalsForRow,
-  getAvailableSegments,
-} from "./obstacles";
+import type { LayoutCursor, PreparedTextWithSegments } from "@chenglou/pretext"
+import { layoutNextLine, prepareWithSegments } from "@chenglou/pretext"
+import type { ObstacleRect } from "../scene/types"
+import { getAvailableSegments, getBlockedIntervalsForRow } from "./obstacles"
 
 export interface FlowLine {
-  text: string;
-  x: number;
-  y: number;
-  width: number;
-  maxWidth: number;
-  /** Character offset of this line's text within the full source string. */
-  charOffset: number;
+	text: string
+	x: number
+	y: number
+	width: number
+	maxWidth: number
+	/** Character offset of this line's text within the full source string. */
+	charOffset: number
 }
 
 export interface TextFlowResult {
-  lines: FlowLine[];
-  totalHeight: number;
-  endCursor: LayoutCursor;
+	lines: FlowLine[]
+	totalHeight: number
+	endCursor: LayoutCursor
 }
 
 function lineBreaksInsideSegment(cursor: LayoutCursor): boolean {
-  return cursor.graphemeIndex > 0;
+	return cursor.graphemeIndex > 0
 }
 
 /**
@@ -47,142 +44,130 @@ function lineBreaksInsideSegment(cursor: LayoutCursor): boolean {
  * to avoid infinite loops in pathological cases.
  */
 
-const prepareCache = new Map<string, PreparedTextWithSegments>();
+const prepareCache = new Map<string, PreparedTextWithSegments>()
 
-function getCachedPrepared(
-  text: string,
-  font: string
-): PreparedTextWithSegments {
-  const key = `${text}|${font}`;
-  let prepared = prepareCache.get(key);
-  if (!prepared) {
-    prepared = prepareWithSegments(text, font);
-    prepareCache.set(key, prepared);
-    if (prepareCache.size > 60) {
-      const oldest = prepareCache.keys().next().value;
-      if (oldest) prepareCache.delete(oldest);
-    }
-  }
-  return prepared;
+function getCachedPrepared(text: string, font: string): PreparedTextWithSegments {
+	const key = `${text}|${font}`
+	let prepared = prepareCache.get(key)
+	if (!prepared) {
+		prepared = prepareWithSegments(text, font)
+		prepareCache.set(key, prepared)
+		if (prepareCache.size > 60) {
+			const oldest = prepareCache.keys().next().value
+			if (oldest) prepareCache.delete(oldest)
+		}
+	}
+	return prepared
 }
 
-function cursorToTextOffset(
-  prepared: PreparedTextWithSegments,
-  cursor: LayoutCursor
-): number {
-  if (!Array.isArray(prepared.segments) || !Array.isArray(prepared.kinds)) {
-    return cursor.graphemeIndex;
-  }
+function cursorToTextOffset(prepared: PreparedTextWithSegments, cursor: LayoutCursor): number {
+	if (!Array.isArray(prepared.segments) || !Array.isArray(prepared.kinds)) {
+		return cursor.graphemeIndex
+	}
 
-  let offset = 0;
+	let offset = 0
 
-  for (let i = 0; i < cursor.segmentIndex; i++) {
-    const kind = prepared.kinds[i];
-    if (kind === "soft-hyphen" || kind === "hard-break") continue;
-    offset += prepared.segments[i]?.length ?? 0;
-  }
+	for (let i = 0; i < cursor.segmentIndex; i++) {
+		const kind = prepared.kinds[i]
+		if (kind === "soft-hyphen" || kind === "hard-break") continue
+		offset += prepared.segments[i]?.length ?? 0
+	}
 
-  if (cursor.graphemeIndex > 0) {
-    const segment = prepared.segments[cursor.segmentIndex] ?? "";
-    offset += Array.from(segment).slice(0, cursor.graphemeIndex).join("").length;
-  }
+	if (cursor.graphemeIndex > 0) {
+		const segment = prepared.segments[cursor.segmentIndex] ?? ""
+		offset += Array.from(segment).slice(0, cursor.graphemeIndex).join("").length
+	}
 
-  return offset;
+	return offset
 }
 
 export function computeTextFlow(
-  text: string,
-  font: string,
-  lineHeight: number,
-  containerX: number,
-  containerY: number,
-  containerWidth: number,
-  containerMaxHeight: number,
-  obstacles: ObstacleRect[],
-  obstaclePadding: number = 8,
-  minSegmentWidth: number = 8,
-  allowWordBreaks: boolean = true,
-  startCursor?: LayoutCursor
+	text: string,
+	font: string,
+	lineHeight: number,
+	containerX: number,
+	containerY: number,
+	containerWidth: number,
+	containerMaxHeight: number,
+	obstacles: ObstacleRect[],
+	obstaclePadding: number = 8,
+	minSegmentWidth: number = 8,
+	allowWordBreaks: boolean = true,
+	startCursor?: LayoutCursor,
 ): TextFlowResult {
-  const zeroCursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
-  if (!text || containerWidth < 30) {
-    return { lines: [], totalHeight: 0, endCursor: startCursor ?? zeroCursor };
-  }
+	const zeroCursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
+	if (!text || containerWidth < 30) {
+		return { lines: [], totalHeight: 0, endCursor: startCursor ?? zeroCursor }
+	}
 
-  const prepared = getCachedPrepared(text, font);
-  const lines: FlowLine[] = [];
-  let cursor: LayoutCursor = startCursor ?? zeroCursor;
-  let y = containerY;
-  const maxY = containerY + containerMaxHeight;
-  const cLeft = containerX;
-  const cRight = containerX + containerWidth;
+	const prepared = getCachedPrepared(text, font)
+	const lines: FlowLine[] = []
+	let cursor: LayoutCursor = startCursor ?? zeroCursor
+	let y = containerY
+	const maxY = containerY + containerMaxHeight
+	const cLeft = containerX
+	const cRight = containerX + containerWidth
 
-  let emptyStreak = 0;
+	let emptyStreak = 0
 
-  while (y + lineHeight <= maxY) {
-    const blocked = getBlockedIntervalsForRow(
-      obstacles,
-      y,
-      lineHeight,
-      cLeft,
-      cRight
-    );
+	while (y + lineHeight <= maxY) {
+		const blocked = getBlockedIntervalsForRow(obstacles, y, lineHeight, cLeft, cRight)
 
-    // Pad blocked intervals so text doesn't butt right against obstacles
-    const padded = blocked.map((b) => ({
-      left: b.left - obstaclePadding,
-      right: b.right + obstaclePadding,
-    }));
+		// Pad blocked intervals so text doesn't butt right against obstacles
+		const padded = blocked.map((b) => ({
+			left: b.left - obstaclePadding,
+			right: b.right + obstaclePadding,
+		}))
 
-    const segments = getAvailableSegments(padded, cLeft, cRight, minSegmentWidth);
-    if (segments.length === 0) {
-      y += lineHeight;
-      emptyStreak++;
-      if (emptyStreak > 5) break;
-      continue;
-    }
+		const segments = getAvailableSegments(padded, cLeft, cRight, minSegmentWidth)
+		if (segments.length === 0) {
+			y += lineHeight
+			emptyStreak++
+			if (emptyStreak > 5) break
+			continue
+		}
 
-    emptyStreak = 0;
-    let rowCursor = cursor;
-    let placedFragment = false;
-    let exhausted = false;
+		emptyStreak = 0
+		let rowCursor = cursor
+		let placedFragment = false
+		let exhausted = false
 
-    for (const segment of segments) {
-      const line = layoutNextLine(prepared, rowCursor, segment.width);
-      if (line === null) {
-        exhausted = true;
-        break;
-      }
+		for (const segment of segments) {
+			const line = layoutNextLine(prepared, rowCursor, segment.width)
+			if (line === null) {
+				exhausted = true
+				break
+			}
 
-      if (!allowWordBreaks && lineBreaksInsideSegment(line.end)) {
-        continue;
-      }
+			if (!allowWordBreaks && lineBreaksInsideSegment(line.end)) {
+				continue
+			}
 
-      lines.push({
-        text: line.text,
-        x: segment.left,
-        y,
-        width: line.width,
-        maxWidth: segment.width,
-        charOffset: cursorToTextOffset(prepared, line.start),
-      });
+			lines.push({
+				text: line.text,
+				x: segment.left,
+				y,
+				width: line.width,
+				maxWidth: segment.width,
+				charOffset: cursorToTextOffset(prepared, line.start),
+			})
 
-      rowCursor = line.end;
-      placedFragment = true;
-    }
+			rowCursor = line.end
+			placedFragment = true
+		}
 
-    if (!placedFragment) {
-      if (exhausted) break;
-      y += lineHeight;
-      emptyStreak++;
-      if (emptyStreak > 5) break;
-      continue;
-    }
+		if (!placedFragment) {
+			if (exhausted) break
+			y += lineHeight
+			emptyStreak++
+			if (emptyStreak > 5) break
+			continue
+		}
 
-    cursor = rowCursor;
-    y += lineHeight;
-    if (exhausted) break;
-  }
+		cursor = rowCursor
+		y += lineHeight
+		if (exhausted) break
+	}
 
-  return { lines, totalHeight: y - containerY, endCursor: cursor };
+	return { lines, totalHeight: y - containerY, endCursor: cursor }
 }

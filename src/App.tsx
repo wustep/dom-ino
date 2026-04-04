@@ -1,14 +1,10 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DominoScene } from "./components/DominoScene"
 import { SnapshotPageView } from "./components/SnapshotPageView"
-import type {
-	SceneDescription,
-	SceneElement,
-	SavedElement,
-} from "./scene/types"
+import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot"
 import type { PresetKey } from "./scene/presets"
 import { DEFAULT_PRESET, getPresetScene, isPresetKey } from "./scene/presets"
-import { fetchPageHtml, prepareHtmlForViewer } from "./scene/domSnapshot"
+import type { SavedElement, SceneDescription, SceneElement } from "./scene/types"
 import { savedElementFromImageFile } from "./utils/stashImageFromFile"
 
 export interface SceneCustomPage {
@@ -92,7 +88,7 @@ function loadState(): Partial<PersistedState> {
 				customPages?: unknown
 			}
 			const customPages = normalizeCustomPages(parsed.customPages).filter(
-				(page) => page.kind !== "scene" || page.scene.id !== "breakout"
+				(page) => page.kind !== "scene" || page.scene.id !== "breakout",
 			)
 			const activeCustomId =
 				typeof parsed.activeCustomId === "string" &&
@@ -139,10 +135,7 @@ function saveState(s: PersistedState) {
 	}
 }
 
-export default function App({
-	initialFetchUrl = null,
-	initialPreset = null,
-}: AppProps) {
+export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
 	const persisted = useMemo(() => loadState(), [])
 
 	const [windowSize, setWindowSize] = useState({
@@ -150,22 +143,16 @@ export default function App({
 		height: window.innerHeight,
 	})
 	const [currentPreset, setCurrentPreset] = useState<PresetKey | "custom">(
-		initialPreset ?? persisted.currentPreset ?? DEFAULT_PRESET
+		initialPreset ?? persisted.currentPreset ?? DEFAULT_PRESET,
 	)
-	const [customPages, setCustomPages] = useState<CustomPage[]>(
-		persisted.customPages ?? []
-	)
+	const [customPages, setCustomPages] = useState<CustomPage[]>(persisted.customPages ?? [])
 	const [activeCustomId, setActiveCustomId] = useState<string | null>(
-		persisted.activeCustomId ?? null
+		persisted.activeCustomId ?? null,
 	)
-	const [showHint, setShowHint] = useState(
-		() => !localStorage.getItem("domino-hint-seen")
-	)
+	const [showHint, setShowHint] = useState(() => !localStorage.getItem("domino-hint-seen"))
 	const [sceneKey, setSceneKey] = useState(0)
 	const [fetchingUrl, setFetchingUrl] = useState<string | null>(null)
-	const [savedElements, setSavedElements] = useState<SavedElement[]>(
-		persisted.savedElements ?? []
-	)
+	const [savedElements, setSavedElements] = useState<SavedElement[]>(persisted.savedElements ?? [])
 
 	// Persist state on changes
 	useEffect(() => {
@@ -173,8 +160,7 @@ export default function App({
 	}, [currentPreset, activeCustomId, savedElements, customPages])
 
 	useEffect(() => {
-		const h = () =>
-			setWindowSize({ width: window.innerWidth, height: window.innerHeight })
+		const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight })
 		window.addEventListener("resize", h)
 		return () => window.removeEventListener("resize", h)
 	}, [])
@@ -198,7 +184,7 @@ export default function App({
 			currentPreset === "custom" && activeCustomId
 				? (customPages.find((p) => p.id === activeCustomId) ?? null)
 				: null,
-		[currentPreset, activeCustomId, customPages]
+		[currentPreset, activeCustomId, customPages],
 	)
 
 	const scene = useMemo(() => {
@@ -225,24 +211,21 @@ export default function App({
 		setShowHint(false)
 	}, [])
 
-	const handleImportHtml = useCallback(
-		async (html: string, name: string, sourceUrl?: string) => {
-			const preparedHtml = await prepareHtmlForViewer(html, sourceUrl)
-			const page: SnapshotCustomPage = {
-				id: `custom-${Date.now()}`,
-				name,
-				kind: "snapshot",
-				preparedHtml,
-				sourceUrl,
-			}
-			setCustomPages((prev) => [...prev, page])
-			setActiveCustomId(page.id)
-			setCurrentPreset("custom")
-			setSceneKey((k) => k + 1)
-			setShowHint(false)
-		},
-		[]
-	)
+	const handleImportHtml = useCallback(async (html: string, name: string, sourceUrl?: string) => {
+		const preparedHtml = await prepareHtmlForViewer(html, sourceUrl)
+		const page: SnapshotCustomPage = {
+			id: `custom-${Date.now()}`,
+			name,
+			kind: "snapshot",
+			preparedHtml,
+			sourceUrl,
+		}
+		setCustomPages((prev) => [...prev, page])
+		setActiveCustomId(page.id)
+		setCurrentPreset("custom")
+		setSceneKey((k) => k + 1)
+		setShowHint(false)
+	}, [])
 
 	const handleFetchUrl = useCallback(
 		async (url: string) => {
@@ -267,7 +250,7 @@ export default function App({
 				setFetchingUrl(null)
 			}
 		},
-		[handleImportHtml]
+		[handleImportHtml],
 	)
 
 	useEffect(() => {
@@ -302,10 +285,8 @@ export default function App({
 					if (elapsed < 500) await new Promise((r) => setTimeout(r, 500 - elapsed))
 					setCustomPages((prev) =>
 						prev.map((p) =>
-							p.id === pageId && p.kind === "snapshot"
-								? { ...p, preparedHtml }
-								: p
-						)
+							p.id === pageId && p.kind === "snapshot" ? { ...p, preparedHtml } : p,
+						),
 					)
 					setSceneKey((k) => k + 1)
 				} catch {
@@ -320,9 +301,7 @@ export default function App({
 		(newScene: SceneDescription): string => {
 			if (activeCustomPage?.kind === "scene") {
 				setCustomPages((prev) =>
-					prev.map((p) =>
-						p.id === activeCustomPage.id ? { ...p, scene: newScene } : p
-					)
+					prev.map((p) => (p.id === activeCustomPage.id ? { ...p, scene: newScene } : p)),
 				)
 				return activeCustomPage.id
 			}
@@ -338,7 +317,7 @@ export default function App({
 			setCurrentPreset("custom")
 			return id
 		},
-		[activeCustomPage]
+		[activeCustomPage],
 	)
 
 	const handleSceneChange = useCallback(
@@ -346,27 +325,18 @@ export default function App({
 			ensureCustomScenePage(newScene)
 			if (remount) setSceneKey((k) => k + 1)
 		},
-		[ensureCustomScenePage]
+		[ensureCustomScenePage],
 	)
 
 	const handleSaveElement = useCallback(
 		(el: SceneElement) => {
 			setSavedElements((prev) => {
-				const sourceName =
-					activeCustomPage?.name ?? scene?.name ?? "Imported Page"
-				if (
-					prev.some(
-						(s) => s.element.id === el.id && s.sourceScene === sourceName
-					)
-				)
-					return prev
-				return [
-					...prev,
-					{ element: { ...el }, savedAt: Date.now(), sourceScene: sourceName },
-				]
+				const sourceName = activeCustomPage?.name ?? scene?.name ?? "Imported Page"
+				if (prev.some((s) => s.element.id === el.id && s.sourceScene === sourceName)) return prev
+				return [...prev, { element: { ...el }, savedAt: Date.now(), sourceScene: sourceName }]
 			})
 		},
-		[activeCustomPage, scene?.name]
+		[activeCustomPage, scene?.name],
 	)
 
 	const handleUnsaveElement = useCallback((id: string) => {
@@ -385,8 +355,7 @@ export default function App({
 				x:
 					dropX != null
 						? dropX - el.rect.width / 2
-						: (windowSize.width - el.rect.width) / 2 +
-							(Math.random() - 0.5) * 120,
+						: (windowSize.width - el.rect.width) / 2 + (Math.random() - 0.5) * 120,
 				y:
 					dropY != null
 						? dropY - el.rect.height / 2
@@ -398,7 +367,7 @@ export default function App({
 			const newScene = { ...scene, elements: [...scene.elements, el] }
 			ensureCustomScenePage(newScene)
 		},
-		[scene, ensureCustomScenePage, windowSize]
+		[scene, ensureCustomScenePage, windowSize],
 	)
 
 	const handleClearSaved = useCallback(() => setSavedElements([]), [])
@@ -409,8 +378,7 @@ export default function App({
 	const handleSaveStashImageFiles = useCallback(
 		(files: File[]) => {
 			void (async () => {
-				const sourceName =
-					activeCustomPage?.name ?? scene?.name ?? "Dropped image"
+				const sourceName = activeCustomPage?.name ?? scene?.name ?? "Dropped image"
 				const next: SavedElement[] = []
 				for (const file of files) {
 					const saved = await savedElementFromImageFile(file, sourceName)
@@ -419,7 +387,7 @@ export default function App({
 				if (next.length) setSavedElements((prev) => [...prev, ...next])
 			})()
 		},
-		[activeCustomPage?.name, scene?.name]
+		[activeCustomPage?.name, scene?.name],
 	)
 
 	const handleDropImageFilesOnScene = useCallback(
@@ -449,7 +417,7 @@ export default function App({
 				ensureCustomScenePage(newScene)
 			})()
 		},
-		[scene, ensureCustomScenePage]
+		[scene, ensureCustomScenePage],
 	)
 
 	const handleResetAll = useCallback(() => {
@@ -498,27 +466,27 @@ export default function App({
 					onResetAll={handleResetAll}
 				/>
 			) : scene ? (
-			<DominoScene
-				key={sceneKey}
-				scene={scene}
-				onSceneChange={handleSceneChange}
-				currentPreset={currentPreset}
-				onSelectPreset={handleSelectPreset}
-				onImportHtml={handleImportHtml}
-				onFetchUrl={handleFetchUrl}
-				savedElements={savedElements}
-				onSaveElement={handleSaveElement}
-				onUnsaveElement={handleUnsaveElement}
-				onDropSaved={handleDropSaved}
-				onClearSaved={handleClearSaved}
-				onRemoveSaved={handleRemoveSaved}
-				onSaveStashImageFiles={handleSaveStashImageFiles}
-				onDropImageFiles={handleDropImageFilesOnScene}
-				customPages={customPages}
-				activeCustomId={activeCustomId}
-				onSelectCustomPage={handleSelectCustomPage}
-				onResetAll={handleResetAll}
-			/>
+				<DominoScene
+					key={sceneKey}
+					scene={scene}
+					onSceneChange={handleSceneChange}
+					currentPreset={currentPreset}
+					onSelectPreset={handleSelectPreset}
+					onImportHtml={handleImportHtml}
+					onFetchUrl={handleFetchUrl}
+					savedElements={savedElements}
+					onSaveElement={handleSaveElement}
+					onUnsaveElement={handleUnsaveElement}
+					onDropSaved={handleDropSaved}
+					onClearSaved={handleClearSaved}
+					onRemoveSaved={handleRemoveSaved}
+					onSaveStashImageFiles={handleSaveStashImageFiles}
+					onDropImageFiles={handleDropImageFilesOnScene}
+					customPages={customPages}
+					activeCustomId={activeCustomId}
+					onSelectCustomPage={handleSelectCustomPage}
+					onResetAll={handleResetAll}
+				/>
 			) : null}
 			{fetchingUrl && <FetchOverlay url={fetchingUrl} />}
 			{showHint && <Hint />}
@@ -529,17 +497,37 @@ export default function App({
 function FetchOverlay({ url }: { url: string }) {
 	const displayUrl = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 	return (
-		<div style={{
-			position: "fixed", inset: 0, zIndex: 9999,
-			display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-			backgroundColor: "#fff",
-			fontFamily: '"DM Sans", sans-serif',
-			animation: "reloadFadeIn 0.3s ease both",
-		}}>
-			<svg width="24" height="24" viewBox="0 0 24 24" style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}>
+		<div
+			style={{
+				position: "fixed",
+				inset: 0,
+				zIndex: 9999,
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "center",
+				justifyContent: "center",
+				backgroundColor: "#fff",
+				fontFamily: '"DM Sans", sans-serif',
+				animation: "reloadFadeIn 0.3s ease both",
+			}}
+		>
+			<svg
+				width="24"
+				height="24"
+				viewBox="0 0 24 24"
+				style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}
+			>
 				<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
-				<circle cx="12" cy="12" r="10" fill="none" stroke="#999" strokeWidth="2.5"
-					strokeDasharray="20 43" strokeLinecap="round" />
+				<circle
+					cx="12"
+					cy="12"
+					r="10"
+					fill="none"
+					stroke="#999"
+					strokeWidth="2.5"
+					strokeDasharray="20 43"
+					strokeLinecap="round"
+				/>
 			</svg>
 			<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>
 				Fetching {displayUrl.length > 40 ? displayUrl.slice(0, 40) + "..." : displayUrl}
@@ -552,50 +540,89 @@ function FetchOverlay({ url }: { url: string }) {
 	)
 }
 
-function PageReloadOverlay({ url, error, onRetry, onBack }: {
+function PageReloadOverlay({
+	url,
+	error,
+	onRetry,
+	onBack,
+}: {
 	url?: string
 	error: string | null
 	onRetry: () => void
 	onBack: () => void
 }) {
-	const displayUrl = url
-		? url.replace(/^https?:\/\//, "").replace(/\/$/, "")
-		: "page"
+	const displayUrl = url ? url.replace(/^https?:\/\//, "").replace(/\/$/, "") : "page"
 	return (
-		<div style={{
-			display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-			height: "100vh", backgroundColor: "#fff", fontFamily: '"DM Sans", sans-serif',
-			animation: "reloadFadeIn 0.3s ease both",
-		}}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "center",
+				justifyContent: "center",
+				height: "100vh",
+				backgroundColor: "#fff",
+				fontFamily: '"DM Sans", sans-serif',
+				animation: "reloadFadeIn 0.3s ease both",
+			}}
+		>
 			{!error ? (
 				<>
-					<svg width="24" height="24" viewBox="0 0 24 24" style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}>
+					<svg
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						style={{ animation: "reloadSpin 0.9s linear infinite", marginBottom: 14 }}
+					>
 						<circle cx="12" cy="12" r="10" fill="none" stroke="#e0deda" strokeWidth="2.5" />
-						<circle cx="12" cy="12" r="10" fill="none" stroke="#999" strokeWidth="2.5"
-							strokeDasharray="20 43" strokeLinecap="round" />
+						<circle
+							cx="12"
+							cy="12"
+							r="10"
+							fill="none"
+							stroke="#999"
+							strokeWidth="2.5"
+							strokeDasharray="20 43"
+							strokeLinecap="round"
+						/>
 					</svg>
-					<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>
-						Fetching {displayUrl}
-					</div>
+					<div style={{ color: "#999", fontSize: 13, fontWeight: 500 }}>Fetching {displayUrl}</div>
 				</>
 			) : (
 				<>
-					<div style={{ color: "#999", fontSize: 13, marginBottom: 12 }}>
-						{error}
-					</div>
+					<div style={{ color: "#999", fontSize: 13, marginBottom: 12 }}>{error}</div>
 					<div style={{ display: "flex", gap: 8 }}>
-						<button onClick={onRetry} style={{
-							padding: "5px 14px", borderRadius: 6, border: "1px solid #ddd",
-							backgroundColor: "#fff", color: "#333",
-							fontSize: 12, fontWeight: 500, fontFamily: '"DM Sans", sans-serif',
-							cursor: "pointer",
-						}}>Retry</button>
-						<button onClick={onBack} style={{
-							padding: "5px 14px", borderRadius: 6, border: "1px solid #ddd",
-							backgroundColor: "#fff", color: "#999",
-							fontSize: 12, fontWeight: 500, fontFamily: '"DM Sans", sans-serif',
-							cursor: "pointer",
-						}}>Go back</button>
+						<button
+							onClick={onRetry}
+							style={{
+								padding: "5px 14px",
+								borderRadius: 6,
+								border: "1px solid #ddd",
+								backgroundColor: "#fff",
+								color: "#333",
+								fontSize: 12,
+								fontWeight: 500,
+								fontFamily: '"DM Sans", sans-serif',
+								cursor: "pointer",
+							}}
+						>
+							Retry
+						</button>
+						<button
+							onClick={onBack}
+							style={{
+								padding: "5px 14px",
+								borderRadius: 6,
+								border: "1px solid #ddd",
+								backgroundColor: "#fff",
+								color: "#999",
+								fontSize: 12,
+								fontWeight: 500,
+								fontFamily: '"DM Sans", sans-serif',
+								cursor: "pointer",
+							}}
+						>
+							Go back
+						</button>
 					</div>
 				</>
 			)}

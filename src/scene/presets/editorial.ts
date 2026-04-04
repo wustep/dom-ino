@@ -1,8 +1,7 @@
 import type { SceneDescription } from "../types"
-import { SERIF, MONO } from "./fonts"
+import { MONO, SERIF } from "./fonts"
 
-const svgUri = (svg: string) =>
-	`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+const svgUri = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 
 const LEAD_1 = `In 1945, Vannevar Bush imagined the Memex: a desk that let a researcher trace associative trails through a vast archive. The vision was prescient but the medium was wrong. It took forty-five years and a physicist at CERN before the idea found its true form. In 1990, Tim Berners-Lee wrote the first browser on a NeXT cube, defining the pillars still holding the web today: URLs to name things, HTTP to fetch them, HTML to describe them.`
 
@@ -165,15 +164,19 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 	// Estimate text block height based on character count and width
 	const textH = (chars: number, fs: number, lh: number) => {
 		const cpl = Math.max(10, Math.floor(w / (fs * 0.55)))
-		return Math.ceil(chars / cpl * 1.25) * lh + lh
+		return Math.ceil((chars / cpl) * 1.25) * lh + lh
 	}
 
 	// ── Cumulative Y positions ────────────────────────────
 	let cy = 20
-	const r1Y = cy; cy += 8
-	const mastY = cy; cy += narrow ? 38 : 52
-	const volY = cy; cy += narrow ? 18 : 20
-	const r2Y = cy; cy += narrow ? 12 : 16
+	const r1Y = cy
+	cy += 8
+	const mastY = cy
+	cy += narrow ? 38 : 52
+	const volY = cy
+	cy += narrow ? 18 : 20
+	const r2Y = cy
+	cy += narrow ? 12 : 16
 	const hlY = cy
 	const hlH = narrow ? 66 : 42
 	cy += hlH + 8
@@ -183,30 +186,39 @@ export function createEditorialScene(vw: number, vh: number): SceneDescription {
 	const byY = cy
 	const byH = narrow ? 34 : 18
 	cy += byH + 6
-	const r3Y = cy; cy += narrow ? 10 : 14
+	const r3Y = cy
+	cy += narrow ? 10 : 14
 
 	const leadY = cy
 	const leadH = narrow ? textH(1125, 14, 23) + 200 : 420
 	cy += leadH + 14
 
-	const r4Y = cy; cy += 10
-	const midHY = cy; cy += 24
-	const r5Y = cy; cy += 10
+	const r4Y = cy
+	cy += 10
+	const midHY = cy
+	cy += 24
+	const r5Y = cy
+	cy += 10
 
 	const sec2Y = cy
 	const sec2H = narrow ? textH(1490, 14, 23) + 100 : 420
 	cy += sec2H + 14
 
-	const r6Y = cy; cy += 10
-	const dispHY = cy; cy += 24
-	const r7Y = cy; cy += 10
+	const r6Y = cy
+	cy += 10
+	const dispHY = cy
+	cy += 24
+	const r7Y = cy
+	cy += 10
 
 	const dispY = cy
 	const dispH = narrow ? textH(590, 15, 25) + 80 : 240
 	cy += dispH + 14
 
-	const r8Y = cy; cy += 12
-	const footY = cy; cy += narrow ? 28 : 14
+	const r8Y = cy
+	cy += 12
+	const footY = cy
+	cy += narrow ? 28 : 14
 	const H = Math.max(vh, cy + 20)
 
 	const elements: SceneDescription["elements"] = [
