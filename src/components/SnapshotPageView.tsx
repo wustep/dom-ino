@@ -40,6 +40,7 @@ function compareTextBlockPosition(a: SnapshotTextBlock, b: SnapshotTextBlock) {
 	return a.sceneElement.rect.x - b.sceneElement.rect.x
 }
 
+/** Renders a fetched/imported web page in an iframe with physics-enabled element clones and text reflow overlay. */
 export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 	const {
 		savedElements,
@@ -90,6 +91,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		nodesRef,
 		textNodesRef,
 		handleIframeLoad,
+		requestRescan,
 		toggleSelected,
 		saveNode,
 		unsaveNode,
@@ -302,9 +304,49 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		[selectableCandidates],
 	)
 
-	const handleRemoveDropped = useCallback((id: string) => {
-		setDroppedElements((prev) => prev.filter((el) => el.id !== id))
-	}, [])
+	const handleRemoveDropped = useCallback(
+		(id: string) => {
+			setDroppedElements((prev) => prev.filter((el) => el.id !== id))
+			requestRescan()
+		},
+		[requestRescan],
+	)
+
+	const appendDroppedElements = useCallback(
+		(elements: SceneElement[]) => {
+			if (elements.length === 0) return
+			setDroppedElements((prev) => [...prev, ...elements])
+			requestRescan()
+		},
+		[requestRescan],
+	)
+
+	const createDroppedElement = useCallback(
+		(saved: SavedElement, x?: number, y?: number): SceneElement => ({
+			...saved.element,
+			id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+			sourceSavedId: saved.element.id,
+			throwable: true,
+			pinned: false,
+			rect: {
+				...saved.element.rect,
+				x:
+					x != null
+						? x - saved.element.rect.width / 2
+						: (stageRef.current?.clientWidth || 1000) / 2 -
+							saved.element.rect.width / 2 +
+							(Math.random() - 0.5) * 120,
+				y:
+					y != null
+						? y - saved.element.rect.height / 2
+						: window.scrollY +
+							window.innerHeight / 2 -
+							saved.element.rect.height / 2 +
+							(Math.random() - 0.5) * 60,
+			},
+		}),
+		[],
+	)
 
 	const pickerItems = useMemo<SnapshotPickerOverlayItem[]>(
 		() => [
@@ -362,32 +404,12 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		physicsRef.current?.reset()
 	}, [])
 
-	const handleDropSaved = useCallback((saved: SavedElement, x?: number, y?: number) => {
-		const el = {
-			...saved.element,
-			id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-			sourceSavedId: saved.element.id,
-			throwable: true,
-			pinned: false,
-			rect: {
-				...saved.element.rect,
-				x:
-					x != null
-						? x - saved.element.rect.width / 2
-						: (stageRef.current?.clientWidth || 1000) / 2 -
-							saved.element.rect.width / 2 +
-							(Math.random() - 0.5) * 120,
-				y:
-					y != null
-						? y - saved.element.rect.height / 2
-						: window.scrollY +
-							window.innerHeight / 2 -
-							saved.element.rect.height / 2 +
-							(Math.random() - 0.5) * 60,
-			},
-		}
-		setDroppedElements((prev) => [...prev, el])
-	}, [])
+	const handleDropSaved = useCallback(
+		(saved: SavedElement, x?: number, y?: number) => {
+			appendDroppedElements([createDroppedElement(saved, x, y)])
+		},
+		[appendDroppedElements, createDroppedElement],
+	)
 
 	useLayoutEffect(() => {
 		const desiredNodes = importedTextFlowActive
@@ -507,19 +529,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 						const rect = e.currentTarget.getBoundingClientRect()
 						const x = e.clientX - rect.left
 						const y = e.clientY - rect.top
-						const el = {
-							...data.element,
-							id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-							sourceSavedId: data.element.id,
-							throwable: true,
-							pinned: false,
-							rect: {
-								...data.element.rect,
-								x: x - data.element.rect.width / 2,
-								y: y - data.element.rect.height / 2,
-							},
-						}
-						setDroppedElements((prev) => [...prev, el])
+						appendDroppedElements([createDroppedElement(data, x, y)])
 						return
 					} catch {
 						/* ignore */
@@ -535,19 +545,10 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 								const saved = await savedElementFromImageFile(file, page.name)
 								if (saved) {
 									onSaveElement(saved.element)
-									newDropped.push({
-										...saved.element,
-										id: `snapshot-drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-										sourceSavedId: saved.element.id,
-										rect: {
-											...saved.element.rect,
-											x: dropX - saved.element.rect.width / 2,
-											y: dropY - saved.element.rect.height / 2,
-										},
-									})
+									newDropped.push(createDroppedElement(saved, dropX, dropY))
 								}
 							}
-							if (newDropped.length) setDroppedElements((prev) => [...prev, ...newDropped])
+							appendDroppedElements(newDropped)
 						})()
 					}
 				}}

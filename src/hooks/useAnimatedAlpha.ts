@@ -13,6 +13,7 @@ interface AnimatedAlphaEntry {
 	bounds: AlphaTightBounds | null
 }
 
+/** Map of element IDs to their current animated GIF alpha state (frame index, alpha rows, tight bounds). */
 export interface AnimatedAlphaMap {
 	[elementId: string]: AnimatedAlphaEntry
 }

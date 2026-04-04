@@ -11,6 +11,7 @@ const IFRAME_RENDER_RETRIES = 3
 /** Hard timeout (ms) before giving up on the iframe entirely */
 const IFRAME_RENDER_TIMEOUT_MS = 10000
 
+/** Renders HTML in a hidden iframe and walks the live DOM to extract SceneElements. */
 export function renderAndWalk(
 	html: string,
 	containerWidth: number,

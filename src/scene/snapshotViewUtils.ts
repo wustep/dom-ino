@@ -4,6 +4,7 @@ import type { BodyPos } from "../utils/physics"
 
 export type ViewportRectLike = Pick<DOMRect, "left" | "top" | "width" | "height">
 
+/** Converts a DOMRect to stage-relative coordinates (zero-based from viewport top-left). */
 export function toStageRect(rect: ViewportRectLike) {
 	return {
 		x: rect.left,
@@ -13,6 +14,7 @@ export function toStageRect(rect: ViewportRectLike) {
 	}
 }
 
+/** Returns true if a physics body has moved from its original imported position. */
 export function hasMovedImportedElement(
 	sceneElement: SceneElement,
 	bodyPosition?: BodyPos,
@@ -28,6 +30,7 @@ export function hasMovedImportedElement(
 	)
 }
 
+/** Returns true if a text flow result produced any visible lines. */
 export function hasRenderableImportedText(flow?: Pick<TextFlowResult, "lines">): boolean {
 	return Boolean(flow && flow.lines.length > 0)
 }

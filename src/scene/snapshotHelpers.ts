@@ -60,12 +60,14 @@ export const INLINE_TAGS = new Set([
 
 // ── Pure helpers ──
 
+/** Returns true if a SceneElement is a text-bearing paragraph or heading. */
 export function isTextSceneElement(
 	sceneElement: SceneElement | null,
 ): sceneElement is SceneElement & { type: "paragraph" | "heading" } {
 	return sceneElement?.type === "paragraph" || sceneElement?.type === "heading"
 }
 
+/** Overrides a SceneElement's type to paragraph if the node matches a forced-pretext site rule. */
 export function coerceForcedTextSceneElement(
 	node: HTMLElement,
 	sceneElement: SceneElement | null,
@@ -81,6 +83,7 @@ export function coerceForcedTextSceneElement(
 	}
 }
 
+/** Generates a stable DOM path-based ID for a node relative to a root element. */
 export function getStableNodeId(root: HTMLElement, node: HTMLElement): string {
 	const existing = node.dataset.dominoId
 	if (existing) return existing
@@ -348,6 +351,7 @@ export function getResolvedImageSrc(el: HTMLImageElement): string | undefined {
 	}
 }
 
+/** Converts a live DOM element + computed styles into a SceneElement. */
 export function elementToSceneElement(
 	el: HTMLElement,
 	rootRect: ViewportRectLike,

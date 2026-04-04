@@ -19,6 +19,7 @@ interface PhysicsDomItemProps {
 	isAnimationPaused?: boolean
 }
 
+/** Positions a scene element at its physics-driven coordinates with rotation, wrapping ElementRenderer for visuals. */
 export const PhysicsDomItem = memo(function PhysicsDomItem({
 	element,
 	x,

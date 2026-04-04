@@ -11,6 +11,7 @@ interface StashPanelProps {
 	onClose: () => void
 }
 
+/** Flyout panel for managing saved elements: drag to drop, remove, or pick more. */
 export function StashPanel({
 	onDropSaved,
 	pickerMode,

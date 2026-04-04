@@ -170,6 +170,7 @@ function polygonIntervalForBand(
 	return left < right ? { left, right } : null
 }
 
+/** Computes the axis-aligned bounding box of a rotated obstacle rectangle. */
 export function getObstacleAABB(obs: ObstacleRect): {
 	left: number
 	top: number
@@ -347,6 +348,7 @@ function getAlphaIntervalForNormalizedBand(
 	}
 }
 
+/** Returns horizontal intervals blocked by obstacles at a given Y row, accounting for rotation and alpha rows. */
 export function getBlockedIntervalsForRow(
 	obstacles: ObstacleRect[],
 	rowY: number,
@@ -398,6 +400,7 @@ function mergeIntervals(intervals: BlockedInterval[]): BlockedInterval[] {
 	return merged
 }
 
+/** Computes available horizontal segments in a row by subtracting blocked intervals from the container width. */
 export function getAvailableSegments(
 	blocked: BlockedInterval[],
 	containerLeft: number,

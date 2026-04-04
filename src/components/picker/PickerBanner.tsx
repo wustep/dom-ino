@@ -1,5 +1,6 @@
 import { memo } from "react"
 
+/** Fixed bottom-left banner showing picker mode status with a Done button. */
 export const PickerBanner = memo(function PickerBanner({
 	icon,
 	iconBg,

@@ -18,6 +18,7 @@ interface UsePageNavigationOptions {
 	initialPreset?: PresetKey | null
 }
 
+/** Manages all page/scene navigation state: presets, custom pages, URL fetching, scene forking, and snapshot re-fetching. */
 export function usePageNavigation({
 	persisted,
 	initialFetchUrl = null,

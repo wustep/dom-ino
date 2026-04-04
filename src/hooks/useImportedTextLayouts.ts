@@ -9,6 +9,7 @@ import type { ObstacleRect, SceneElement } from "../scene/types"
 import { computeTextFlow, type TextFlowResult } from "../textflow/useTextFlow"
 import { buildFontString, DEFAULT_SANS } from "../utils/fonts"
 
+/** Layout result for a single imported text block: position, dimensions, text flow, and optional inline styles. */
 export type ImportedTextLayout = {
 	id: string
 	sceneElement: SceneElement

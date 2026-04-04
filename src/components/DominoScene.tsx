@@ -52,6 +52,7 @@ function computeTextMaxHeights(
 	return result
 }
 
+/** Orchestrates a preset scene: physics simulation, text reflow, throwable elements, and picker overlays. */
 export function DominoScene({
 	scene,
 	onSceneChange,

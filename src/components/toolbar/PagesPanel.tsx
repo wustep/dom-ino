@@ -11,6 +11,7 @@ interface PagesPanelProps {
 	onClose: () => void
 }
 
+/** Flyout panel for selecting presets, fetching URLs, and importing HTML. */
 export function PagesPanel({ onClose }: PagesPanelProps) {
 	const {
 		currentPreset,

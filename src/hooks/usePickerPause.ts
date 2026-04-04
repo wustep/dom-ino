@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react"
 import type { PhysicsEngine } from "../physics/engine"
 
+/** Discriminated union for picker overlay state: null (inactive), 'throwable' (component picker), or 'save' (stash picker). */
 export type PickerMode = null | "throwable" | "save"
 
 interface UsePickerPauseOptions {

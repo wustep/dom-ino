@@ -11,6 +11,7 @@ function getPolygonVertices(el: SceneElement): Matter.Vector[] | null {
 	}))
 }
 
+/** A tracked Matter.js body with its associated scene element metadata. */
 export interface PhysicsBody {
 	elementId: string
 	body: Matter.Body
@@ -24,6 +25,7 @@ export interface PhysicsBody {
 	alphaBoundsOffset?: { dx: number; dy: number; physicsW: number; physicsH: number }
 }
 
+/** Public API for the Matter.js physics world: body management, mouse control, simulation. */
 export interface PhysicsEngine {
 	engine: Matter.Engine
 	runner: Matter.Runner
@@ -44,6 +46,7 @@ export interface PhysicsEngine {
 	getBodyPositions: () => Map<string, { x: number; y: number; angle: number; w: number; h: number }>
 }
 
+/** Creates a Matter.js physics world with walls, mouse constraint, and body management for a scene. */
 export function createPhysicsEngine(
 	scene: SceneDescription,
 	container: HTMLElement,

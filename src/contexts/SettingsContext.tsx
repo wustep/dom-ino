@@ -1,5 +1,6 @@
 import { createContext, use } from "react"
 
+/** Runtime scene configuration: physics, reflow, debug, and gravity settings. */
 export interface SceneSettings {
 	physicsEnabled: boolean
 	showObstacleBounds: boolean
@@ -14,6 +15,7 @@ export interface SceneSettings {
 	restitution: number
 }
 
+/** Scene settings + stats provided to SettingsPanel via context. */
 export interface SettingsContextValue {
 	settings: SceneSettings
 	setSettings: (s: SceneSettings) => void
@@ -25,6 +27,7 @@ export interface SettingsContextValue {
 
 export const SettingsContext = createContext<SettingsContextValue | null>(null)
 
+/** Accesses scene settings and stats from SettingsContext. */
 export function useSettingsContext(): SettingsContextValue {
 	const ctx = use(SettingsContext)
 	if (!ctx) throw new Error("useSettingsContext must be used within a SettingsContext provider")

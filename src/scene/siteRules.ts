@@ -26,6 +26,7 @@ export interface SnapshotAutoSelectRule {
 	forceSelectors?: string[]
 }
 
+/** Per-site configuration for CSS overrides, element removal, and auto-selection rules. */
 export interface SiteRule {
 	/** Substring matched against the page URL's hostname */
 	match: string

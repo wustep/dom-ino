@@ -44,6 +44,7 @@ type TooltipAnchor = {
 
 const COLLAPSED_REVEAL_PROXIMITY_PX = 128
 
+/** Bottom-right floating toolbar with scene controls, page navigation, stash, and settings flyout panels. */
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 	const { onExplode, onReset, onTogglePicker, pickerMode, onToggleSavePicker, onDropSaved } = props
 

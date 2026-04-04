@@ -2,6 +2,7 @@ import type { SceneDescription, SceneElementType } from "../types"
 
 // ─── URL fetching ───
 
+/** Fetches a web page via the dev proxy, normalizing the URL and validating the response. */
 export async function fetchPageHtml(url: string): Promise<{ html: string; url: string }> {
 	let normalizedUrl = url.trim()
 	if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
@@ -30,6 +31,7 @@ export async function fetchPageHtml(url: string): Promise<{ html: string; url: s
 	throw new Error(`Could not fetch ${normalizedUrl}. Try pasting HTML directly instead.`)
 }
 
+/** Marks likely-interactive elements (buttons, badges, images) as throwable in a scene. */
 export function autoSelectThrowables(scene: SceneDescription): SceneDescription {
 	const throwableTypes: SceneElementType[] = ["button", "badge", "card", "image", "link"]
 	return {

@@ -22,6 +22,7 @@ interface ThrowablePickerProps {
 	onClose: () => void
 }
 
+/** Overlay for toggling throwable/physics state and saving elements in preset scenes. */
 export const ThrowablePicker = memo(function ThrowablePicker({
 	elements,
 	savedElements,

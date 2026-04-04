@@ -13,6 +13,7 @@ export interface FlyBadge {
 
 const FLY_MS = 520
 
+/** Manages fly-to-stash animations when elements are saved from a picker. */
 export function useFlyAnimation() {
 	const [flyBadges, setFlyBadges] = useState<FlyBadge[]>([])
 	const timeoutsRef = useRef<number[]>([])

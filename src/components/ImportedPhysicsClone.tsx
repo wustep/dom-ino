@@ -124,6 +124,7 @@ function cloneWithInlineStyles(node: Node, sourceWindow: Window, targetDocument:
 	return clone
 }
 
+/** Renders a deep-cloned copy of an iframe DOM node at physics-driven coordinates. */
 export function ImportedPhysicsClone({
 	sourceNode,
 	sourceWindow,

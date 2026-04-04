@@ -24,10 +24,7 @@ export interface ScanResult {
 	bodyHeight: number
 }
 
-/**
- * Pure DOM scanning function — walks an iframe document tree and discovers
- * candidates, text blocks, and text body blocks. No React state involved.
- */
+/** Pure DOM scanning: walks an iframe document tree to discover candidates, text blocks, and text body blocks. */
 export function scanIframeDom(
 	doc: Document,
 	win: Window,

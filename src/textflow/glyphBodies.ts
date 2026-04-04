@@ -44,10 +44,7 @@ function parseFontWeight(value: string): number {
 	return Number.isFinite(parsed) ? parsed : 400
 }
 
-/**
- * Measures rendered text in the DOM and produces one throwable scene element
- * per non-whitespace grapheme.
- */
+/** Measures individual character positions from a DOM node using Range.getClientRects() to create glyph-body SceneElements. */
 export function measureGlyphBodiesFromDomNode(
 	node: HTMLElement,
 	{ idPrefix, rootRect, zIndex = 6 }: MeasureGlyphBodiesOptions,

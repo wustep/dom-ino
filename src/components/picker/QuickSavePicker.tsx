@@ -30,6 +30,7 @@ interface QuickSavePickerProps {
 	onClose: () => void
 }
 
+/** Click-to-save overlay that lets users quickly add elements to the stash. */
 export const QuickSavePicker = memo(function QuickSavePicker({
 	candidates,
 	onSave,

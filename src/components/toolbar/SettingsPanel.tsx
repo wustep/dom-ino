@@ -5,6 +5,7 @@ interface SettingsPanelProps {
 	onClose: () => void
 }
 
+/** Flyout panel for physics, reflow, gravity, and debug settings. */
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
 	const {
 		settings,

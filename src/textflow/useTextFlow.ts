@@ -3,6 +3,7 @@ import { layoutNextLine, prepareWithSegments } from "@chenglou/pretext"
 import type { ObstacleRect } from "../scene/types"
 import { getAvailableSegments, getBlockedIntervalsForRow } from "./obstacles"
 
+/** A single laid-out text line with position, width, and character offset. */
 export interface FlowLine {
 	text: string
 	x: number
@@ -13,6 +14,7 @@ export interface FlowLine {
 	charOffset: number
 }
 
+/** Result of computing text flow: all laid-out lines, end cursor, and total height. */
 export interface TextFlowResult {
 	lines: FlowLine[]
 	totalHeight: number
@@ -81,6 +83,7 @@ function cursorToTextOffset(prepared: PreparedTextWithSegments, cursor: LayoutCu
 	return offset
 }
 
+/** Lays out text line-by-line within a container, reflowing around physics obstacles using Pretext. */
 export function computeTextFlow(
 	text: string,
 	font: string,

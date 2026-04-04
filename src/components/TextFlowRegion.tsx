@@ -83,6 +83,7 @@ function renderStyledLine(line: FlowLine, inlineStyles?: InlineStyleRun[]): Reac
 	return parts
 }
 
+/** Renders text lines that reflow around physics obstacles, using Pretext for line-by-line layout. */
 export const TextFlowRegion = memo(function TextFlowRegion({
 	text,
 	font,

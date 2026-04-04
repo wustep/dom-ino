@@ -136,6 +136,7 @@ function rewriteFetchedDocumentMarkup(html: string): string {
 
 // ─── HTML preparation: inline CSS + fix URLs ───
 
+/** Prepares fetched HTML for viewer: inlines external CSS, rewrites URLs, promotes noscript images, strips scripts. */
 export async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
 	let origin: string
 	try {

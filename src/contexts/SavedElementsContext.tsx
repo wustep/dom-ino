@@ -1,6 +1,7 @@
 import { createContext, use } from "react"
 import type { SavedElement, SceneElement } from "../scene/types"
 
+/** Shared saved element state consumed by Toolbar, StashPanel, and picker components. */
 export interface SavedElementsContextValue {
 	savedElements: SavedElement[]
 	saveElement: (el: SceneElement) => void
@@ -11,6 +12,7 @@ export interface SavedElementsContextValue {
 
 export const SavedElementsContext = createContext<SavedElementsContextValue | null>(null)
 
+/** Accesses saved element state from SavedElementsContext. */
 export function useSavedElements(): SavedElementsContextValue {
 	const ctx = use(SavedElementsContext)
 	if (!ctx) throw new Error("useSavedElements must be used within a SavedElementsContext provider")

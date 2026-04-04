@@ -4,6 +4,7 @@ let parserCounter = 0
 
 // ─── Structure-based fallback parser ───
 
+/** Regex-based fallback parser for when iframe rendering yields too few elements. */
 export function parseHtmlStructure(
 	html: string,
 	containerWidth: number,

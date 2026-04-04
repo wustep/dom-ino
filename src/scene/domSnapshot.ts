@@ -8,6 +8,7 @@ export { prepareHtml } from "./snapshot/prepare"
 
 // ─── Main snapshot function ───
 
+/** Converts raw HTML into a SceneDescription by preparing, rendering in an iframe, and walking the DOM. */
 export async function snapshotHtmlToScene(
 	html: string,
 	containerWidth: number = 1200,
@@ -26,6 +27,7 @@ export async function snapshotHtmlToScene(
 	return parseHtmlStructure(html, containerWidth, sceneName)
 }
 
+/** Prepares fetched HTML for safe iframe rendering: inlines CSS, rewrites URLs, strips scripts. */
 export async function prepareHtmlForViewer(html: string, sourceUrl?: string): Promise<string> {
 	return sourceUrl ? prepareHtml(html, sourceUrl) : html
 }

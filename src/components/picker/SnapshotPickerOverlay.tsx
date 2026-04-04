@@ -30,6 +30,7 @@ interface SnapshotPickerOverlayProps {
 	onClose: () => void
 }
 
+/** Element picker overlay for imported snapshot pages with toggle/save per candidate. */
 export const SnapshotPickerOverlay = memo(function SnapshotPickerOverlay({
 	items,
 	onClose,
