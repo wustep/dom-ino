@@ -44,6 +44,7 @@ export interface SiteRule {
 	snapshotAutoSelect?: SnapshotAutoSelectRule
 }
 
+/** Site-specific rules for known websites (NYTimes, Wikipedia, Craigslist, etc.). */
 export const SITE_RULES: SiteRule[] = [
 	{
 		match: "wikipedia.org",

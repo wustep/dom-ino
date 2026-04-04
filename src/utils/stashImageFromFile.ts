@@ -9,6 +9,7 @@ export const STASH_DROP_IMAGE_MAX_FILE_BYTES = 2 * 1024 * 1024
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i
 
+/** Returns true if a File is an acceptable image type and size for stashing. */
 export function isAcceptableStashImageFile(file: File): boolean {
 	if (!file || file.size > STASH_DROP_IMAGE_MAX_FILE_BYTES) return false
 	if (file.type.startsWith("image/")) return true
@@ -47,6 +48,7 @@ function loadImageElement(src: string): Promise<HTMLImageElement> {
 	})
 }
 
+/** Converts a dropped image File into a SavedElement with a data URL and capped dimensions. */
 export async function savedElementFromImageFile(
 	file: File,
 	sourceScene: string,

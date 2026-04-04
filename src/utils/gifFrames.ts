@@ -95,11 +95,7 @@ export async function parseGifFromDataUrl(dataUrl: string): Promise<ParsedGif | 
 	}
 }
 
-/**
- * Extract alpha rows from ImageData.
- * Samples multiple pixel rows per interval to catch thin features.
- * Adds padding to intervals for more conservative bounds.
- */
+/** Extracts normalized per-row alpha intervals from raw RGBA image data. */
 export function extractAlphaRowsFromImageData(
 	imageData: ImageData,
 	rowCount?: number,

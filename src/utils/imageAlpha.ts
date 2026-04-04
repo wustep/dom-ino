@@ -161,10 +161,7 @@ export function computeTightBoundsFromAlphaRows(
 	}
 }
 
-/**
- * Check if an image has significant transparency worth tracking.
- * Quick check that doesn't extract full row data.
- */
+/** Returns true if an image element has enough transparent pixels to warrant alpha-aware text flow. */
 export async function hasSignificantTransparency(imageSrc: string): Promise<boolean> {
 	return new Promise((resolve) => {
 		const img = new Image()

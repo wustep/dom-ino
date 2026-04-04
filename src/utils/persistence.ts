@@ -50,6 +50,7 @@ function normalizeCustomPages(pages: unknown): CustomPage[] {
 	}, [])
 }
 
+/** Loads persisted app state from localStorage with validation and back-compat normalization. */
 export function loadState(): Partial<PersistedState> {
 	try {
 		const raw = localStorage.getItem(LS_KEY)
@@ -87,6 +88,7 @@ export function loadState(): Partial<PersistedState> {
 	return {}
 }
 
+/** Persists app state to localStorage, stripping heavy snapshot HTML to avoid quota issues. */
 export function saveState(s: PersistedState) {
 	try {
 		// Strip preparedHtml from snapshot pages to avoid localStorage quota issues.
@@ -105,6 +107,7 @@ export function saveState(s: PersistedState) {
 	}
 }
 
+/** Removes all persisted state from localStorage. */
 export function clearPersistedState() {
 	localStorage.removeItem(LS_KEY)
 }
