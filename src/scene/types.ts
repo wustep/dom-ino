@@ -82,6 +82,8 @@ export interface SceneElement extends TextStyle, VisualStyle, PhysicsProperties 
 	children?: SceneElement[]
 	href?: string
 	gap?: number
+	/** Per-row alpha intervals for transparent images (normalized 0-1 coordinates) */
+	alphaRows?: AlphaRowInterval[]
 }
 
 export interface SceneDescription {
@@ -103,9 +105,36 @@ export interface ObstacleRect {
 	borderRadius?: number
 	physicsShape?: "rectangle" | "circle" | "polygon"
 	polygonPoints?: ScenePoint[]
+	/** Per-row alpha intervals for transparent images */
+	alphaRows?: AlphaRowInterval[]
 }
 
 export interface BlockedInterval {
+	left: number
+	right: number
+}
+
+/**
+ * Per-row alpha intervals for transparent images.
+ * Each entry maps a normalized Y position (0-1) to the blocked horizontal interval.
+ * Used by the obstacle system to flow text around the actual opaque pixels.
+ */
+export interface AlphaRowInterval {
+	/** Normalized Y position (0 = top, 1 = bottom) */
+	y: number
+	/** Normalized left edge of opaque region (0-1) */
+	left: number
+	/** Normalized right edge of opaque region (0-1) */
+	right: number
+}
+
+/**
+ * Tight bounding box for transparent images (normalized 0-1 coordinates).
+ * Represents the smallest rectangle containing all opaque pixels.
+ */
+export interface AlphaTightBounds {
+	top: number
+	bottom: number
 	left: number
 	right: number
 }

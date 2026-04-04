@@ -1,4 +1,10 @@
-import type { AvailableSegment, BlockedInterval, ObstacleRect, ScenePoint } from "../scene/types"
+import type {
+	AlphaRowInterval,
+	AvailableSegment,
+	BlockedInterval,
+	ObstacleRect,
+	ScenePoint,
+} from "../scene/types"
 
 type Point = ScenePoint
 const EPSILON = 0.001
@@ -190,6 +196,159 @@ export function getObstacleAABB(obs: ObstacleRect): {
 	return { left, top, right, bottom }
 }
 
+/**
+ * For an obstacle with alpha row data, compute the blocked interval at a given row band.
+ * Only blocks where there are actual opaque pixels - transparent areas let text through.
+ * Handles rotation by transforming the row band into the image's local coordinate space.
+ */
+function alphaIntervalForBand(
+	obs: ObstacleRect,
+	alphaRows: AlphaRowInterval[],
+	bandTop: number,
+	bandBottom: number,
+): BlockedInterval | null {
+	if (alphaRows.length === 0) return null
+
+	const cx = obs.x + obs.width / 2
+	const cy = obs.y + obs.height / 2
+	const cos = Math.cos(-obs.angle)
+	const sin = Math.sin(-obs.angle)
+
+	// For rotated images, we need to check multiple sample points along the row band
+	// and transform them into the image's local coordinate space
+	const isRotated = Math.abs(obs.angle) > EPSILON
+
+	if (!isRotated) {
+		// Simple case: no rotation
+		if (bandTop >= obs.y + obs.height || bandBottom <= obs.y) return null
+
+		const normalizedTop = Math.max(0, (bandTop - obs.y) / obs.height)
+		const normalizedBottom = Math.min(1, (bandBottom - obs.y) / obs.height)
+
+		return getAlphaIntervalForNormalizedBand(obs, alphaRows, normalizedTop, normalizedBottom)
+	}
+
+	// Rotated case: sample points across the row band width and find the x-extent
+	// that intersects with opaque pixels
+	const aabb = getObstacleAABB(obs)
+	if (bandTop >= aabb.bottom || bandBottom <= aabb.top) return null
+
+	let minX = Infinity
+	let maxX = -Infinity
+	let foundAny = false
+
+	// Sample across the AABB width
+	const sampleCount = Math.max(10, Math.ceil((aabb.right - aabb.left) / 5))
+	for (let i = 0; i <= sampleCount; i++) {
+		const worldX = aabb.left + (i / sampleCount) * (aabb.right - aabb.left)
+		const bandMidY = (bandTop + bandBottom) / 2
+
+		// Transform world point to local image coordinates
+		const dx = worldX - cx
+		const dy = bandMidY - cy
+		const localX = dx * cos - dy * sin
+		const localY = dx * sin + dy * cos
+
+		// Convert to normalized coordinates (0-1)
+		const normX = (localX / obs.width) + 0.5
+		const normY = (localY / obs.height) + 0.5
+
+		if (normX < 0 || normX > 1 || normY < 0 || normY > 1) continue
+
+		// Check if this point is in an opaque region
+		const row = findAlphaRowForY(alphaRows, normY)
+		if (row && normX >= row.left && normX <= row.right) {
+			minX = Math.min(minX, worldX)
+			maxX = Math.max(maxX, worldX)
+			foundAny = true
+		}
+	}
+
+	if (!foundAny) return null
+
+	return { left: minX, right: maxX }
+}
+
+/**
+ * Find the alpha row closest to a normalized Y position.
+ */
+function findAlphaRowForY(alphaRows: AlphaRowInterval[], normY: number): AlphaRowInterval | null {
+	if (alphaRows.length === 0) return null
+
+	// Binary search for closest row
+	let closest = alphaRows[0]
+	let closestDist = Math.abs(closest.y - normY)
+
+	for (const row of alphaRows) {
+		const dist = Math.abs(row.y - normY)
+		if (dist < closestDist) {
+			closest = row
+			closestDist = dist
+		}
+	}
+
+	// Only return if we're reasonably close (within one row height)
+	const rowHeight = 1 / alphaRows.length
+	if (closestDist > rowHeight * 1.5) return null
+
+	return closest
+}
+
+/**
+ * Get alpha interval for a non-rotated obstacle given normalized Y band.
+ */
+function getAlphaIntervalForNormalizedBand(
+	obs: ObstacleRect,
+	alphaRows: AlphaRowInterval[],
+	normalizedTop: number,
+	normalizedBottom: number,
+): BlockedInterval | null {
+	// Find the actual content bounds from alpha rows
+	const minRowY = alphaRows[0].y
+	const maxRowY = alphaRows[alphaRows.length - 1].y
+
+	// If the band is entirely outside the opaque content, no blocking
+	if (normalizedBottom < minRowY || normalizedTop > maxRowY) return null
+
+	let minLeft = 1
+	let maxRight = 0
+	let foundAny = false
+
+	// Find all rows that overlap with this band
+	for (const row of alphaRows) {
+		const rowHeight = 1 / alphaRows.length
+		if (row.y + rowHeight >= normalizedTop && row.y <= normalizedBottom + rowHeight) {
+			minLeft = Math.min(minLeft, row.left)
+			maxRight = Math.max(maxRight, row.right)
+			foundAny = true
+		}
+	}
+
+	// If no direct overlap, interpolate only if we're between opaque rows
+	if (!foundAny) {
+		const closestAbove = alphaRows
+			.filter((r) => r.y < normalizedTop)
+			.sort((a, b) => b.y - a.y)[0]
+		const closestBelow = alphaRows
+			.filter((r) => r.y > normalizedBottom)
+			.sort((a, b) => a.y - b.y)[0]
+
+		if (closestAbove && closestBelow) {
+			const t = (normalizedTop - closestAbove.y) / (closestBelow.y - closestAbove.y)
+			minLeft = closestAbove.left + t * (closestBelow.left - closestAbove.left)
+			maxRight = closestAbove.right + t * (closestBelow.right - closestAbove.right)
+			foundAny = true
+		}
+	}
+
+	if (!foundAny || maxRight <= minLeft) return null
+
+	return {
+		left: obs.x + minLeft * obs.width,
+		right: obs.x + maxRight * obs.width,
+	}
+}
+
 export function getBlockedIntervalsForRow(
 	obstacles: ObstacleRect[],
 	rowY: number,
@@ -202,19 +361,20 @@ export function getBlockedIntervalsForRow(
 	const intervals: BlockedInterval[] = []
 
 	for (const obs of obstacles) {
-		if (isCircular(obs)) {
+		let interval: BlockedInterval | null = null
+
+		if (obs.alphaRows && obs.alphaRows.length > 0) {
+			interval = alphaIntervalForBand(obs, obs.alphaRows, rowTop, rowBottom)
+		} else if (isCircular(obs)) {
 			const cx = obs.x + obs.width / 2
 			const cy = obs.y + obs.height / 2
 			const r = obs.width / 2
-			const interval = circleIntervalForBand(cx, cy, r, rowTop, rowBottom)
-			if (interval) {
-				const left = Math.max(interval.left, containerLeft)
-				const right = Math.min(interval.right, containerRight)
-				if (left < right) intervals.push({ left, right })
-			}
+			interval = circleIntervalForBand(cx, cy, r, rowTop, rowBottom)
 		} else {
-			const interval = polygonIntervalForBand(obs, rowTop, rowBottom)
-			if (!interval) continue
+			interval = polygonIntervalForBand(obs, rowTop, rowBottom)
+		}
+
+		if (interval) {
 			const left = Math.max(interval.left, containerLeft)
 			const right = Math.min(interval.right, containerRight)
 			if (left < right) intervals.push({ left, right })

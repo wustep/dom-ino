@@ -1,6 +1,7 @@
 import type { LayoutCursor } from "@chenglou/pretext"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { CustomPage } from "../App"
+import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
 import type { PhysicsEngine } from "../physics/engine"
 import { createPhysicsEngine } from "../physics/engine"
@@ -99,6 +100,18 @@ export function DominoScene({
 	const [textBodyElements, setTextBodyElements] = useState<SceneElement[]>([])
 	const textMeasureRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 	const effectiveElements = scene.elements
+
+	const animatedAlpha = useAnimatedAlpha(effectiveElements)
+
+	// Update physics body bounds when alpha changes for animated images
+	useEffect(() => {
+		const physics = physicsRef.current
+		if (!physics) return
+
+		for (const [id, entry] of Object.entries(animatedAlpha)) {
+			physics.updateAlphaBounds(id, entry.bounds)
+		}
+	}, [animatedAlpha])
 
 	const [settings, setSettings] = useState<DebugSettings>({
 		physicsEnabled: true,
@@ -209,6 +222,8 @@ export function DominoScene({
 			})
 			.map((el) => {
 				const pos = bodyPositions.get(el.id)
+				const liveAlphaEntry = animatedAlpha[el.id]
+				const alphaRows = liveAlphaEntry?.rows !== undefined ? liveAlphaEntry.rows ?? undefined : el.alphaRows
 				return {
 					id: el.id,
 					x: pos?.x ?? el.rect.x,
@@ -219,9 +234,10 @@ export function DominoScene({
 					borderRadius: el.borderRadius,
 					physicsShape: el.physicsShape,
 					polygonPoints: el.polygonPoints,
+					alphaRows,
 				}
 			})
-	}, [effectiveElements, bodyPositions, settings.pretextEnabled])
+	}, [effectiveElements, bodyPositions, settings.pretextEnabled, animatedAlpha])
 
 	// Compute start cursors for text continuation chains.
 	// E.g. col2 continues from col1, col3 from col2 — we run computeTextFlow
@@ -583,6 +599,7 @@ export function DominoScene({
 
 				{throwableElements.map((el) => {
 					const pos = bodyPositions.get(el.id)
+					const alphaEntry = animatedAlpha[el.id]
 					return (
 						<PhysicsDomItem
 							key={el.id}
@@ -592,6 +609,8 @@ export function DominoScene({
 							angle={pos?.angle ?? 0}
 							isPhysicsEnabled={settings.physicsEnabled}
 							showDebug={settings.showObstacleBounds}
+							alphaBounds={alphaEntry?.bounds}
+							alphaRows={alphaEntry?.rows ?? el.alphaRows}
 						/>
 					)
 				})}

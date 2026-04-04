@@ -1,4 +1,5 @@
 import type { SavedElement, SceneElement } from "../scene/types"
+import { extractAlphaRows } from "./imageAlpha"
 
 /** Max width *or* height (px) for stash / dropped image physics boxes; aspect ratio preserved. */
 export const STASH_DROP_IMAGE_MAX_SIDE_PX = 400
@@ -71,6 +72,8 @@ export async function savedElementFromImageFile(
 
 	const { width, height } = cappedSizeForStashImage(naturalWidth, naturalHeight)
 
+	const alphaRows = await extractAlphaRows(dataUrl)
+
 	const element: SceneElement = {
 		id: `stash-img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
 		type: "image",
@@ -79,8 +82,9 @@ export async function savedElementFromImageFile(
 		pinned: false,
 		imageSrc: dataUrl,
 		imageAlt: file.name.replace(/[/\\]/g, ""),
-		backgroundColor: "#e5e5e5",
-		borderRadius: 8,
+		backgroundColor: undefined,
+		borderRadius: 0,
+		alphaRows: alphaRows ?? undefined,
 	}
 
 	return { element, savedAt: Date.now(), sourceScene }

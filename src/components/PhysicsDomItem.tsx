@@ -1,5 +1,5 @@
 import { memo } from "react"
-import type { SceneElement, TextStyle } from "../scene/types"
+import type { AlphaRowInterval, AlphaTightBounds, SceneElement, TextStyle } from "../scene/types"
 import { getBackgroundStyle } from "../utils/styles"
 
 interface PhysicsDomItemProps {
@@ -9,6 +9,10 @@ interface PhysicsDomItemProps {
 	angle: number
 	isPhysicsEnabled: boolean
 	showDebug: boolean
+	/** Live alpha bounds for transparent/animated images */
+	alphaBounds?: AlphaTightBounds | null
+	/** Per-row alpha intervals for debug visualization */
+	alphaRows?: AlphaRowInterval[] | null
 }
 
 /** Build a CSS text style from a TextStyle-bearing element (or child). */
@@ -35,6 +39,8 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 	angle,
 	isPhysicsEnabled,
 	showDebug,
+	alphaBounds,
+	alphaRows,
 }: PhysicsDomItemProps) {
 	const isThrowable = element.throwable
 	const live = isPhysicsEnabled && isThrowable
@@ -160,14 +166,14 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 					</div>
 				)
 
-			case "image":
-				return (
-					<div
-						style={{
-							width: "100%",
-							height: "100%",
-							...getBackgroundStyle(element.backgroundColor ?? "#e5e5e5"),
-							borderRadius: element.borderRadius ?? 8,
+		case "image":
+			return (
+				<div
+					style={{
+						width: "100%",
+						height: "100%",
+						...getBackgroundStyle(element.backgroundColor),
+						borderRadius: element.borderRadius ?? 0,
 							overflow: "hidden",
 							display: "flex",
 							alignItems: "center",
@@ -175,13 +181,14 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 							boxShadow: element.boxShadow,
 						}}
 					>
-						{element.imageSrc ? (
-							<img
-								src={element.imageSrc}
-								alt={element.imageAlt ?? ""}
-								style={{ width: "100%", height: "100%", objectFit: "cover" }}
-								draggable={false}
-							/>
+					{element.imageSrc ? (
+						<img
+							src={element.imageSrc}
+							alt={element.imageAlt ?? ""}
+							data-domino-image-id={element.id}
+							style={{ width: "100%", height: "100%", objectFit: "cover" }}
+							draggable={false}
+						/>
 						) : (
 							<svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ opacity: 0.25 }}>
 								<rect
@@ -263,15 +270,15 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 					/>
 				)
 
-			case "divider":
-				return (
-					<div
-						style={{
-							width: "100%",
-							height: "100%",
-							backgroundColor: element.backgroundColor ?? "#e5e5e5",
-						}}
-					/>
+		case "divider":
+			return (
+				<div
+					style={{
+						width: "100%",
+						height: "100%",
+						backgroundColor: element.backgroundColor,
+					}}
+				/>
 				)
 
 		default:
@@ -311,23 +318,79 @@ export const PhysicsDomItem = memo(function PhysicsDomItem({
 				<div style={wrapStyle}>{renderInner()}</div>
 			)}
 			{showDebug && isThrowable && (
-				<div
-					style={{
-						position: "absolute",
-						left: px - 1,
-						top: py - 1,
-						width: element.rect.width + 2,
-						height: element.rect.height + 2,
-						transform: pa !== 0 ? `rotate(${pa}rad)` : undefined,
-						transformOrigin: "center center",
-						border: "2px dashed rgba(231,76,60,0.45)",
-						backgroundColor: "rgba(231,76,60,0.04)",
-						pointerEvents: "none",
-						zIndex: 100,
-						boxSizing: "border-box",
-						borderRadius: element.borderRadius ?? 0,
-					}}
-				/>
+				<>
+					{/* Full element bounds (red dashed) */}
+					<div
+						style={{
+							position: "absolute",
+							left: px - 1,
+							top: py - 1,
+							width: element.rect.width + 2,
+							height: element.rect.height + 2,
+							transform: pa !== 0 ? `rotate(${pa}rad)` : undefined,
+							transformOrigin: "center center",
+							border: "2px dashed rgba(231,76,60,0.45)",
+							backgroundColor: "rgba(231,76,60,0.04)",
+							pointerEvents: "none",
+							zIndex: 100,
+							boxSizing: "border-box",
+							borderRadius: element.borderRadius ?? 0,
+						}}
+					/>
+					{/* Per-row alpha intervals (green bars) */}
+					{alphaRows && alphaRows.length > 0 && (
+						<div
+							style={{
+								position: "absolute",
+								left: px,
+								top: py,
+								width: element.rect.width,
+								height: element.rect.height,
+								transform: pa !== 0 ? `rotate(${pa}rad)` : undefined,
+								transformOrigin: "center center",
+								pointerEvents: "none",
+								zIndex: 101,
+								overflow: "hidden",
+							}}
+						>
+							{alphaRows.filter((_, i) => i % 3 === 0).map((row, i) => {
+								const rowHeight = element.rect.height / alphaRows.length
+								return (
+									<div
+										key={i}
+										style={{
+											position: "absolute",
+											left: row.left * element.rect.width,
+											top: row.y * element.rect.height,
+											width: (row.right - row.left) * element.rect.width,
+											height: Math.max(2, rowHeight * 3),
+											backgroundColor: "rgba(46,204,113,0.5)",
+											pointerEvents: "none",
+										}}
+									/>
+								)
+							})}
+						</div>
+					)}
+					{/* Alpha tight bounds outline (green border) */}
+					{alphaBounds && (
+						<div
+							style={{
+								position: "absolute",
+								left: px + alphaBounds.left * element.rect.width - 1,
+								top: py + alphaBounds.top * element.rect.height - 1,
+								width: (alphaBounds.right - alphaBounds.left) * element.rect.width + 2,
+								height: (alphaBounds.bottom - alphaBounds.top) * element.rect.height + 2,
+								transform: pa !== 0 ? `rotate(${pa}rad)` : undefined,
+								transformOrigin: "center center",
+								border: "2px solid rgba(46,204,113,0.9)",
+								pointerEvents: "none",
+								zIndex: 102,
+								boxSizing: "border-box",
+							}}
+						/>
+					)}
+				</>
 			)}
 		</>
 	)

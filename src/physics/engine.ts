@@ -1,5 +1,5 @@
 import Matter from "matter-js"
-import type { SceneDescription, SceneElement } from "../scene/types"
+import type { AlphaTightBounds, SceneDescription, SceneElement } from "../scene/types"
 
 const { Engine, World, Bodies, Body, Mouse, MouseConstraint, Events, Runner } = Matter
 
@@ -20,6 +20,8 @@ export interface PhysicsBody {
 	originalH: number
 	initialVelocityX: number
 	initialVelocityY: number
+	/** Offset from visual rect to physics body center (for alpha-aware bounds) */
+	alphaBoundsOffset?: { dx: number; dy: number; physicsW: number; physicsH: number }
 }
 
 export interface PhysicsEngine {
@@ -38,6 +40,7 @@ export interface PhysicsEngine {
 	resize: (width: number, height: number) => void
 	addBody: (el: SceneElement) => void
 	removeBody: (id: string) => void
+	updateAlphaBounds: (id: string, bounds: AlphaTightBounds | null) => void
 	getBodyPositions: () => Map<string, { x: number; y: number; angle: number; w: number; h: number }>
 }
 
@@ -414,6 +417,65 @@ export function createPhysicsEngine(
 			elementsById.delete(id)
 		},
 
+		updateAlphaBounds(id: string, bounds: AlphaTightBounds | null) {
+			const pb = bodies.get(id)
+			if (!pb || pb.body.isStatic) return
+
+			const el = elementsById.get(id)
+			if (!el) return
+
+			if (!bounds) {
+				// Reset to full element bounds
+				if (pb.alphaBoundsOffset) {
+					pb.alphaBoundsOffset = undefined
+					const newW = pb.originalW
+					const newH = pb.originalH
+					// Scale the body vertices to match new size
+					const scaleX = newW / (pb.body.bounds.max.x - pb.body.bounds.min.x)
+					const scaleY = newH / (pb.body.bounds.max.y - pb.body.bounds.min.y)
+					if (Math.abs(scaleX - 1) > 0.01 || Math.abs(scaleY - 1) > 0.01) {
+						Body.scale(pb.body, scaleX, scaleY)
+					}
+				}
+				return
+			}
+
+			// Compute physics body dimensions from alpha bounds
+			const physicsW = (bounds.right - bounds.left) * pb.originalW
+			const physicsH = (bounds.bottom - bounds.top) * pb.originalH
+
+			// Offset from visual center to physics center
+			const visualCenterX = pb.originalW / 2
+			const visualCenterY = pb.originalH / 2
+			const physicsCenterX = (bounds.left + bounds.right) / 2 * pb.originalW
+			const physicsCenterY = (bounds.top + bounds.bottom) / 2 * pb.originalH
+			const dx = physicsCenterX - visualCenterX
+			const dy = physicsCenterY - visualCenterY
+
+			// Store the offset for position calculations
+			const prevOffset = pb.alphaBoundsOffset
+			pb.alphaBoundsOffset = { dx, dy, physicsW, physicsH }
+
+			// Scale the body to match new bounds
+			const currentW = pb.body.bounds.max.x - pb.body.bounds.min.x
+			const currentH = pb.body.bounds.max.y - pb.body.bounds.min.y
+			const scaleX = physicsW / currentW
+			const scaleY = physicsH / currentH
+
+			if (Math.abs(scaleX - 1) > 0.02 || Math.abs(scaleY - 1) > 0.02) {
+				Body.scale(pb.body, scaleX, scaleY)
+			}
+
+			// If offset changed significantly, adjust body position
+			if (prevOffset) {
+				const offsetDx = dx - prevOffset.dx
+				const offsetDy = dy - prevOffset.dy
+				if (Math.abs(offsetDx) > 1 || Math.abs(offsetDy) > 1) {
+					Body.translate(pb.body, { x: offsetDx, y: offsetDy })
+				}
+			}
+		},
+
 		getBodyPositions() {
 			const positions = new Map<
 				string,
@@ -421,13 +483,27 @@ export function createPhysicsEngine(
 			>()
 			for (const [id, pb] of bodies) {
 				if (pb.body.isStatic) continue
-				positions.set(id, {
-					x: pb.body.position.x - pb.originalW / 2,
-					y: pb.body.position.y - pb.originalH / 2,
-					angle: pb.body.angle,
-					w: pb.originalW,
-					h: pb.originalH,
-				})
+				// If we have alpha bounds offset, adjust the visual position
+				const offset = pb.alphaBoundsOffset
+				if (offset) {
+					// Physics body is centered on alpha content, but we need to report
+					// the visual element position (top-left of full image)
+					positions.set(id, {
+						x: pb.body.position.x - offset.dx - pb.originalW / 2,
+						y: pb.body.position.y - offset.dy - pb.originalH / 2,
+						angle: pb.body.angle,
+						w: pb.originalW,
+						h: pb.originalH,
+					})
+				} else {
+					positions.set(id, {
+						x: pb.body.position.x - pb.originalW / 2,
+						y: pb.body.position.y - pb.originalH / 2,
+						angle: pb.body.angle,
+						w: pb.originalW,
+						h: pb.originalH,
+					})
+				}
 			}
 			return positions
 		},

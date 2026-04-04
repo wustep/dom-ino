@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { CustomPage, SnapshotCustomPage } from "../App"
+import { useAnimatedAlpha } from "../hooks/useAnimatedAlpha"
 import { usePhysicsLoop } from "../hooks/usePhysicsLoop"
 import { useSnapshotScanner } from "../hooks/useSnapshotScanner"
 import type { PhysicsEngine } from "../physics/engine"
@@ -159,6 +160,18 @@ export function SnapshotPageView({
 		[selectableCandidates],
 	)
 
+	const animatedAlpha = useAnimatedAlpha(droppedElements)
+
+	// Update physics body bounds when alpha changes for animated images
+	useEffect(() => {
+		const physics = physicsRef.current
+		if (!physics) return
+
+		for (const [id, entry] of Object.entries(animatedAlpha)) {
+			physics.updateAlphaBounds(id, entry.bounds)
+		}
+	}, [animatedAlpha])
+
 	useLayoutEffect(() => {
 		const desiredNodes = pickerMode
 			? []
@@ -266,6 +279,9 @@ export function SnapshotPageView({
 			// During picker mode, originals are restored at their initial positions,
 			// so use el.rect instead of physics bodyPositions for correct reflow.
 			const pos = pickerMode ? undefined : bodyPositions.get(el.id)
+			// For animated images, use live alpha rows from the hook if available
+			const liveAlphaEntry = animatedAlpha[el.id]
+			const alphaRows = liveAlphaEntry?.rows !== undefined ? liveAlphaEntry.rows ?? undefined : el.alphaRows
 			obstacles.push({
 				id: el.id,
 				x: pos?.x ?? el.rect.x,
@@ -274,6 +290,7 @@ export function SnapshotPageView({
 				height: pos?.h ?? el.rect.height,
 				angle: pos?.angle ?? 0,
 				borderRadius: el.borderRadius,
+				alphaRows,
 			})
 		}
 
@@ -288,11 +305,12 @@ export function SnapshotPageView({
 				height: el.rect.height,
 				angle: 0,
 				borderRadius: el.borderRadius,
+				alphaRows: el.alphaRows,
 			})
 		}
 
 		return obstacles
-	}, [selectedElements, droppedElements, staticObstacleCandidates, bodyPositions, pickerMode])
+	}, [selectedElements, droppedElements, staticObstacleCandidates, bodyPositions, pickerMode, animatedAlpha])
 
 	const importedTextLayouts = useMemo(() => {
 		if (!importedTextFlowActive) return []
@@ -750,6 +768,7 @@ export function SnapshotPageView({
 				{!pickerMode &&
 					droppedElements.map((el) => {
 						const pos = bodyPositions.get(el.id)
+						const alphaEntry = animatedAlpha[el.id]
 						return (
 							<PhysicsDomItem
 								key={el.id}
@@ -759,6 +778,8 @@ export function SnapshotPageView({
 								angle={pos?.angle ?? 0}
 								isPhysicsEnabled={true}
 								showDebug={settings.showObstacleBounds}
+								alphaBounds={alphaEntry?.bounds}
+								alphaRows={alphaEntry?.rows ?? el.alphaRows}
 							/>
 						)
 					})}
