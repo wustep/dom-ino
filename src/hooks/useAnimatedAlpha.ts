@@ -13,7 +13,7 @@ interface AnimatedAlphaEntry {
 	bounds: AlphaTightBounds | null
 }
 
-interface AnimatedAlphaState {
+export interface AnimatedAlphaMap {
 	[elementId: string]: AnimatedAlphaEntry
 }
 
@@ -22,13 +22,13 @@ interface AnimatedAlphaState {
  * Uses gifuct-js to parse GIF frames and provides frame-synced alpha data
  * based on timing (since browsers don't expose current GIF frame via canvas).
  */
-const EMPTY_ALPHA_STATE: AnimatedAlphaState = {}
+const EMPTY_ALPHA_STATE: AnimatedAlphaMap = {}
 
 export function useAnimatedAlpha(
 	elements: SceneElement[],
 	paused: boolean = false,
-): AnimatedAlphaState {
-	const [alphaState, setAlphaState] = useState<AnimatedAlphaState>(EMPTY_ALPHA_STATE)
+): AnimatedAlphaMap {
+	const [alphaState, setAlphaState] = useState<AnimatedAlphaMap>(EMPTY_ALPHA_STATE)
 	const controllersRef = useRef<Map<string, GifAlphaController>>(new Map())
 	const prevFrameRef = useRef<Map<string, number>>(new Map())
 	const lastPublishedAtRef = useRef<Map<string, number>>(new Map())
@@ -102,7 +102,7 @@ export function useAnimatedAlpha(
 		const tick = () => {
 			if (!running) return
 
-			const updates: AnimatedAlphaState = {}
+			const updates: AnimatedAlphaMap = {}
 			let hasChanges = false
 
 			for (const el of animatedElements) {

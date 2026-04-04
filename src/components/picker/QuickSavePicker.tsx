@@ -1,17 +1,16 @@
 import { memo, useCallback, useRef, useState } from "react"
-import type { SceneElement } from "../scene/types"
+import type { SceneElement } from "../../scene/types"
+import { FlyBadges, SaveBadge } from "./PickerBadges"
+import { PickerBanner } from "./PickerBanner"
+import { EyedropperIcon } from "./PickerIcons"
 import {
-	EyedropperIcon,
-	FlyBadges,
 	overlayBackdropStyle,
 	PICKER_HALO,
 	PICKER_OUTLINE_INSET,
-	PickerBanner,
 	pickerKeyframes,
-	SaveBadge,
-	useEscClose,
-	useFlyAnimation,
-} from "./pickerShared"
+} from "./pickerStyles"
+import { useEscClose } from "./useEscClose"
+import { useFlyAnimation } from "./useFlyAnimation"
 
 export interface SavePickerCandidate {
 	id: string

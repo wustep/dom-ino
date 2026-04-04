@@ -13,9 +13,9 @@ import { buildFontString } from "../utils/fonts"
 import { isAcceptableStashImageFile } from "../utils/stashImageFromFile"
 import { getBackgroundStyle } from "../utils/styles"
 import { PhysicsDomItem } from "./PhysicsDomItem"
-import { QuickSavePicker } from "./QuickSavePicker"
+import { QuickSavePicker } from "./picker/QuickSavePicker"
+import { ThrowablePicker } from "./picker/ThrowablePicker"
 import { SceneTextLayer } from "./SceneTextLayer"
-import { ThrowablePicker } from "./ThrowablePicker"
 import { Toolbar } from "./Toolbar"
 
 interface DominoSceneProps {

@@ -1,19 +1,16 @@
 import { memo, useCallback, useRef, useState } from "react"
-import type { SavedElement, SceneElement } from "../scene/types"
+import type { SavedElement, SceneElement } from "../../scene/types"
+import { DeleteBadge, FlyBadges, PhysicsBadge, SaveBadge } from "./PickerBadges"
+import { PickerBanner } from "./PickerBanner"
+import { PickerIcon } from "./PickerIcons"
 import {
 	candidateOutlineStyle,
-	DeleteBadge,
-	FlyBadges,
 	overlayBackdropStyle,
-	PhysicsBadge,
 	PICKER_HALO,
-	PickerBanner,
-	PickerIcon,
 	pickerKeyframes,
-	SaveBadge,
-	useEscClose,
-	useFlyAnimation,
-} from "./pickerShared"
+} from "./pickerStyles"
+import { useEscClose } from "./useEscClose"
+import { useFlyAnimation } from "./useFlyAnimation"
 
 interface ThrowablePickerProps {
 	elements: SceneElement[]

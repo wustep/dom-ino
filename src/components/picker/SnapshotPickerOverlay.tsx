@@ -1,15 +1,14 @@
 import { memo, useState } from "react"
+import { PhysicsBadge, SaveBadge } from "./PickerBadges"
+import { PickerBanner } from "./PickerBanner"
+import { PickerIcon } from "./PickerIcons"
 import {
 	candidateOutlineStyle,
 	overlayBackdropStyle,
-	PhysicsBadge,
 	PICKER_HALO,
-	PickerBanner,
-	PickerIcon,
 	pickerKeyframes,
-	SaveBadge,
-	useEscClose,
-} from "./pickerShared"
+} from "./pickerStyles"
+import { useEscClose } from "./useEscClose"
 
 export interface SnapshotPickerOverlayItem {
 	id: string

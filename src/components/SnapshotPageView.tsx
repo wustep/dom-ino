@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useSavedElements } from "../contexts/SavedElementsContext"
 import { type SceneSettings, SettingsContext } from "../contexts/SettingsContext"
 import { useImportedTextLayouts } from "../hooks/useImportedTextLayouts"
@@ -18,13 +18,14 @@ import {
 import { hasMovedImportedElement, hasRenderableImportedText } from "../scene/snapshotViewUtils"
 import type { ObstacleRect, SavedElement, SceneElement, SnapshotCustomPage } from "../scene/types"
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
-import { buildFontString, DEFAULT_SANS } from "../utils/fonts"
 import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
-import { ImportedPhysicsClone } from "./ImportedPhysicsClone"
-import { PhysicsDomItem } from "./PhysicsDomItem"
-import { QuickSavePicker } from "./QuickSavePicker"
-import { SnapshotPickerOverlay, type SnapshotPickerOverlayItem } from "./SnapshotPickerOverlay"
-import { TextFlowRegion } from "./TextFlowRegion"
+import { QuickSavePicker } from "./picker/QuickSavePicker"
+import {
+	SnapshotPickerOverlay,
+	type SnapshotPickerOverlayItem,
+} from "./picker/SnapshotPickerOverlay"
+import { SnapshotPhysicsOverlay } from "./SnapshotPhysicsOverlay"
+import { SnapshotTextLayer } from "./SnapshotTextLayer"
 import { Toolbar } from "./Toolbar"
 
 interface SnapshotPageViewProps {
@@ -579,113 +580,30 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					/>
 				)}
 
-				{/* Pretext text overlay for imported pages */}
-				{importedTextFlowActive &&
-					importedTextLayouts.map((layout) => {
-						const el = layout.sceneElement
-						const fs = el.fontSize ?? 16
-						const font = buildFontString(fs, el.fontWeight, el.fontFamily ?? DEFAULT_SANS)
-						const hasContainerVisuals = el.backgroundColor || el.border || el.boxShadow
-						return (
-							<React.Fragment key={`imported-text-${layout.id}`}>
-								{hasContainerVisuals && (
-									<div
-										style={{
-											position: "absolute",
-											left: el.rect.x,
-											top: el.rect.y,
-											width: el.rect.width,
-											height: el.rect.height,
-											backgroundColor: el.backgroundColor,
-											border: el.border,
-											borderRadius: el.borderRadius ? `${el.borderRadius}px` : undefined,
-											boxShadow: el.boxShadow,
-											boxSizing: "border-box",
-											pointerEvents: "none",
-											zIndex: 10,
-										}}
-									/>
-								)}
-								<TextFlowRegion
-									text={el.text ?? ""}
-									font={font}
-									fontSize={fs}
-									lineHeight={el.lineHeight ?? Math.round(fs * 1.5)}
-									color={el.color ?? "#333"}
-									opacity={el.opacity}
-									letterSpacing={el.letterSpacing}
-									containerX={layout.containerX}
-									containerY={layout.containerY}
-									containerWidth={layout.containerWidth}
-									containerMaxHeight={layout.containerMaxHeight}
-									textAlign={el.textAlign}
-									obstacles={importedObstacles}
-									flow={layout.flow}
-									inlineStyles={layout.inlineStyles}
-									showDebug={settings.showLineBounds}
-								/>
-							</React.Fragment>
-						)
-					})}
+				<SnapshotTextLayer
+					importedTextFlowActive={importedTextFlowActive}
+					importedTextLayouts={importedTextLayouts}
+					importedObstacles={importedObstacles}
+					showLineBounds={settings.showLineBounds}
+					importedTextBodiesActive={importedTextBodiesActive}
+					importedTextBodyElements={importedTextBodyElements}
+					bodyPositions={bodyPositions}
+					physicsEnabled={settings.physicsEnabled}
+					showObstacleBounds={settings.showObstacleBounds}
+					hidden={!!pickerMode}
+				/>
 
-				{/* Letter-body overlay: one glyph-body PhysicsDomItem per character */}
-				{!pickerMode &&
-					importedTextBodiesActive &&
-					importedTextBodyElements.map((el) => {
-						const pos = bodyPositions.get(el.id)
-						return (
-							<PhysicsDomItem
-								key={el.id}
-								element={el}
-								x={pos?.x ?? el.rect.x}
-								y={pos?.y ?? el.rect.y}
-								angle={pos?.angle ?? 0}
-								isPhysicsEnabled={settings.physicsEnabled}
-								showDebug={settings.showObstacleBounds}
-							/>
-						)
-					})}
-
-				{/* Physics overlay for selected/dropped imported-page components.
-            Hidden during picker mode so originals are visible for selection. */}
-				{!pickerMode &&
-					selectedElements.map((el) => {
-						const pos = bodyPositions.get(el.id)
-						const candidate = selectableCandidateMap.get(el.id)
-						if (!candidate) return null
-						return (
-							<ImportedPhysicsClone
-								key={el.id}
-								sourceNode={candidate.node}
-								sourceWindow={iframeRef.current?.contentWindow ?? window}
-								x={pos?.x ?? el.rect.x}
-								y={pos?.y ?? el.rect.y}
-								angle={pos?.angle ?? 0}
-								width={pos?.w ?? el.rect.width}
-								height={pos?.h ?? el.rect.height}
-								showDebug={settings.showObstacleBounds}
-							/>
-						)
-					})}
-				{droppedElements.map((el) => {
-					const pos = bodyPositions.get(el.id)
-					const alphaEntry = animatedAlpha[el.id]
-					return (
-						<PhysicsDomItem
-							key={el.id}
-							element={el}
-							x={pos?.x ?? el.rect.x}
-							y={pos?.y ?? el.rect.y}
-							angle={pos?.angle ?? 0}
-							isPhysicsEnabled={true}
-							showDebug={settings.showObstacleBounds}
-							alphaBounds={alphaEntry?.bounds}
-							alphaRows={alphaEntry?.rows ?? el.alphaRows}
-							animatedGifController={alphaEntry?.controller}
-							isAnimationPaused={gifPlaybackPaused}
-						/>
-					)
-				})}
+				<SnapshotPhysicsOverlay
+					selectedElements={selectedElements}
+					droppedElements={droppedElements}
+					selectableCandidateMap={selectableCandidateMap}
+					bodyPositions={bodyPositions}
+					animatedAlpha={animatedAlpha}
+					gifPlaybackPaused={gifPlaybackPaused}
+					iframeWindow={iframeRef.current?.contentWindow ?? window}
+					showDebug={settings.showObstacleBounds}
+					hidden={!!pickerMode}
+				/>
 			</div>
 
 			<SettingsContext
