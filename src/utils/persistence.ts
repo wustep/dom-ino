@@ -127,6 +127,7 @@ const DEFAULT_SETTINGS: SceneSettings = {
 	maxAutoSelectComponents: 500,
 	allowWordBreaks: true,
 	restitution: 0.3,
+	allowRotation: true,
 }
 
 /** Keys from SceneSettings that are persisted (excludes transient state like `paused`). */
@@ -141,6 +142,7 @@ const PERSISTED_KEYS = [
 	"maxAutoSelectComponents",
 	"allowWordBreaks",
 	"restitution",
+	"allowRotation",
 ] as const satisfies readonly (keyof SceneSettings)[]
 
 /** Loads persisted scene settings from localStorage, merged with defaults. */

@@ -8,6 +8,7 @@ interface UsePhysicsLoopOptions {
 	gravityX: number
 	gravityY: number
 	restitution: number
+	allowRotation: boolean
 	/** Called when body positions change. Use for side effects like bumping a generation counter. */
 	onPositionsChanged?: () => void
 }
@@ -28,6 +29,7 @@ export function usePhysicsLoop({
 	gravityX,
 	gravityY,
 	restitution,
+	allowRotation,
 	onPositionsChanged,
 }: UsePhysicsLoopOptions): UsePhysicsLoopResult {
 	const rafRef = useRef<number>(0)
@@ -82,6 +84,11 @@ export function usePhysicsLoop({
 	useEffect(() => {
 		physicsRef.current?.setRestitution(restitution)
 	}, [restitution, physicsRef])
+
+	// Sync rotation
+	useEffect(() => {
+		physicsRef.current?.setAllowRotation(allowRotation)
+	}, [allowRotation, physicsRef])
 
 	return { bodyPositions, fps }
 }

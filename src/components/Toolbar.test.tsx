@@ -27,6 +27,7 @@ function defaultSettings(): SceneSettings {
 		maxAutoSelectComponents: 500,
 		allowWordBreaks: true,
 		restitution: 0.3,
+		allowRotation: true,
 	}
 }
 
@@ -304,8 +305,8 @@ describe("Toolbar", () => {
 			renderToolbar({}, { settings: { fps: 58, bodyCount: 12, lineCount: 250 } })
 			await userEvent.click(screen.getByLabelText("Settings"))
 			expect(screen.getByText("58")).toBeInTheDocument()
-			expect(screen.getByText(/12 bodies/)).toBeInTheDocument()
-			expect(screen.getByText(/250 lines/)).toBeInTheDocument()
+			expect(screen.getByText("12")).toBeInTheDocument()
+			expect(screen.getByText("250")).toBeInTheDocument()
 		})
 
 		it("shows reset all button", async () => {

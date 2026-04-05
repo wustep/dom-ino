@@ -31,6 +31,7 @@ export function useScenePhysics({
 		gravityX: settings.gravityX,
 		gravityY: settings.gravityY,
 		restitution: settings.restitution,
+		allowRotation: settings.allowRotation,
 	})
 
 	const gifPlaybackPaused = settings.paused || pickerMode !== null

@@ -167,8 +167,9 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 		// Element change or first mount — recreate engine
 		physicsRef.current?.destroy()
 		physicsRef.current = createPhysicsEngine(scene, container)
+		if (settings.paused || pickerMode !== null) physicsRef.current.pause()
 		prevElementsKeyRef.current = newKey
-	}, [scene])
+	}, [scene, settings.paused, pickerMode])
 
 	// Cleanup on unmount (component remounts on preset change via key={sceneKey})
 	useEffect(
@@ -180,9 +181,9 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 	)
 
 	useEffect(() => {
-		if (settings.paused) physicsRef.current?.pause()
+		if (settings.paused || pickerMode !== null) physicsRef.current?.pause()
 		else physicsRef.current?.resume()
-	}, [settings.paused])
+	}, [settings.paused, pickerMode])
 
 	const obstacles: ObstacleRect[] = useMemo(() => {
 		if (!settings.pretextEnabled) return []

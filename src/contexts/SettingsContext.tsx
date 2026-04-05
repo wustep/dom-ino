@@ -13,6 +13,7 @@ export interface SceneSettings {
 	maxAutoSelectComponents: number
 	allowWordBreaks: boolean
 	restitution: number
+	allowRotation: boolean
 }
 
 /** Scene settings + stats provided to SettingsPanel via context. */

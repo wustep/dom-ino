@@ -41,40 +41,22 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 					</span>{" "}
 					fps
 				</span>
-				<span>{bodyCount} bodies</span>
-				<span>{lineCount} lines</span>
+				<span>
+					<span style={{ color: "#60a5fa" }}>{bodyCount}</span> bodies
+				</span>
+				<span>
+					<span style={{ color: "#60a5fa" }}>{lineCount}</span> lines
+				</span>
 			</div>
 			<div className="dt-settings-body">
+				<div className="dt-label">Simulation</div>
 				<Toggle
 					label="Physics"
 					checked={settings.physicsEnabled}
 					onChange={(v) => update({ physicsEnabled: v })}
 				/>
-				<Toggle
-					label="Letter bodies"
-					checked={settings.textBodiesEnabled}
-					onChange={(v) => update({ textBodiesEnabled: v })}
-				/>
-				<Toggle
-					label="Pretext reflow"
-					checked={settings.pretextEnabled}
-					disabled={settings.textBodiesEnabled}
-					onChange={(v) => update({ pretextEnabled: v })}
-				/>
-				<Toggle
-					label="Break words"
-					checked={settings.allowWordBreaks}
-					disabled={settings.textBodiesEnabled || !settings.pretextEnabled}
-					onChange={(v) => update({ allowWordBreaks: v })}
-				/>
-				{settings.textBodiesEnabled && (
-					<div className="dt-hint">
-						Live text is replaced by individual glyph bodies. Reflow pauses while this is on.
-					</div>
-				)}
-				<div className="dt-label">Gravity</div>
 				<Slider
-					label="X"
+					label="Gravity X"
 					value={settings.gravityX}
 					min={-3}
 					max={3}
@@ -82,7 +64,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 					onReset={() => update({ gravityX: 0 })}
 				/>
 				<Slider
-					label="Y"
+					label="Gravity Y"
 					value={settings.gravityY}
 					min={-3}
 					max={3}
@@ -90,6 +72,16 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 					onReset={() => update({ gravityY: 0 })}
 				/>
 				<div className="dt-label">Bodies</div>
+				<Toggle
+					label="Letter bodies"
+					checked={settings.textBodiesEnabled}
+					onChange={(v) => update({ textBodiesEnabled: v })}
+				/>
+				<Toggle
+					label="Rotation"
+					checked={settings.allowRotation}
+					onChange={(v) => update({ allowRotation: v })}
+				/>
 				<Slider
 					label="Bounce"
 					value={settings.restitution}
@@ -100,6 +92,27 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 					step={0.05}
 					resetLabel="0.3"
 				/>
+				<div className="dt-label">Text</div>
+				<Toggle
+					label="Pretext reflow"
+					checked={settings.pretextEnabled}
+					disabled={settings.textBodiesEnabled}
+					title={settings.textBodiesEnabled ? "Disabled while letter bodies is on" : undefined}
+					onChange={(v) => update({ pretextEnabled: v })}
+				/>
+				<Toggle
+					label="Break words"
+					checked={settings.allowWordBreaks}
+					disabled={settings.textBodiesEnabled || !settings.pretextEnabled}
+					title={
+						settings.textBodiesEnabled
+							? "Disabled while letter bodies is on"
+							: !settings.pretextEnabled
+								? "Disabled while pretext reflow is off"
+								: undefined
+					}
+					onChange={(v) => update({ allowWordBreaks: v })}
+				/>
 				<div className="dt-label">Debug</div>
 				<Toggle
 					label="Bounds"
@@ -108,9 +121,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 				/>
 				<div
 					style={{
-						marginTop: 6,
-						paddingTop: 6,
-						borderTop: "1px solid var(--dt-border-divider)",
+						marginTop: 2,
 					}}
 				>
 					<button
@@ -135,14 +146,16 @@ function Toggle({
 	checked,
 	onChange,
 	disabled = false,
+	title,
 }: {
 	label: string
 	checked: boolean
 	onChange: (v: boolean) => void
 	disabled?: boolean
+	title?: string
 }) {
 	return (
-		<label className={`dt-toggle${disabled ? " dt-toggle--disabled" : ""}`}>
+		<label className={`dt-toggle${disabled ? " dt-toggle--disabled" : ""}`} title={title}>
 			<span>{label}</span>
 			<button
 				type="button"

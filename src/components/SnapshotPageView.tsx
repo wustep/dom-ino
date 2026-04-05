@@ -363,6 +363,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					onToggle: () => toggleSelected(candidate.id),
 					onSave: () => saveNode(candidate.id),
 					onUnsave: () => unsaveNode(candidate.id),
+					onDelete: selectedIds.has(candidate.id) ? () => toggleSelected(candidate.id) : undefined,
 				})),
 			...droppedElements.map((element) => ({
 				id: element.id,

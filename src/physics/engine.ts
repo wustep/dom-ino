@@ -39,6 +39,7 @@ export interface PhysicsEngine {
 	explode: () => void
 	setGravity: (x: number, y: number) => void
 	setRestitution: (value: number) => void
+	setAllowRotation: (value: boolean) => void
 	resize: (width: number, height: number) => void
 	addBody: (el: SceneElement) => void
 	removeBody: (id: string) => void
@@ -74,6 +75,7 @@ export function createPhysicsEngine(
 	const wallThickness = 80
 	let W = scene.width
 	let H = scene.height
+	let rotationAllowed = false
 
 	const wallProps = { isStatic: true, friction: 0.8, restitution: 0.15 }
 
@@ -236,7 +238,7 @@ export function createPhysicsEngine(
 			Body.setVelocity(b, { x: b.velocity.x * 0.5, y: b.velocity.y * 0.5 })
 		}
 
-		if (element?.lockRotation) {
+		if (element?.lockRotation || !rotationAllowed) {
 			if (Math.abs(b.angle) > 0.0001) Body.setAngle(b, 0)
 			if (Math.abs(b.angularVelocity) > 0.0001) Body.setAngularVelocity(b, 0)
 		}
@@ -364,6 +366,17 @@ export function createPhysicsEngine(
 			for (const [, pb] of bodies) {
 				if (pb.body.isStatic) continue
 				pb.body.restitution = value
+			}
+		},
+
+		setAllowRotation(value: boolean) {
+			rotationAllowed = value
+			if (!value) {
+				for (const [, pb] of bodies) {
+					if (pb.body.isStatic) continue
+					Body.setAngle(pb.body, 0)
+					Body.setAngularVelocity(pb.body, 0)
+				}
 			}
 		},
 

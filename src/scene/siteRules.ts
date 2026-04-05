@@ -134,7 +134,6 @@ export const SITE_RULES: SiteRule[] = [
 				"#mp-welcome h1",
 				"#mp-welcome .mw-heading1",
 				"#mp-tfa",
-				"#mp-tfp p",
 				"#mp-itn > div",
 				"#mp-itn > ul",
 				"#mp-otd > div",
@@ -204,6 +203,9 @@ export const SITE_RULES: SiteRule[] = [
 				"#p-associated-pages",
 				"#p-views",
 				"#vector-page-tools-dropdown",
+				".itn-img",
+				"#mp-otd-img",
+				"#mp-tfa-img",
 			],
 			neverAutoSelectWithin: [
 				"header",
