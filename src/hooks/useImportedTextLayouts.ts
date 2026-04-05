@@ -51,10 +51,15 @@ export function useImportedTextLayouts(
 			const originalTextTop = el.rect.y + paddingY
 
 			let shiftedTextTop = originalTextTop
+			const currentWidth = contentRight - contentLeft
 			for (const prev of placed) {
-				const overlapsHorizontally =
-					Math.min(contentRight, prev.contentRight) - Math.max(contentLeft, prev.contentLeft) > 12
-				if (!overlapsHorizontally) continue
+				const overlapWidth =
+					Math.min(contentRight, prev.contentRight) - Math.max(contentLeft, prev.contentLeft)
+				// Require the overlap to cover at least half of the narrower block so
+				// that blocks in separate columns (e.g. left vs right on Wikipedia's
+				// main page) don't cascade-push each other down.
+				const minWidth = Math.min(currentWidth, prev.contentRight - prev.contentLeft)
+				if (overlapWidth < minWidth * 0.5) continue
 				if (prev.textBottom + 4 > shiftedTextTop) {
 					shiftedTextTop = prev.textBottom + 4
 				}

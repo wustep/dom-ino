@@ -63,6 +63,14 @@ export function useSnapshotScanner({
 
 	const savedIds = useMemo(() => new Set(savedElements.map((s) => s.element.id)), [savedElements])
 
+	// Use a ref so that scanCandidates always reads the latest savedIds without
+	// triggering a rescan when saved elements change.  Rescanning on savedIds
+	// changes causes the walker to run while text nodes are hidden by the Pretext
+	// overlay (visibility:hidden), which makes it skip them → textBlocks empties
+	// → text flow briefly deactivates.
+	const savedIdsRef = useRef(savedIds)
+	savedIdsRef.current = savedIds
+
 	const scanCandidates = useCallback(() => {
 		const iframe = iframeRef.current
 		if (!iframe || !stageRef.current) return
@@ -70,14 +78,14 @@ export function useSnapshotScanner({
 		const win = iframe.contentWindow
 		if (!doc || !win || !doc.body) return
 
-		const result = scanIframeDom(doc, win, iframe.clientHeight, sourceUrl, savedIds)
+		const result = scanIframeDom(doc, win, iframe.clientHeight, sourceUrl, savedIdsRef.current)
 		nodesRef.current = result.nodes
 		textNodesRef.current = result.textNodes
 		setCandidates(result.candidates)
 		setTextBlocks(result.textBlocks)
 		setTextBodyBlocks(result.textBodyBlocks)
 		setIframeHeight(result.bodyHeight)
-	}, [iframeRef, stageRef, sourceUrl, savedIds])
+	}, [iframeRef, stageRef, sourceUrl])
 
 	const scheduledScanRef = useRef<number | null>(null)
 	const scheduleScanCandidates = useCallback(() => {

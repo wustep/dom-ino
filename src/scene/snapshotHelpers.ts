@@ -77,6 +77,13 @@ export function coerceForcedTextSceneElement(
 		return sceneElement
 	}
 
+	// Don't coerce elements with significant media — they can't become text
+	// blocks anyway (isTextBodyBlock requires no media), and coercing their type
+	// to paragraph would prevent them from being auto-selected as throwable.
+	if (hasSignificantMediaDescendants(node)) {
+		return sceneElement
+	}
+
 	return {
 		...sceneElement,
 		type: /^H[1-6]$/.test(node.tagName) ? "heading" : "paragraph",

@@ -305,9 +305,9 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					width: candidate.width,
 					height: candidate.height,
 					borderRadius: candidate.borderRadius,
-					saved: candidate.saved,
+					saved: savedElementIds.has(candidate.id),
 				})),
-		[selectableCandidates],
+		[selectableCandidates, savedElementIds],
 	)
 
 	const handleRemoveDropped = useCallback((id: string) => {
@@ -357,7 +357,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					width: candidate.width,
 					height: candidate.height,
 					borderRadius: candidate.borderRadius,
-					saved: candidate.saved,
+					saved: savedElementIds.has(candidate.id),
 					active: selectedIds.has(candidate.id),
 					label: candidate.node.textContent?.trim().slice(0, 20) || "Component",
 					onToggle: () => toggleSelected(candidate.id),
@@ -377,6 +377,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 				onToggle: () => handleRemoveDropped(element.id),
 				onSave: () => onSaveElement(element),
 				onUnsave: () => onUnsaveElement(element.sourceSavedId ?? element.id),
+				onDelete: () => handleRemoveDropped(element.id),
 			})),
 		],
 		[

@@ -1,5 +1,5 @@
 import { memo, useState } from "react"
-import { PhysicsBadge, SaveBadge } from "./PickerBadges"
+import { DeleteBadge, PhysicsBadge, SaveBadge } from "./PickerBadges"
 import { PickerBanner } from "./PickerBanner"
 import { PickerIcon } from "./PickerIcons"
 import {
@@ -23,6 +23,7 @@ export interface SnapshotPickerOverlayItem {
 	onToggle: () => void
 	onSave: () => void
 	onUnsave: () => void
+	onDelete?: () => void
 }
 
 interface SnapshotPickerOverlayProps {
@@ -126,6 +127,16 @@ export const SnapshotPickerOverlay = memo(function SnapshotPickerOverlay({
 								style={{ position: "absolute", top: PICKER_HALO - 10, left: PICKER_HALO - 8 }}
 							/>
 						) : null}
+
+						{isHovered && item.onDelete && (
+							<DeleteBadge
+								onClick={(e) => {
+									e.stopPropagation()
+									item.onDelete!()
+								}}
+								style={{ position: "absolute", bottom: PICKER_HALO - 10, right: PICKER_HALO - 8 }}
+							/>
+						)}
 					</div>
 				)
 			})}

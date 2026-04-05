@@ -29,47 +29,47 @@ export const SnapshotPhysicsOverlay = memo(function SnapshotPhysicsOverlay({
 	showDebug,
 	hidden,
 }: SnapshotPhysicsOverlayProps) {
-	if (hidden) return null
-
 	return (
 		<>
-			{selectedElements.map((el) => {
-				const pos = bodyPositions.get(el.id)
-				const candidate = selectableCandidateMap.get(el.id)
-				if (!candidate) return null
-				return (
-					<ImportedPhysicsClone
-						key={el.id}
-						sourceNode={candidate.node}
-						sourceWindow={iframeWindow}
-						x={pos?.x ?? el.rect.x}
-						y={pos?.y ?? el.rect.y}
-						angle={pos?.angle ?? 0}
-						width={pos?.w ?? el.rect.width}
-						height={pos?.h ?? el.rect.height}
-						showDebug={showDebug}
-					/>
-				)
-			})}
-			{droppedElements.map((el) => {
-				const pos = bodyPositions.get(el.id)
-				const alphaEntry = animatedAlpha[el.id]
-				return (
-					<PhysicsDomItem
-						key={el.id}
-						element={el}
-						x={pos?.x ?? el.rect.x}
-						y={pos?.y ?? el.rect.y}
-						angle={pos?.angle ?? 0}
-						isPhysicsEnabled={true}
-						showDebug={showDebug}
-						alphaBounds={alphaEntry?.bounds}
-						alphaRows={alphaEntry?.rows ?? el.alphaRows}
-						animatedGifController={alphaEntry?.controller}
-						isAnimationPaused={gifPlaybackPaused}
-					/>
-				)
-			})}
+			{!hidden &&
+				selectedElements.map((el) => {
+					const pos = bodyPositions.get(el.id)
+					const candidate = selectableCandidateMap.get(el.id)
+					if (!candidate) return null
+					return (
+						<ImportedPhysicsClone
+							key={el.id}
+							sourceNode={candidate.node}
+							sourceWindow={iframeWindow}
+							x={pos?.x ?? el.rect.x}
+							y={pos?.y ?? el.rect.y}
+							angle={pos?.angle ?? 0}
+							width={pos?.w ?? el.rect.width}
+							height={pos?.h ?? el.rect.height}
+							showDebug={showDebug}
+						/>
+					)
+				})}
+			{droppedElements.length > 0 &&
+				droppedElements.map((el) => {
+					const pos = bodyPositions.get(el.id)
+					const alphaEntry = animatedAlpha[el.id]
+					return (
+						<PhysicsDomItem
+							key={el.id}
+							element={el}
+							x={pos?.x ?? el.rect.x}
+							y={pos?.y ?? el.rect.y}
+							angle={pos?.angle ?? 0}
+							isPhysicsEnabled={true}
+							showDebug={showDebug}
+							alphaBounds={alphaEntry?.bounds}
+							alphaRows={alphaEntry?.rows ?? el.alphaRows}
+							animatedGifController={alphaEntry?.controller}
+							isAnimationPaused={gifPlaybackPaused}
+						/>
+					)
+				})}
 		</>
 	)
 })
