@@ -244,6 +244,25 @@
 	font-family: var(--dt-font);
 	color: var(--dt-text);
 	animation: dt-fly-up 0.22s var(--dt-ease);
+	scrollbar-width: thin;
+	scrollbar-color: var(--dt-bg-active) transparent;
+}
+
+.dt-flyout::-webkit-scrollbar {
+	width: 6px;
+}
+
+.dt-flyout::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.dt-flyout::-webkit-scrollbar-thumb {
+	background-color: var(--dt-bg-active);
+	border-radius: 3px;
+}
+
+.dt-flyout::-webkit-scrollbar-thumb:hover {
+	background-color: var(--dt-border-active);
 }
 
 .dt-flyout-header {
@@ -275,6 +294,7 @@
 	justify-content: center;
 	width: 20px;
 	height: 20px;
+	margin-right: -4px;
 	border-radius: var(--dt-radius-xs);
 	border: none;
 	background-color: transparent;
