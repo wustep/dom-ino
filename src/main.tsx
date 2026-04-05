@@ -60,6 +60,21 @@ if (resetRedirectPath || bootstrapFetchUrl) {
 	window.history.replaceState(null, "", `${nextPathname}${window.location.hash}`)
 }
 
+// Debug helpers for console
+Object.assign(window, {
+	domino: {
+		resetHint() {
+			localStorage.removeItem("domino-hint-seen")
+			console.log("[DOMino] Hint reset — reload to see it again")
+		},
+		resetAll() {
+			localStorage.clear()
+			console.log("[DOMino] All state cleared — reloading...")
+			location.reload()
+		},
+	},
+})
+
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
 		<App initialFetchUrl={bootstrapFetchUrl} initialPreset={bootstrapPreset} />
