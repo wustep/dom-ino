@@ -27,7 +27,7 @@ import { StashPanel } from "./toolbar/StashPanel"
 
 interface ToolbarProps {
 	onExplode: () => void
-	onReset: (keepComponents?: boolean) => void
+	onReset: () => void
 	onTogglePicker: () => void
 	pickerMode: PickerMode
 	onToggleSavePicker: () => void
@@ -278,8 +278,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						<ExplodeIcon />
 					</Btn>
 					<Btn
-						onClick={(e) => onReset(e.altKey)}
-						tip="Reset scene (⌥ click to keep components)"
+						onClick={() => onReset()}
+						tip="Reset scene"
 						btnIndex={2}
 						focusedBtnIdx={focusedBtnIdx}
 						onBtnFocused={setFocusedBtnIdx}

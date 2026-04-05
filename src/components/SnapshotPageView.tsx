@@ -399,8 +399,13 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 	}, [])
 
 	const handleReset = useCallback(() => {
+		// Remove dropped (stash-added) elements from physics and state
+		for (const el of droppedElements) {
+			physicsRef.current?.removeBody(el.id)
+		}
+		setDroppedElements([])
 		physicsRef.current?.reset()
-	}, [])
+	}, [droppedElements])
 
 	const handleDropSaved = useCallback(
 		(saved: SavedElement, x?: number, y?: number) => {

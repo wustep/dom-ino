@@ -272,15 +272,13 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 	])
 
 	const handleExplode = useCallback(() => physicsRef.current?.explode(), [])
-	const handleReset = useCallback((keepComponents?: boolean) => {
-		if (!keepComponents) {
-			// Remove manually added elements from physics and state
-			for (const id of addedElementIdsRef.current) {
-				physicsRef.current?.removeBody(id)
-			}
-			addedElementIdsRef.current.clear()
-			setAddedElements([])
+	const handleReset = useCallback(() => {
+		// Remove manually added elements from physics and state
+		for (const id of addedElementIdsRef.current) {
+			physicsRef.current?.removeBody(id)
 		}
+		addedElementIdsRef.current.clear()
+		setAddedElements([])
 		physicsRef.current?.reset()
 	}, [])
 	const handleToggleThrowable = useCallback(
