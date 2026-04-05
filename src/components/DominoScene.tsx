@@ -14,7 +14,6 @@ import { loadSettings, saveSettings } from "../utils/persistence"
 import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
 import { getBackgroundStyle } from "../utils/styles"
 import { PhysicsDomItem } from "./PhysicsDomItem"
-import { QuickSavePicker } from "./picker/QuickSavePicker"
 import { ThrowablePicker } from "./picker/ThrowablePicker"
 import { SceneTextLayer } from "./SceneTextLayer"
 import { Toolbar } from "./Toolbar"
@@ -83,7 +82,6 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 	const {
 		pickerMode,
 		handleTogglePicker,
-		handleToggleSavePicker,
 		handleClosePicker,
 		bodyPositions,
 		fps,
@@ -103,11 +101,6 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 		}
 		return { textElements: text, throwableElements: throwable, staticElements: staticEls }
 	}, [effectiveElements])
-
-	const savedIds = useMemo(
-		() => new Set(savedElements.map((saved) => saved.element.id)),
-		[savedElements],
-	)
 
 	const nextTextElementByContinuationId = useMemo(() => {
 		const nextById = new Map<string, SceneElement>()
@@ -300,29 +293,6 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 		},
 		[scene, onSceneChange, addedElements],
 	)
-
-	const saveCandidates = useMemo(() => {
-		return effectiveElements
-			.filter(
-				(el) =>
-					el.type !== "divider" &&
-					!(el.type === "paragraph" && !el.throwable) &&
-					!(el.type === "heading" && !el.throwable),
-			)
-			.map((el) => {
-				const pos = bodyPositions.get(el.id)
-				return {
-					id: el.id,
-					element: el,
-					x: pos?.x ?? el.rect.x,
-					y: pos?.y ?? el.rect.y,
-					width: pos?.w ?? el.rect.width,
-					height: pos?.h ?? el.rect.height,
-					borderRadius: el.borderRadius,
-					saved: savedIds.has(el.sourceSavedId ?? el.id),
-				}
-			})
-	}, [effectiveElements, bodyPositions, savedIds])
 
 	const pickerElements = useMemo(
 		() =>
@@ -575,15 +545,6 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 						onClose={handleClosePicker}
 					/>
 				)}
-
-				{pickerMode === "save" && (
-					<QuickSavePicker
-						candidates={saveCandidates}
-						onSave={onSaveElement}
-						onUnsave={onUnsaveElement}
-						onClose={handleClosePicker}
-					/>
-				)}
 			</div>
 
 			<SettingsContext
@@ -601,7 +562,6 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 					onReset={handleReset}
 					onTogglePicker={handleTogglePicker}
 					pickerMode={pickerMode}
-					onToggleSavePicker={handleToggleSavePicker}
 					onDropSaved={handleDropSavedOnScene}
 				/>
 			</SettingsContext>

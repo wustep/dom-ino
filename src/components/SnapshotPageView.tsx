@@ -24,7 +24,6 @@ import type { ObstacleRect, SavedElement, SceneElement, SnapshotCustomPage } fro
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
 import { loadSettings, saveSettings } from "../utils/persistence"
 import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
-import { QuickSavePicker } from "./picker/QuickSavePicker"
 import {
 	SnapshotPickerOverlay,
 	type SnapshotPickerOverlayItem,
@@ -74,7 +73,6 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 	const {
 		pickerMode,
 		handleTogglePicker,
-		handleToggleSavePicker,
 		handleClosePicker,
 		bodyPositions,
 		fps,
@@ -291,23 +289,6 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		importedObstacles,
 		iframeHeight,
 		iframeRef,
-	)
-
-	const savePickerCandidates = useMemo(
-		() =>
-			selectableCandidates
-				.filter((candidate) => candidate.sceneElement)
-				.map((candidate) => ({
-					id: candidate.id,
-					element: candidate.sceneElement!,
-					x: candidate.x,
-					y: candidate.y,
-					width: candidate.width,
-					height: candidate.height,
-					borderRadius: candidate.borderRadius,
-					saved: savedElementIds.has(candidate.id),
-				})),
-		[selectableCandidates, savedElementIds],
 	)
 
 	const handleRemoveDropped = useCallback((id: string) => {
@@ -582,15 +563,6 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					<SnapshotPickerOverlay items={pickerItems} onClose={handleClosePicker} />
 				)}
 
-				{pickerMode === "save" && (
-					<QuickSavePicker
-						candidates={savePickerCandidates}
-						onSave={onSaveElement}
-						onUnsave={onUnsaveElement}
-						onClose={handleClosePicker}
-					/>
-				)}
-
 				<SnapshotTextLayer
 					importedTextFlowActive={importedTextFlowActive}
 					importedTextLayouts={importedTextLayouts}
@@ -633,7 +605,6 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					onReset={handleReset}
 					onTogglePicker={handleTogglePicker}
 					pickerMode={pickerMode}
-					onToggleSavePicker={handleToggleSavePicker}
 					onDropSaved={handleDropSaved}
 				/>
 			</SettingsContext>

@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react"
 import type { PhysicsEngine } from "../physics/engine"
 
-/** Discriminated union for picker overlay state: null (inactive), 'throwable' (component picker), or 'save' (stash picker). */
-export type PickerMode = null | "throwable" | "save"
+/** Picker overlay state: null (inactive) or 'throwable' (unified component picker with physics + save + delete). */
+export type PickerMode = null | "throwable"
 
 interface UsePickerPauseOptions {
 	physicsRef: React.RefObject<PhysicsEngine | null>
@@ -12,7 +12,6 @@ interface UsePickerPauseOptions {
 interface UsePickerPauseResult {
 	pickerMode: PickerMode
 	handleTogglePicker: () => void
-	handleToggleSavePicker: () => void
 	handleClosePicker: () => void
 }
 
@@ -37,15 +36,6 @@ export function usePickerPause({
 		})
 	}, [isPaused, physicsRef])
 
-	const handleToggleSavePicker = useCallback(() => {
-		setPickerMode((prev) => {
-			const next: PickerMode = prev === "save" ? null : "save"
-			if (next) physicsRef.current?.pause()
-			else if (!isPaused) physicsRef.current?.resume()
-			return next
-		})
-	}, [isPaused, physicsRef])
-
 	const handleClosePicker = useCallback(() => {
 		setPickerMode(null)
 		if (!isPaused) physicsRef.current?.resume()
@@ -54,7 +44,6 @@ export function usePickerPause({
 	return {
 		pickerMode,
 		handleTogglePicker,
-		handleToggleSavePicker,
 		handleClosePicker,
 	}
 }

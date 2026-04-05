@@ -76,8 +76,7 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
 		onExplode: vi.fn(),
 		onReset: vi.fn(),
 		onTogglePicker: vi.fn(),
-		pickerMode: null as null | "throwable" | "save",
-		onToggleSavePicker: vi.fn(),
+		pickerMode: null as null | "throwable",
 		onDropSaved: vi.fn(),
 		...overrides,
 	}
@@ -392,7 +391,7 @@ describe("Toolbar", () => {
 			renderToolbar({}, { savedElements: { savedElements: saved } })
 			await userEvent.click(screen.getByLabelText("Saved components"))
 			expect(screen.getByText("Drop")).toBeInTheDocument()
-			expect(screen.getByText("×")).toBeInTheDocument()
+			expect(screen.getAllByText("×").length).toBeGreaterThanOrEqual(1)
 		})
 	})
 

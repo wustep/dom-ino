@@ -30,7 +30,6 @@ interface ToolbarProps {
 	onReset: () => void
 	onTogglePicker: () => void
 	pickerMode: PickerMode
-	onToggleSavePicker: () => void
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
 }
 
@@ -46,9 +45,10 @@ const COLLAPSED_REVEAL_PROXIMITY_PX = 128
 
 /** Bottom-right floating toolbar with scene controls, page navigation, stash, and settings flyout panels. */
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
-	const { onExplode, onReset, onTogglePicker, pickerMode, onToggleSavePicker, onDropSaved } = props
+	const { onExplode, onReset, onTogglePicker, pickerMode, onDropSaved } = props
 
 	const { savedElements } = useSavedElements()
+	const [resetSpinKey, setResetSpinKey] = useState(0)
 	const [openPanel, setOpenPanel] = useState<FlyoutPanel>(null)
 	const [collapsed, setCollapsed] = useState(false)
 	const [focusedBtnIdx, setFocusedBtnIdx] = useState(0)
@@ -200,7 +200,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 				<StashPanel
 					onDropSaved={onDropSaved}
 					pickerMode={pickerMode}
-					onToggleSavePicker={onToggleSavePicker}
+					onTogglePicker={onTogglePicker}
 					onClose={closePanel}
 				/>
 			)}
@@ -278,7 +278,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						<ExplodeIcon />
 					</Btn>
 					<Btn
-						onClick={() => onReset()}
+						onClick={() => {
+							onReset()
+							setResetSpinKey((k) => k + 1)
+						}}
 						tip="Reset scene"
 						btnIndex={2}
 						focusedBtnIdx={focusedBtnIdx}
@@ -286,7 +289,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						onShowTooltip={showTooltip}
 						onHideTooltip={clearTooltip}
 					>
-						<ResetIcon />
+						<span
+							key={resetSpinKey}
+							style={{
+								display: "inline-flex",
+								animation: resetSpinKey > 0 ? "dt-spin-once 0.4s ease-out" : undefined,
+							}}
+						>
+							<ResetIcon />
+						</span>
 					</Btn>
 					<Sep />
 					<Btn

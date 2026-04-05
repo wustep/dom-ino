@@ -22,8 +22,10 @@ export function useScenePhysics({
 	settings,
 	animatedElements,
 }: UseScenePhysicsOptions) {
-	const { pickerMode, handleTogglePicker, handleToggleSavePicker, handleClosePicker } =
-		usePickerPause({ physicsRef, isPaused: settings.paused })
+	const { pickerMode, handleTogglePicker, handleClosePicker } = usePickerPause({
+		physicsRef,
+		isPaused: settings.paused,
+	})
 
 	const { bodyPositions, fps } = usePhysicsLoop({
 		physicsRef,
@@ -50,7 +52,6 @@ export function useScenePhysics({
 	return {
 		pickerMode,
 		handleTogglePicker,
-		handleToggleSavePicker,
 		handleClosePicker,
 		bodyPositions,
 		fps,

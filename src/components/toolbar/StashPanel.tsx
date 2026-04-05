@@ -7,17 +7,12 @@ import { isAcceptableStashImageFile } from "../../utils/stashImageFromFile"
 interface StashPanelProps {
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
 	pickerMode: PickerMode
-	onToggleSavePicker: () => void
+	onTogglePicker: () => void
 	onClose: () => void
 }
 
 /** Flyout panel for managing saved elements: drag to drop, remove, or pick more. */
-export function StashPanel({
-	onDropSaved,
-	pickerMode,
-	onToggleSavePicker,
-	onClose,
-}: StashPanelProps) {
+export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }: StashPanelProps) {
 	const {
 		savedElements,
 		removeSaved: onRemoveSaved,
@@ -65,22 +60,22 @@ export function StashPanel({
 						<button
 							onClick={() => {
 								onClose()
-								onToggleSavePicker()
+								onTogglePicker()
 							}}
 							className="dt-btn-tiny"
 							style={{
-								color: pickerMode === "save" ? "var(--dt-accent-light)" : "var(--dt-accent)",
-								borderColor: pickerMode === "save" ? "rgba(196,181,253,0.35)" : undefined,
+								color: pickerMode === "throwable" ? "var(--dt-accent-light)" : "var(--dt-accent)",
+								borderColor: pickerMode === "throwable" ? "rgba(196,181,253,0.35)" : undefined,
 							}}
 						>
-							{pickerMode === "save" ? "Done picking" : "Pick from page"}
+							{pickerMode === "throwable" ? "Done picking" : "Pick from page"}
 						</button>
 						<button type="button" className="dt-flyout-close" onClick={onClose} aria-label="Close">
 							&times;
 						</button>
 					</div>
 				</div>
-				<div style={{ padding: "6px 10px", maxHeight: 260, overflowY: "auto" }}>
+				<div style={{ padding: "6px 6px", maxHeight: 260, overflowY: "auto" }}>
 					{savedElements.length === 0 ? (
 						<div className="dt-stash-empty">
 							Drop image files here, or use `Pick from page` or the component picker.
