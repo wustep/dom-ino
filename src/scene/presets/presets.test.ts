@@ -14,13 +14,12 @@ import type { PresetKey } from "../presets"
 import { DEFAULT_PRESET, getPresetScene, isPresetKey, PRESET_LIST } from "../presets"
 
 describe("presets", () => {
-	it("has editorial as default preset", () => {
-		expect(DEFAULT_PRESET).toBe("editorial")
+	it("has engine as default preset", () => {
+		expect(DEFAULT_PRESET).toBe("engine")
 	})
 
 	it("PRESET_LIST contains all expected presets", () => {
 		const keys = PRESET_LIST.map((p) => p.key)
-		expect(keys).toContain("editorial")
 		expect(keys).toContain("landing")
 		expect(keys).toContain("engine")
 		expect(keys).toContain("alice")
@@ -35,13 +34,13 @@ describe("presets", () => {
 
 	describe("isPresetKey", () => {
 		it("returns true for valid preset keys", () => {
-			expect(isPresetKey("editorial")).toBe(true)
 			expect(isPresetKey("landing")).toBe(true)
 			expect(isPresetKey("engine")).toBe(true)
 			expect(isPresetKey("alice")).toBe(true)
 		})
 
 		it("returns false for invalid values", () => {
+			expect(isPresetKey("editorial")).toBe(false)
 			expect(isPresetKey("invalid")).toBe(false)
 			expect(isPresetKey("custom")).toBe(false)
 			expect(isPresetKey("")).toBe(false)
@@ -52,7 +51,7 @@ describe("presets", () => {
 	})
 
 	describe("getPresetScene", () => {
-		const presets: PresetKey[] = ["editorial", "landing", "engine", "alice"]
+		const presets: PresetKey[] = ["landing", "engine", "alice"]
 
 		for (const key of presets) {
 			it(`generates valid scene for "${key}" preset`, () => {
@@ -87,8 +86,8 @@ describe("presets", () => {
 		}
 
 		it("uses viewport dimensions for layout", () => {
-			const small = getPresetScene("editorial", 600, 400)
-			const large = getPresetScene("editorial", 1920, 1080)
+			const small = getPresetScene("engine", 600, 400)
+			const large = getPresetScene("engine", 1920, 1080)
 			// Larger viewport should produce different layout
 			expect(large.width).not.toBe(small.width)
 		})
