@@ -61,19 +61,24 @@ export function StashPanel({
 					<div style={{ fontSize: 11, fontWeight: 700, color: "var(--dt-text-primary)" }}>
 						Saved Components
 					</div>
-					<button
-						onClick={() => {
-							onClose()
-							onToggleSavePicker()
-						}}
-						className="dt-btn-tiny"
-						style={{
-							color: pickerMode === "save" ? "var(--dt-accent-light)" : "var(--dt-accent)",
-							borderColor: pickerMode === "save" ? "rgba(196,181,253,0.35)" : undefined,
-						}}
-					>
-						{pickerMode === "save" ? "Done picking" : "Pick from page"}
-					</button>
+					<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+						<button
+							onClick={() => {
+								onClose()
+								onToggleSavePicker()
+							}}
+							className="dt-btn-tiny"
+							style={{
+								color: pickerMode === "save" ? "var(--dt-accent-light)" : "var(--dt-accent)",
+								borderColor: pickerMode === "save" ? "rgba(196,181,253,0.35)" : undefined,
+							}}
+						>
+							{pickerMode === "save" ? "Done picking" : "Pick from page"}
+						</button>
+						<button type="button" className="dt-flyout-close" onClick={onClose} aria-label="Close">
+							&times;
+						</button>
+					</div>
 				</div>
 				<div style={{ padding: "6px 10px", maxHeight: 260, overflowY: "auto" }}>
 					{savedElements.length === 0 ? (

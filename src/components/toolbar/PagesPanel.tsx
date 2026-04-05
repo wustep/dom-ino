@@ -54,7 +54,12 @@ export function PagesPanel({ onClose }: PagesPanelProps) {
 	return (
 		<div data-domino-toolbar-root="true" className="dt-flyout" style={{ width: 340 }}>
 			<div className="dt-flyout-header">
-				<div className="dt-flyout-title">Pages</div>
+				<div className="dt-flyout-title-row">
+					<div className="dt-flyout-title">Pages</div>
+					<button type="button" className="dt-flyout-close" onClick={onClose} aria-label="Close">
+						&times;
+					</button>
+				</div>
 				<div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
 					{PRESET_LIST.map(({ key, label }) => (
 						<button

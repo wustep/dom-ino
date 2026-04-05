@@ -25,6 +25,21 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
 	return (
 		<div data-domino-toolbar-root="true" className="dt-flyout" style={{ width: 240 }}>
+			<div
+				style={{
+					padding: "10px 12px 0",
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "center",
+				}}
+			>
+				<div style={{ fontSize: 11, fontWeight: 700, color: "var(--dt-text-primary)" }}>
+					Settings
+				</div>
+				<button type="button" className="dt-flyout-close" onClick={onClose} aria-label="Close">
+					&times;
+				</button>
+			</div>
 			<div className="dt-stats">
 				<span>
 					<span
