@@ -60,7 +60,7 @@ function defaultNavigationCtx(
 	overrides: Partial<NavigationContextValue> = {},
 ): NavigationContextValue {
 	return {
-		currentPreset: "editorial",
+		currentPreset: "engine",
 		customPages: [],
 		activeCustomId: null,
 		onSelectPreset: vi.fn(),
