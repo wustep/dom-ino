@@ -61,7 +61,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 	const [showCollapsedReveal, setShowCollapsedReveal] = useState(true)
 	const showCollapsedRevealRef = useRef(true)
 
-	const toggle = (panel: FlyoutPanel) => setOpenPanel((p) => (p === panel ? null : panel))
+	const toggle = useCallback(
+		(panel: FlyoutPanel) => setOpenPanel((p) => (p === panel ? null : panel)),
+		[],
+	)
 	const closePanel = useCallback(() => setOpenPanel(null), [])
 
 	const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -155,6 +158,55 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 	}, [activeTooltip])
 
 	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+				return
+			if (event.metaKey || event.ctrlKey || event.altKey) return
+			switch (event.key) {
+				case "e":
+					onExplode()
+					break
+				case "r":
+					onReset()
+					setResetSpinKey((k) => k + 1)
+					break
+				case "p":
+					if (collapsed) return
+					event.preventDefault()
+					toggle("pages")
+					break
+				case "c":
+					if (collapsed) return
+					event.preventDefault()
+					onTogglePicker()
+					break
+				case "s":
+					if (collapsed) return
+					event.preventDefault()
+					toggle("stash")
+					break
+				case ",":
+					if (collapsed) return
+					event.preventDefault()
+					toggle("settings")
+					break
+				case "t":
+					event.preventDefault()
+					if (collapsed) {
+						handleExpandToolbar()
+					} else {
+						handleCollapseToolbar()
+					}
+					break
+				default:
+					return
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [onExplode, onReset, onTogglePicker, collapsed, handleExpandToolbar, handleCollapseToolbar])
+
+	useEffect(() => {
 		if (!openPanel || collapsed) return
 
 		const handlePointerDown = (event: PointerEvent) => {
@@ -221,12 +273,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						className="dt-reveal"
 						type="button"
 						onClick={handleExpandToolbar}
-						aria-label="Show toolbar"
-						onMouseEnter={(e) => showTooltip("Show toolbar", e.currentTarget)}
+						aria-label="Show toolbar (T)"
+						onMouseEnter={(e) => showTooltip("Show toolbar (T)", e.currentTarget)}
 						onMouseLeave={clearTooltip}
 						onFocus={(e) => {
 							setCollapsedRevealVisible(true)
-							showTooltip("Show toolbar", e.currentTarget)
+							showTooltip("Show toolbar (T)", e.currentTarget)
 						}}
 						onBlur={clearTooltip}
 						style={{
@@ -256,7 +308,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					<Btn
 						active={openPanel === "pages"}
 						onClick={() => toggle("pages")}
-						tip="Pages"
+						tip="Pages (P)"
 						btnIndex={0}
 						focusedBtnIdx={focusedBtnIdx}
 						onBtnFocused={setFocusedBtnIdx}
@@ -268,7 +320,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					<Sep />
 					<Btn
 						onClick={onExplode}
-						tip="Explode scene"
+						tip="Explode scene (E)"
 						btnIndex={1}
 						focusedBtnIdx={focusedBtnIdx}
 						onBtnFocused={setFocusedBtnIdx}
@@ -282,7 +334,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 							onReset()
 							setResetSpinKey((k) => k + 1)
 						}}
-						tip="Reset scene"
+						tip="Reset scene (R)"
 						btnIndex={2}
 						focusedBtnIdx={focusedBtnIdx}
 						onBtnFocused={setFocusedBtnIdx}
@@ -303,7 +355,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					<Btn
 						active={pickerMode === "throwable"}
 						onClick={onTogglePicker}
-						tip={pickerMode === "throwable" ? "Exit component picker" : "Enter component picker"}
+						tip={pickerMode === "throwable" ? "Exit component picker (C)" : "Component picker (C)"}
 						accent={pickerMode === "throwable" ? "var(--dt-accent-blue, #3b82f6)" : undefined}
 						btnIndex={3}
 						focusedBtnIdx={focusedBtnIdx}
@@ -316,7 +368,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					<Btn
 						active={openPanel === "stash" || pickerMode === "save"}
 						onClick={() => toggle("stash")}
-						tip="Saved components"
+						tip="Saved components (S)"
 						accent={
 							pickerMode === "save"
 								? "var(--dt-accent-light, #c4b5fd)"
@@ -338,7 +390,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					<Btn
 						active={openPanel === "settings"}
 						onClick={() => toggle("settings")}
-						tip="Settings"
+						tip="Settings (,)"
 						btnIndex={5}
 						focusedBtnIdx={focusedBtnIdx}
 						onBtnFocused={setFocusedBtnIdx}
@@ -349,7 +401,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					</Btn>
 					<Btn
 						onClick={handleCollapseToolbar}
-						tip="Hide toolbar"
+						tip="Hide toolbar (T)"
 						compact
 						btnIndex={6}
 						focusedBtnIdx={focusedBtnIdx}
