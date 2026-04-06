@@ -8,6 +8,7 @@ import {
 	useState,
 } from "react"
 import { useSavedElements } from "../contexts/SavedElementsContext"
+import { useSettingsContext } from "../contexts/SettingsContext"
 import type { PickerMode } from "../hooks/usePickerPause"
 import type { SavedElement } from "../scene/types"
 import "./toolbar/Toolbar.css"
@@ -48,6 +49,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 	const { onExplode, onReset, onTogglePicker, pickerMode, onDropSaved } = props
 
 	const { savedElements } = useSavedElements()
+	const { settings, setSettings } = useSettingsContext()
 	const [resetSpinKey, setResetSpinKey] = useState(0)
 	const [openPanel, setOpenPanel] = useState<FlyoutPanel>(null)
 	const [collapsed, setCollapsed] = useState(false)
@@ -190,6 +192,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 					event.preventDefault()
 					toggle("settings")
 					break
+				case "b": {
+					const next = !(settings.showObstacleBounds || settings.showLineBounds)
+					setSettings({ ...settings, showObstacleBounds: next, showLineBounds: next })
+					break
+				}
 				case "t":
 					event.preventDefault()
 					if (collapsed) {
@@ -204,7 +211,16 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 		}
 		window.addEventListener("keydown", handleKeyDown)
 		return () => window.removeEventListener("keydown", handleKeyDown)
-	}, [onExplode, onReset, onTogglePicker, collapsed, handleExpandToolbar, handleCollapseToolbar])
+	}, [
+		onExplode,
+		onReset,
+		onTogglePicker,
+		collapsed,
+		handleExpandToolbar,
+		handleCollapseToolbar,
+		settings,
+		setSettings,
+	])
 
 	useEffect(() => {
 		if (!openPanel || collapsed) return
