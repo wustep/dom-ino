@@ -382,16 +382,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 						<PickerIcon />
 					</Btn>
 					<Btn
-						active={openPanel === "stash" || pickerMode === "save"}
+						active={openPanel === "stash"}
 						onClick={() => toggle("stash")}
 						tip="Saved components (S)"
-						accent={
-							pickerMode === "save"
-								? "var(--dt-accent-light, #c4b5fd)"
-								: savedElements.length > 0
-									? "var(--dt-accent, #a78bfa)"
-									: undefined
-						}
+						accent={savedElements.length > 0 ? "var(--dt-accent, #a78bfa)" : undefined}
 						dataAttrs={{ "data-domino-stash-trigger": "true" }}
 						btnIndex={4}
 						focusedBtnIdx={focusedBtnIdx}

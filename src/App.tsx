@@ -47,7 +47,7 @@ interface AppProps {
 export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
 	// ─── Invalid file drop toast ───
 	const [dropError, setDropError] = useState<string | null>(null)
-	const dropErrorTimer = useRef<ReturnType<typeof setTimeout>>()
+	const dropErrorTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
 	const showDropError = useCallback((msg: string) => {
 		clearTimeout(dropErrorTimer.current)
