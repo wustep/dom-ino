@@ -1,6 +1,9 @@
 import type { SavedElement, SceneElement } from "../scene/types"
 import { extractAlphaRows } from "./imageAlpha"
 
+const URL_VIDEO_EXT = /\.mp4($|[?#])/i
+const URL_IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)($|[?#])/i
+
 /** Max width *or* height (px) for stash / dropped media physics boxes; aspect ratio preserved. */
 export const STASH_DROP_IMAGE_MAX_SIDE_PX = 400
 
@@ -127,6 +130,75 @@ export async function savedElementFromImageFile(
 		pinned: false,
 		imageSrc: dataUrl,
 		imageAlt: file.name.replace(/[/\\]/g, ""),
+		backgroundColor: undefined,
+		borderRadius: 0,
+		alphaRows: alphaRows ?? undefined,
+	}
+
+	return { element, savedAt: Date.now(), sourceScene }
+}
+
+/** Returns true if a URL string looks like a linkable image or mp4. */
+export function isAcceptableStashImageUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url)
+		if (!["http:", "https:"].includes(parsed.protocol)) return false
+		return URL_VIDEO_EXT.test(url) || URL_IMAGE_EXT.test(url)
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Creates a SavedElement from a remote URL (gif, png, jpg, mp4, etc.).
+ * Stores the URL directly as `imageSrc` — no data URL, no localStorage bloat.
+ * Alpha row extraction is attempted with CORS but gracefully skipped if blocked.
+ */
+export async function savedElementFromImageUrl(
+	url: string,
+	sourceScene: string,
+): Promise<SavedElement | null> {
+	let parsed: URL
+	try {
+		parsed = new URL(url)
+	} catch {
+		return null
+	}
+	if (!["http:", "https:"].includes(parsed.protocol)) return null
+
+	const isVideo = isVideoMediaSrc(url)
+
+	let naturalWidth = 1
+	let naturalHeight = 1
+	try {
+		if (isVideo) {
+			const video = await loadVideoElement(url)
+			naturalWidth = video.videoWidth || 1
+			naturalHeight = video.videoHeight || 1
+		} else {
+			const img = await loadImageElement(url)
+			naturalWidth = img.naturalWidth || img.width || 1
+			naturalHeight = img.naturalHeight || img.height || 1
+		}
+	} catch {
+		return null
+	}
+
+	const { width, height } = cappedSizeForStashImage(naturalWidth, naturalHeight)
+
+	// Alpha rows use crossOrigin="anonymous" — silently null if CORS blocks it
+	const alphaRows = isVideo ? null : await extractAlphaRows(url)
+
+	const filename = parsed.pathname.split("/").filter(Boolean).pop() ?? url
+
+	const element: SceneElement = {
+		id: `stash-url-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+		type: "image",
+		rect: { x: 0, y: 0, width, height },
+		throwable: true,
+		pinned: false,
+		imageSrc: url,
+		imageAlt: filename,
 		backgroundColor: undefined,
 		borderRadius: 0,
 		alphaRows: alphaRows ?? undefined,

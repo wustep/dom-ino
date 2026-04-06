@@ -1,8 +1,15 @@
-import { type DragEvent as ReactDragEvent, useCallback, useState } from "react"
+import {
+	type KeyboardEvent,
+	type DragEvent as ReactDragEvent,
+	type MouseEvent as ReactMouseEvent,
+	useCallback,
+	useState,
+} from "react"
 import { useSavedElements } from "../../contexts/SavedElementsContext"
 import type { PickerMode } from "../../hooks/usePickerPause"
 import type { SavedElement } from "../../scene/types"
 import { isAcceptableStashImageFile, isVideoMediaSrc } from "../../utils/stashImageFromFile"
+import { LinkIcon, PickerIcon } from "./icons"
 
 interface StashPanelProps {
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
@@ -17,8 +24,44 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 		savedElements,
 		removeSaved: onRemoveSaved,
 		saveStashImageFiles: onSaveStashImageFiles,
+		saveStashImageUrl: onSaveStashImageUrl,
 	} = useSavedElements()
 	const [hoveredStash, setHoveredStash] = useState<{ index: number; top: number } | null>(null)
+	const [tooltip, setTooltip] = useState<{ label: string; x: number; y: number } | null>(null)
+	const [showUrlInput, setShowUrlInput] = useState(false)
+
+	const showTip = useCallback((label: string, e: ReactMouseEvent<HTMLButtonElement>) => {
+		const rect = e.currentTarget.getBoundingClientRect()
+		setTooltip({ label, x: rect.left + rect.width / 2, y: rect.top })
+	}, [])
+	const hideTip = useCallback(() => setTooltip(null), [])
+	const [urlInput, setUrlInput] = useState("")
+	const [urlState, setUrlState] = useState<"idle" | "loading" | "error_invalid" | "error_load">(
+		"idle",
+	)
+
+	const handleUrlSubmit = useCallback(async () => {
+		const url = urlInput.trim()
+		if (!url) return
+		setUrlState("loading")
+		const result = await onSaveStashImageUrl(url)
+		if (result === "ok") {
+			setUrlInput("")
+			setUrlState("idle")
+			setShowUrlInput(false)
+		} else if (result === "invalid_url") {
+			setUrlState("error_invalid")
+		} else {
+			setUrlState("error_load")
+		}
+	}, [urlInput, onSaveStashImageUrl])
+
+	const handleUrlKeyDown = useCallback(
+		(e: KeyboardEvent<HTMLInputElement>) => {
+			if (e.key === "Enter") void handleUrlSubmit()
+		},
+		[handleUrlSubmit],
+	)
 
 	const handleStashImageDragOver = useCallback((e: ReactDragEvent) => {
 		if (![...e.dataTransfer.types].includes("Files")) return
@@ -58,27 +101,115 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 					</div>
 					<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
 						<button
+							type="button"
+							onClick={() => {
+								setShowUrlInput((v) => !v)
+								setTooltip(null)
+							}}
+							onMouseEnter={(e) => showTip("Link media by URL", e)}
+							onMouseLeave={hideTip}
+							className="dt-btn-icon"
+							style={{
+								color: showUrlInput ? "var(--dt-accent-light)" : "var(--dt-text-secondary)",
+								borderColor: showUrlInput ? "rgba(196,181,253,0.35)" : undefined,
+							}}
+							aria-label="Link media by URL"
+						>
+							<LinkIcon />
+						</button>
+						<button
+							type="button"
 							onClick={() => {
 								onClose()
 								onTogglePicker()
 							}}
-							className="dt-btn-tiny"
+							onMouseEnter={(e) =>
+								showTip(pickerMode === "throwable" ? "Done picking" : "Pick from page", e)
+							}
+							onMouseLeave={hideTip}
+							className="dt-btn-icon"
 							style={{
-								color: pickerMode === "throwable" ? "var(--dt-accent-light)" : "var(--dt-accent)",
+								color:
+									pickerMode === "throwable"
+										? "var(--dt-accent-light)"
+										: "var(--dt-text-secondary)",
 								borderColor: pickerMode === "throwable" ? "rgba(196,181,253,0.35)" : undefined,
 							}}
+							aria-label={pickerMode === "throwable" ? "Done picking" : "Pick from page"}
 						>
-							{pickerMode === "throwable" ? "Done picking" : "Pick from page"}
+							<PickerIcon />
 						</button>
 						<button type="button" className="dt-flyout-close" onClick={onClose} aria-label="Close">
 							&times;
 						</button>
 					</div>
 				</div>
+				{showUrlInput && (
+					<>
+						<div
+							style={{
+								padding: "6px 10px",
+								borderBottom: "1px solid var(--dt-border-divider)",
+								display: "flex",
+								gap: 5,
+								alignItems: "center",
+							}}
+						>
+							<input
+								type="url"
+								// biome-ignore lint/a11y/noAutofocus: intentional — row opens on user action
+								autoFocus
+								value={urlInput}
+								onChange={(e) => {
+									setUrlInput(e.target.value)
+									if (urlState !== "idle") setUrlState("idle")
+								}}
+								onKeyDown={handleUrlKeyDown}
+								placeholder="Paste gif / mp4 / image URL…"
+								style={{
+									flex: 1,
+									fontSize: 11,
+									padding: "4px 7px",
+									borderRadius: 5,
+									border: `1px solid ${urlState.startsWith("error") ? "rgba(220,80,80,0.6)" : "var(--dt-border-input, rgba(255,255,255,0.12))"}`,
+									background: "rgba(255,255,255,0.06)",
+									color: "var(--dt-text-primary)",
+									outline: "none",
+									minWidth: 0,
+								}}
+								disabled={urlState === "loading"}
+							/>
+							<button
+								type="button"
+								className="dt-btn-tiny"
+								onClick={() => void handleUrlSubmit()}
+								disabled={urlState === "loading" || !urlInput.trim()}
+								style={{ color: "var(--dt-accent)", flexShrink: 0 }}
+							>
+								{urlState === "loading" ? "…" : "Add"}
+							</button>
+						</div>
+						{urlState.startsWith("error") && (
+							<div
+								style={{
+									padding: "4px 10px",
+									fontSize: 10,
+									color: "rgba(220,100,100,0.9)",
+									borderBottom: "1px solid var(--dt-border-divider)",
+								}}
+							>
+								{urlState === "error_invalid"
+									? "Enter an http/https URL ending in .gif, .png, .jpg, .mp4, etc."
+									: "Could not load that URL — check it's public and a supported media type."}
+							</div>
+						)}
+					</>
+				)}
 				<div style={{ padding: "6px 6px", maxHeight: 260, overflowY: "auto" }}>
 					{savedElements.length === 0 ? (
 						<div className="dt-stash-empty">
-							Drop image files or mp4s here, or use `Pick from page` or the component picker.
+							Drop image files or mp4s here, paste a URL above, or use `Pick from page` or the
+							component picker.
 						</div>
 					) : (
 						<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -305,6 +436,21 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 						</div>
 					)
 				})()}
+			{tooltip && (
+				<div
+					className="dt-tooltip"
+					style={{
+						position: "fixed",
+						left: tooltip.x,
+						bottom: window.innerHeight - tooltip.y + 8,
+						transform: "translateX(-50%)",
+						pointerEvents: "none",
+						zIndex: 100010,
+					}}
+				>
+					{tooltip.label}
+				</div>
+			)}
 		</>
 	)
 }

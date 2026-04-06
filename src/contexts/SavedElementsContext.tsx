@@ -8,6 +8,7 @@ export interface SavedElementsContextValue {
 	unsaveElement: (id: string) => void
 	removeSaved: (index: number) => void
 	saveStashImageFiles: (files: File[]) => void
+	saveStashImageUrl: (url: string) => Promise<"ok" | "load_error" | "invalid_url">
 }
 
 export const SavedElementsContext = createContext<SavedElementsContextValue | null>(null)

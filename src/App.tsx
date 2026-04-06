@@ -12,8 +12,10 @@ import { clearPersistedState, loadState, saveState } from "./utils/persistence"
 import {
 	getStashMediaValidationError,
 	isAcceptableStashImageFile,
+	isAcceptableStashImageUrl,
 	STASH_DROP_IMAGE_MAX_FILE_BYTES,
 	savedElementFromImageFile,
+	savedElementFromImageUrl,
 } from "./utils/stashImageFromFile"
 
 function DropToast({
@@ -181,6 +183,18 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 		[nav.activeCustomPage?.name, nav.scene?.name],
 	)
 
+	const handleSaveStashImageUrl = useCallback(
+		async (url: string): Promise<"ok" | "load_error" | "invalid_url"> => {
+			if (!isAcceptableStashImageUrl(url)) return "invalid_url"
+			const sourceName = nav.activeCustomPage?.name ?? nav.scene?.name ?? "Linked media"
+			const saved = await savedElementFromImageUrl(url, sourceName)
+			if (!saved) return "load_error"
+			setSavedElements((prev) => [...prev, saved])
+			return "ok"
+		},
+		[nav.activeCustomPage?.name, nav.scene?.name],
+	)
+
 	const handleResetAll = useCallback(() => {
 		clearPersistedState()
 		nav.setCurrentPreset(DEFAULT_PRESET)
@@ -199,6 +213,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			unsaveElement: handleUnsaveElement,
 			removeSaved: handleRemoveSaved,
 			saveStashImageFiles: handleSaveStashImageFiles,
+			saveStashImageUrl: handleSaveStashImageUrl,
 		}),
 		[
 			savedElements,
@@ -206,6 +221,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			handleUnsaveElement,
 			handleRemoveSaved,
 			handleSaveStashImageFiles,
+			handleSaveStashImageUrl,
 		],
 	)
 

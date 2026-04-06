@@ -157,3 +157,21 @@ export function ChevronUpIcon() {
 		</svg>
 	)
 }
+
+export function LinkIcon() {
+	return (
+		<svg
+			width="13"
+			height="13"
+			viewBox="0 0 14 14"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.4"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M5.5 8.5a3 3 0 0 0 4.243 0l1.414-1.414a3 3 0 0 0-4.243-4.243L5.5 4.257" />
+			<path d="M8.5 5.5a3 3 0 0 0-4.243 0L2.843 6.914a3 3 0 0 0 4.243 4.243L8.5 9.743" />
+		</svg>
+	)
+}

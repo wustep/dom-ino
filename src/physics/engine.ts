@@ -75,7 +75,7 @@ export function createPhysicsEngine(
 	const wallThickness = 80
 	let W = scene.width
 	let H = scene.height
-	let rotationAllowed = false
+	let rotationAllowed = true
 
 	const wallProps = { isStatic: true, friction: 0.8, restitution: 0.15 }
 
