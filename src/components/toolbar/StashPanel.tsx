@@ -220,10 +220,20 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 									onDragStart={(e) => {
 										e.dataTransfer.setData("application/domino-saved", JSON.stringify(s))
 										e.dataTransfer.effectAllowed = "copy"
-										const pw = Math.min(s.element.rect.width, 200)
-										const ph = Math.min(s.element.rect.height, 120)
+										const maxW = 200
+										const maxH = 120
+										const aspectRatio = s.element.rect.width / s.element.rect.height
+										let pw: number
+										let ph: number
+										if (aspectRatio > maxW / maxH) {
+											pw = Math.min(s.element.rect.width, maxW)
+											ph = pw / aspectRatio
+										} else {
+											ph = Math.min(s.element.rect.height, maxH)
+											pw = ph * aspectRatio
+										}
 										const preview = document.createElement("div")
-										preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${pw}px;height:${ph}px;background:${s.element.backgroundColor || "transparent"};border-radius:${s.element.borderRadius ?? 0}px;border:${s.element.border || "none"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:8px;box-sizing:border-box;overflow:hidden;`
+										preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${pw}px;height:${ph}px;background:${s.element.backgroundColor || "transparent"};border-radius:${s.element.borderRadius ?? 0}px;border:${s.element.border || "none"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:0;box-sizing:border-box;overflow:hidden;`
 										if (s.element.type === "image" && s.element.imageSrc) {
 											preview.textContent = ""
 											if (isVideoMediaSrc(s.element.imageSrc)) {
@@ -233,14 +243,14 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 												video.loop = true
 												video.autoplay = true
 												video.playsInline = true
-												video.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
+												video.style.cssText = `width:100%;height:100%;object-fit:contain;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
 												preview.appendChild(video)
 											} else {
 												const im = document.createElement("img")
 												im.src = s.element.imageSrc
 												im.alt = ""
 												im.draggable = false
-												im.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
+												im.style.cssText = `width:100%;height:100%;object-fit:contain;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
 												preview.appendChild(im)
 											}
 										} else {
