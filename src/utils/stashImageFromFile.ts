@@ -1,19 +1,38 @@
 import type { SavedElement, SceneElement } from "../scene/types"
 import { extractAlphaRows } from "./imageAlpha"
 
-/** Max width *or* height (px) for stash / dropped image physics boxes; aspect ratio preserved. */
+/** Max width *or* height (px) for stash / dropped media physics boxes; aspect ratio preserved. */
 export const STASH_DROP_IMAGE_MAX_SIDE_PX = 400
 
 /** Reject very large files to protect memory and localStorage. */
 export const STASH_DROP_IMAGE_MAX_FILE_BYTES = 2 * 1024 * 1024
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i
+const VIDEO_EXT = /\.mp4$/i
 
-/** Returns true if a File is an acceptable image type and size for stashing. */
-export function isAcceptableStashImageFile(file: File): boolean {
-	if (!file || file.size > STASH_DROP_IMAGE_MAX_FILE_BYTES) return false
+function isRecognizedStashVideoFile(file: File): boolean {
+	if (!file) return false
+	if (file.type === "video/mp4") return true
+	return VIDEO_EXT.test(file.name)
+}
+
+function isRecognizedStashMediaFile(file: File): boolean {
+	if (!file) return false
 	if (file.type.startsWith("image/")) return true
+	if (isRecognizedStashVideoFile(file)) return true
 	return IMAGE_EXT.test(file.name)
+}
+
+export function getStashMediaValidationError(file: File): "too_large" | "unsupported_type" | null {
+	if (!file) return "unsupported_type"
+	if (!isRecognizedStashMediaFile(file)) return "unsupported_type"
+	if (file.size > STASH_DROP_IMAGE_MAX_FILE_BYTES) return "too_large"
+	return null
+}
+
+/** Returns true if a File is an acceptable image or mp4 type and size for stashing. */
+export function isAcceptableStashImageFile(file: File): boolean {
+	return getStashMediaValidationError(file) === null
 }
 
 export function cappedSizeForStashImage(
@@ -48,7 +67,25 @@ function loadImageElement(src: string): Promise<HTMLImageElement> {
 	})
 }
 
-/** Converts a dropped image File into a SavedElement with a data URL and capped dimensions. */
+function loadVideoElement(src: string): Promise<HTMLVideoElement> {
+	return new Promise((resolve, reject) => {
+		const video = document.createElement("video")
+		video.preload = "metadata"
+		video.muted = true
+		video.playsInline = true
+		video.onloadedmetadata = () => resolve(video)
+		video.onerror = () => reject(new Error("decode"))
+		video.src = src
+	})
+}
+
+export function isVideoMediaSrc(src: string | undefined): boolean {
+	if (!src) return false
+	const lower = src.toLowerCase()
+	return lower.startsWith("data:video/mp4") || /\.mp4($|[?#])/.test(lower)
+}
+
+/** Converts a dropped image or mp4 File into a SavedElement with a data URL and capped dimensions. */
 export async function savedElementFromImageFile(
 	file: File,
 	sourceScene: string,
@@ -65,16 +102,22 @@ export async function savedElementFromImageFile(
 	let naturalWidth = 1
 	let naturalHeight = 1
 	try {
-		const img = await loadImageElement(dataUrl)
-		naturalWidth = img.naturalWidth || img.width || 1
-		naturalHeight = img.naturalHeight || img.height || 1
+		if (isVideoMediaSrc(dataUrl) || isRecognizedStashVideoFile(file)) {
+			const video = await loadVideoElement(dataUrl)
+			naturalWidth = video.videoWidth || 1
+			naturalHeight = video.videoHeight || 1
+		} else {
+			const img = await loadImageElement(dataUrl)
+			naturalWidth = img.naturalWidth || img.width || 1
+			naturalHeight = img.naturalHeight || img.height || 1
+		}
 	} catch {
 		return null
 	}
 
 	const { width, height } = cappedSizeForStashImage(naturalWidth, naturalHeight)
 
-	const alphaRows = await extractAlphaRows(dataUrl)
+	const alphaRows = isVideoMediaSrc(dataUrl) ? null : await extractAlphaRows(dataUrl)
 
 	const element: SceneElement = {
 		id: `stash-img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,

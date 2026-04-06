@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from "react"
 import type { SceneElement, TextStyle } from "../scene/types"
 import type { GifAlphaController } from "../utils/gifFrames"
 import { isAnimatedImageSrc } from "../utils/imageAlpha"
+import { isVideoMediaSrc } from "../utils/stashImageFromFile"
 import { getBackgroundStyle } from "../utils/styles"
 
 interface ElementRendererProps {
@@ -234,8 +235,12 @@ export const ElementRenderer = memo(function ElementRenderer({
 			)
 
 		case "image": {
+			const isVideo = isVideoMediaSrc(element.imageSrc)
 			const shouldManuallyAnimate =
-				!!animatedGifController && !!element.imageSrc && isAnimatedImageSrc(element.imageSrc)
+				!isVideo &&
+				!!animatedGifController &&
+				!!element.imageSrc &&
+				isAnimatedImageSrc(element.imageSrc)
 			return (
 				<div
 					style={{
@@ -251,7 +256,19 @@ export const ElementRenderer = memo(function ElementRenderer({
 					}}
 				>
 					{element.imageSrc ? (
-						shouldManuallyAnimate ? (
+						isVideo ? (
+							<video
+								src={element.imageSrc}
+								aria-label={element.imageAlt}
+								data-domino-image-id={element.id}
+								style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+								autoPlay
+								loop
+								muted
+								playsInline
+								preload="auto"
+							/>
+						) : shouldManuallyAnimate ? (
 							<AnimatedGifCanvas
 								elementId={element.id}
 								controller={animatedGifController}

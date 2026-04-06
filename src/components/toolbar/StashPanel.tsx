@@ -2,7 +2,7 @@ import { type DragEvent as ReactDragEvent, useCallback, useState } from "react"
 import { useSavedElements } from "../../contexts/SavedElementsContext"
 import type { PickerMode } from "../../hooks/usePickerPause"
 import type { SavedElement } from "../../scene/types"
-import { isAcceptableStashImageFile } from "../../utils/stashImageFromFile"
+import { isAcceptableStashImageFile, isVideoMediaSrc } from "../../utils/stashImageFromFile"
 
 interface StashPanelProps {
 	onDropSaved: (saved: SavedElement, x?: number, y?: number) => void
@@ -78,7 +78,7 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 				<div style={{ padding: "6px 6px", maxHeight: 260, overflowY: "auto" }}>
 					{savedElements.length === 0 ? (
 						<div className="dt-stash-empty">
-							Drop image files here, or use `Pick from page` or the component picker.
+							Drop image files or mp4s here, or use `Pick from page` or the component picker.
 						</div>
 					) : (
 						<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -94,13 +94,24 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 										const preview = document.createElement("div")
 										preview.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${pw}px;height:${ph}px;background:${s.element.backgroundColor || "transparent"};border-radius:${s.element.borderRadius ?? 0}px;border:${s.element.border || "none"};box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.min(s.element.fontSize ?? 13, 14)}px;font-family:${s.element.fontFamily || "sans-serif"};color:${s.element.color || "#333"};padding:8px;box-sizing:border-box;overflow:hidden;`
 										if (s.element.type === "image" && s.element.imageSrc) {
-											const im = document.createElement("img")
-											im.src = s.element.imageSrc
-											im.alt = ""
-											im.draggable = false
-											im.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
 											preview.textContent = ""
-											preview.appendChild(im)
+											if (isVideoMediaSrc(s.element.imageSrc)) {
+												const video = document.createElement("video")
+												video.src = s.element.imageSrc
+												video.muted = true
+												video.loop = true
+												video.autoplay = true
+												video.playsInline = true
+												video.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
+												preview.appendChild(video)
+											} else {
+												const im = document.createElement("img")
+												im.src = s.element.imageSrc
+												im.alt = ""
+												im.draggable = false
+												im.style.cssText = `width:100%;height:100%;object-fit:cover;display:block;border-radius:${Math.max(0, (s.element.borderRadius ?? 0) - 2)}px`
+												preview.appendChild(im)
+											}
 										} else {
 											preview.textContent = s.element.text?.slice(0, 30) || s.element.type
 										}
@@ -137,16 +148,31 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 											}}
 										>
 											{s.element.type === "image" && s.element.imageSrc ? (
-												<img
-													src={s.element.imageSrc}
-													alt=""
-													draggable={false}
-													style={{
-														width: "100%",
-														height: "100%",
-														objectFit: "cover",
-													}}
-												/>
+												isVideoMediaSrc(s.element.imageSrc) ? (
+													<video
+														src={s.element.imageSrc}
+														muted
+														playsInline
+														preload="metadata"
+														style={{
+															width: "100%",
+															height: "100%",
+															objectFit: "cover",
+															display: "block",
+														}}
+													/>
+												) : (
+													<img
+														src={s.element.imageSrc}
+														alt=""
+														draggable={false}
+														style={{
+															width: "100%",
+															height: "100%",
+															objectFit: "cover",
+														}}
+													/>
+												)
 											) : (
 												s.element.type.slice(0, 3)
 											)}
@@ -154,7 +180,10 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 										<div style={{ minWidth: 0 }}>
 											<div className="dt-stash-name">
 												{s.element.type === "image"
-													? (s.element.imageAlt || "Image").slice(0, 24)
+													? (
+															s.element.imageAlt ||
+															(isVideoMediaSrc(s.element.imageSrc) ? "Video" : "Image")
+														).slice(0, 24)
 													: s.element.text?.slice(0, 20) || s.element.type}
 											</div>
 											<div className="dt-stash-source">{s.sourceScene}</div>
@@ -223,15 +252,32 @@ export function StashPanel({ onDropSaved, pickerMode, onTogglePicker, onClose }:
 								}}
 							>
 								{el.imageSrc ? (
-									<img
-										src={el.imageSrc}
-										alt=""
-										style={{
-											width: "100%",
-											height: "100%",
-											objectFit: "cover",
-										}}
-									/>
+									isVideoMediaSrc(el.imageSrc) ? (
+										<video
+											src={el.imageSrc}
+											muted
+											autoPlay
+											loop
+											playsInline
+											preload="metadata"
+											style={{
+												width: "100%",
+												height: "100%",
+												objectFit: "cover",
+												display: "block",
+											}}
+										/>
+									) : (
+										<img
+											src={el.imageSrc}
+											alt=""
+											style={{
+												width: "100%",
+												height: "100%",
+												objectFit: "cover",
+											}}
+										/>
+									)
 								) : el.text ? (
 									<div
 										style={{

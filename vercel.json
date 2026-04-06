@@ -1,0 +1,12 @@
+{
+	"rewrites": [
+		{
+			"source": "/reset",
+			"destination": "/api/reset"
+		},
+		{
+			"source": "/reset/",
+			"destination": "/api/reset"
+		}
+	]
+}

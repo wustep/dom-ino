@@ -13,6 +13,10 @@ export interface PersistedState {
 	customPages: CustomPage[]
 }
 
+export type SaveStateResult =
+	| { ok: true }
+	| { ok: false; reason: "quota_exceeded" | "unknown_error" }
+
 function normalizeCustomPages(pages: unknown): CustomPage[] {
 	if (!Array.isArray(pages)) return []
 	return pages.reduce<CustomPage[]>((acc, page) => {
@@ -90,8 +94,18 @@ export function loadState(): Partial<PersistedState> {
 	return {}
 }
 
+function isQuotaExceededError(error: unknown): boolean {
+	if (!(error instanceof DOMException)) return false
+	return (
+		error.name === "QuotaExceededError" ||
+		error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+		error.code === 22 ||
+		error.code === 1014
+	)
+}
+
 /** Persists app state to localStorage, stripping heavy snapshot HTML to avoid quota issues. */
-export function saveState(s: PersistedState) {
+export function saveState(s: PersistedState): SaveStateResult {
 	try {
 		// Strip preparedHtml from snapshot pages to avoid localStorage quota issues.
 		// Pages with a sourceUrl will be re-fetched on reload.
@@ -104,8 +118,10 @@ export function saveState(s: PersistedState) {
 			}),
 		}
 		localStorage.setItem(LS_KEY, JSON.stringify(toSave))
+		return { ok: true }
 	} catch (e) {
 		console.warn("[DOMino] Failed to save state:", e)
+		return { ok: false, reason: isQuotaExceededError(e) ? "quota_exceeded" : "unknown_error" }
 	}
 }
 

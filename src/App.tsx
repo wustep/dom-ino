@@ -9,14 +9,27 @@ import type { PresetKey } from "./scene/presets"
 import { DEFAULT_PRESET } from "./scene/presets"
 import type { SavedElement, SceneElement } from "./scene/types"
 import { clearPersistedState, loadState, saveState } from "./utils/persistence"
-import { isAcceptableStashImageFile, savedElementFromImageFile } from "./utils/stashImageFromFile"
+import {
+	getStashMediaValidationError,
+	isAcceptableStashImageFile,
+	STASH_DROP_IMAGE_MAX_FILE_BYTES,
+	savedElementFromImageFile,
+} from "./utils/stashImageFromFile"
 
-function DropToast({ message, isError }: { message: string; isError?: boolean }) {
+function DropToast({
+	message,
+	isError,
+	bottom = 76,
+}: {
+	message: string
+	isError?: boolean
+	bottom?: number
+}) {
 	return (
 		<div
 			style={{
 				position: "fixed",
-				bottom: 76,
+				bottom,
 				left: "50%",
 				transform: "translateX(-50%)",
 				zIndex: 100000,
@@ -31,12 +44,25 @@ function DropToast({ message, isError }: { message: string; isError?: boolean })
 				boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
 				pointerEvents: "none",
 				animation: "hintFade 0.5s ease both",
-				whiteSpace: "nowrap",
+				whiteSpace: "normal",
+				maxWidth: "min(560px, calc(100vw - 32px))",
+				textAlign: "center",
 			}}
 		>
 			{message}
 		</div>
 	)
+}
+
+function formatBytes(bytes: number): string {
+	if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+	if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
+	return `${bytes} B`
+}
+
+function fileLabel(file: File): string {
+	const dot = file.name.lastIndexOf(".")
+	return dot >= 0 ? file.name.slice(dot) : file.name
 }
 
 interface AppProps {
@@ -47,6 +73,7 @@ interface AppProps {
 export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
 	// ─── Invalid file drop toast ───
 	const [dropError, setDropError] = useState<string | null>(null)
+	const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null)
 	const dropErrorTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
 	const showDropError = useCallback((msg: string) => {
@@ -65,13 +92,17 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 			const allFiles = Array.from(files)
 			const hasValidImage = allFiles.some(isAcceptableStashImageFile)
 			if (!hasValidImage) {
-				const ext = allFiles
-					.map((f) => {
-						const dot = f.name.lastIndexOf(".")
-						return dot >= 0 ? f.name.slice(dot) : f.name
-					})
-					.join(", ")
-				showDropError(`Unsupported file type (${ext}) — drop an image instead`)
+				const tooLarge = allFiles.filter((f) => getStashMediaValidationError(f) === "too_large")
+				if (tooLarge.length > 0) {
+					const names = tooLarge.map(fileLabel).join(", ")
+					showDropError(
+						`File too large (${names}) — max ${formatBytes(STASH_DROP_IMAGE_MAX_FILE_BYTES)} because stash media is stored locally`,
+					)
+					return
+				}
+
+				const ext = allFiles.map(fileLabel).join(", ")
+				showDropError(`Unsupported file type (${ext}) — drop an image or mp4`)
 			}
 		}
 
@@ -91,12 +122,27 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 
 	// Persist state on changes
 	useEffect(() => {
-		saveState({
+		const result = saveState({
 			currentPreset: nav.currentPreset,
 			activeCustomId: nav.activeCustomId,
 			savedElements,
 			customPages: nav.customPages,
 		})
+		if (result.ok) {
+			setPersistenceWarning(null)
+			return
+		}
+		if (result.reason === "quota_exceeded") {
+			setPersistenceWarning(
+				savedElements.length > 0
+					? "Browser storage is full. Recent stash changes will not persist after reload. Delete some saved components from the stash or use smaller media."
+					: "Browser storage is full. Recent changes will not persist after reload until some local data is removed.",
+			)
+			return
+		}
+		setPersistenceWarning(
+			"Could not save local app state. Recent changes may not persist after reload.",
+		)
 	}, [nav.currentPreset, nav.activeCustomId, savedElements, nav.customPages])
 
 	// ─── Saved element handlers ───
@@ -123,7 +169,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 	const handleSaveStashImageFiles = useCallback(
 		(files: File[]) => {
 			void (async () => {
-				const sourceName = nav.activeCustomPage?.name ?? nav.scene?.name ?? "Dropped image"
+				const sourceName = nav.activeCustomPage?.name ?? nav.scene?.name ?? "Dropped media"
 				const next: SavedElement[] = []
 				for (const file of files) {
 					const saved = await savedElementFromImageFile(file, sourceName)
@@ -212,6 +258,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 				) : null}
 				{nav.fetchingUrl && <FetchOverlay url={nav.fetchingUrl} />}
 				{nav.showHint && <Hint />}
+				{persistenceWarning && <DropToast message={persistenceWarning} isError bottom={120} />}
 				{dropError && <DropToast message={dropError} isError />}
 				<div className="domino-narrow-gate">
 					<div className="domino-narrow-gate-title">DOMino needs more room</div>
