@@ -40,6 +40,7 @@ function defaultSavedElementsCtx(
 		unsaveElement: vi.fn(),
 		removeSaved: vi.fn(),
 		saveStashImageFiles: vi.fn(),
+		saveStashImageUrl: vi.fn(),
 		...overrides,
 	}
 }
