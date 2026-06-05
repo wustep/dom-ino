@@ -505,7 +505,9 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					cursor: settings.physicsEnabled ? "grab" : "default",
 					userSelect: "none",
 					WebkitUserSelect: "none",
-					touchAction: "none",
+					// pan-y lets the page scroll vertically by touch; the physics engine
+					// preventDefaults only when a drag starts on a throwable body.
+					touchAction: "pan-y",
 				}}
 				onDragOver={(e) => {
 					e.preventDefault()

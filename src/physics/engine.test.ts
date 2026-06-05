@@ -273,15 +273,7 @@ describe("createPhysicsEngine", () => {
 
 			const removedEvents = removeSpy.mock.calls.map(([type]) => type)
 			expect(removedEvents).toEqual(
-				expect.arrayContaining([
-					"mousemove",
-					"mousedown",
-					"mouseup",
-					"wheel",
-					"touchmove",
-					"touchstart",
-					"touchend",
-				]),
+				expect.arrayContaining(["mousemove", "mousedown", "mouseup", "touchstart"]),
 			)
 		})
 

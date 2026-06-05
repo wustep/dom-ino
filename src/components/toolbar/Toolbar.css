@@ -243,7 +243,10 @@
 	z-index: var(--dt-z-flyout);
 	bottom: 56px;
 	right: 16px;
+	/* Cap width on narrow screens so panels never overflow the viewport. */
+	max-width: calc(100vw - 24px);
 	max-height: calc(100vh - 80px);
+	max-height: calc(100dvh - 80px);
 	overflow-y: auto;
 	border-radius: var(--dt-radius-lg);
 	border: 1px solid var(--dt-border);

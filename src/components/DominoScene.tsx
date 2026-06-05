@@ -463,7 +463,9 @@ export function DominoScene({ scene, onSceneChange, onResetAll }: DominoScenePro
 					cursor: "grab",
 					userSelect: "none",
 					WebkitUserSelect: "none",
-					touchAction: "none",
+					// pan-y lets the page scroll vertically by touch; the physics engine
+					// preventDefaults only when a drag starts on a throwable body.
+					touchAction: "pan-y",
 				}}
 				onDragOver={handleDragOver}
 				onDrop={handleDrop}

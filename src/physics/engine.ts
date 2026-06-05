@@ -1,7 +1,7 @@
 import Matter from "matter-js"
 import type { AlphaTightBounds, SceneDescription, SceneElement } from "../scene/types"
 
-const { Engine, World, Bodies, Body, Mouse, MouseConstraint, Events, Runner } = Matter
+const { Engine, World, Bodies, Body, Mouse, MouseConstraint, Events, Runner, Query } = Matter
 
 function getPolygonVertices(el: SceneElement): Matter.Vector[] | null {
 	if (!el.polygonPoints || el.polygonPoints.length < 3) return null
@@ -257,36 +257,68 @@ export function createPhysicsEngine(
 		if (isContainerEventTarget(event.target)) return
 		mouse.mouseup(event)
 	}
-	const forwardTouchMove = (event: TouchEvent) => {
-		if (isContainerEventTarget(event.target)) return
+
+	// ─── Touch: drag a body vs. scroll the page ───
+	// Matter's built-in touch handlers always call preventDefault(), which blocks
+	// native page scrolling on mobile (scenes are often taller than the viewport).
+	// Replace them so a touch only starts a drag when it lands on a throwable body;
+	// otherwise the browser is free to scroll the page or pinch-zoom.
+	let touchDragging = false
+	const bodyUnderTouch = (touch: Touch): boolean => {
+		// While paused (settings paused, picker mode, physics disabled) let the page scroll.
+		if (!runner.enabled) return false
+		const rect = container.getBoundingClientRect()
+		const point = { x: touch.clientX - rect.left, y: touch.clientY - rect.top }
+		const draggable: Matter.Body[] = []
+		for (const [, pb] of bodies) {
+			if (!pb.body.isStatic) draggable.push(pb.body)
+		}
+		return Query.point(draggable, point).length > 0
+	}
+	const onTouchStart = (event: TouchEvent) => {
+		// Let multi-touch gestures (pinch-zoom) pass through to the browser.
+		if (event.touches.length !== 1 || !bodyUnderTouch(event.touches[0])) {
+			touchDragging = false
+			return
+		}
+		touchDragging = true
+		event.preventDefault()
+		mouse.mousedown(event)
+	}
+	const onTouchMove = (event: TouchEvent) => {
+		if (!touchDragging) return
+		event.preventDefault()
 		mouse.mousemove(event)
 	}
-	const forwardTouchEnd = (event: TouchEvent) => {
-		if (isContainerEventTarget(event.target)) return
+	const onTouchEnd = (event: TouchEvent) => {
+		if (!touchDragging) return
+		event.preventDefault()
 		mouse.mouseup(event)
-	}
-	const removeMouseListeners = () => {
-		container.removeEventListener("mousemove", mouse.mousemove)
-		container.removeEventListener("mousedown", mouse.mousedown)
-		container.removeEventListener("mouseup", mouse.mouseup)
-		if (mouseWithWheel.mousewheel) {
-			container.removeEventListener("wheel", mouseWithWheel.mousewheel)
-		}
-		container.removeEventListener("touchmove", mouse.mousemove)
-		container.removeEventListener("touchstart", mouse.mousedown)
-		container.removeEventListener("touchend", mouse.mouseup)
+		touchDragging = false
 	}
 
-	// Matter's Mouse adds a non-passive 'wheel' listener that calls preventDefault(),
-	// blocking native page scrolling. Remove it since we don't use wheelDelta.
+	// Remove Matter's default container touch + wheel listeners (added by Mouse.create).
+	// The wheel listener is non-passive and calls preventDefault(), blocking page scroll.
+	container.removeEventListener("touchmove", mouse.mousemove)
+	container.removeEventListener("touchstart", mouse.mousedown)
+	container.removeEventListener("touchend", mouse.mouseup)
 	if (mouseWithWheel.mousewheel) {
 		container.removeEventListener("wheel", mouseWithWheel.mousewheel)
 	}
 
+	const removeMouseListeners = () => {
+		container.removeEventListener("mousemove", mouse.mousemove)
+		container.removeEventListener("mousedown", mouse.mousedown)
+		container.removeEventListener("mouseup", mouse.mouseup)
+		container.removeEventListener("touchstart", onTouchStart)
+	}
+
+	container.addEventListener("touchstart", onTouchStart, { passive: false })
 	ownerWindow.addEventListener("mousemove", forwardMouseMove, { passive: true })
 	ownerWindow.addEventListener("mouseup", forwardMouseUp, { passive: true })
-	ownerWindow.addEventListener("touchmove", forwardTouchMove, { passive: false })
-	ownerWindow.addEventListener("touchend", forwardTouchEnd, { passive: false })
+	ownerWindow.addEventListener("touchmove", onTouchMove, { passive: false })
+	ownerWindow.addEventListener("touchend", onTouchEnd, { passive: false })
+	ownerWindow.addEventListener("touchcancel", onTouchEnd, { passive: false })
 
 	const mouseConstraint = MouseConstraint.create(engine, {
 		mouse,
@@ -325,8 +357,9 @@ export function createPhysicsEngine(
 			removeMouseListeners()
 			ownerWindow.removeEventListener("mousemove", forwardMouseMove)
 			ownerWindow.removeEventListener("mouseup", forwardMouseUp)
-			ownerWindow.removeEventListener("touchmove", forwardTouchMove)
-			ownerWindow.removeEventListener("touchend", forwardTouchEnd)
+			ownerWindow.removeEventListener("touchmove", onTouchMove)
+			ownerWindow.removeEventListener("touchend", onTouchEnd)
+			ownerWindow.removeEventListener("touchcancel", onTouchEnd)
 		},
 
 		reset() {

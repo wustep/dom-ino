@@ -12,10 +12,12 @@ html,
 body {
 	width: 100%;
 	min-height: 100vh;
+	min-height: 100dvh;
 	background: #fafaf8;
 	overflow-x: hidden;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
+	-webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -27,6 +29,7 @@ body {
 #root {
 	width: 100%;
 	min-height: 100vh;
+	min-height: 100dvh;
 }
 
 ::selection {
@@ -77,6 +80,7 @@ body {
 
 .domino-overlay--reload {
 	height: 100vh;
+	height: 100dvh;
 }
 
 /* ── Spinner ── */
@@ -167,40 +171,4 @@ body {
 .domino-hint-arrow {
 	font-size: 15px;
 	opacity: 0.6;
-}
-
-/* ── Narrow viewport gate ── */
-.domino-narrow-gate {
-	display: none;
-	position: fixed;
-	inset: 0;
-	z-index: 99999;
-	background: #fafaf8;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 12px;
-	padding: 32px;
-	font-family: "DM Sans", sans-serif;
-	text-align: center;
-}
-
-.domino-narrow-gate-title {
-	font-size: 18px;
-	font-weight: 700;
-	color: #1a1a1a;
-	letter-spacing: -0.01em;
-}
-
-.domino-narrow-gate-body {
-	font-size: 14px;
-	color: #777;
-	line-height: 1.5;
-	max-width: 280px;
-}
-
-@media (max-width: 768px) {
-	.domino-narrow-gate {
-		display: flex;
-	}
 }

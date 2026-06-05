@@ -276,13 +276,6 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 				{nav.showHint && <Hint />}
 				{persistenceWarning && <DropToast message={persistenceWarning} isError bottom={120} />}
 				{dropError && <DropToast message={dropError} isError />}
-				<div className="domino-narrow-gate">
-					<div className="domino-narrow-gate-title">DOMino needs more room</div>
-					<div className="domino-narrow-gate-body">
-						This app uses physics simulation and text reflow that work best on a wider screen.
-						Please use a desktop or tablet in landscape.
-					</div>
-				</div>
 			</SavedElementsContext>
 		</NavigationContext>
 	)
