@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DominoScene } from "./components/DominoScene"
 import { FetchOverlay, Hint, PageReloadOverlay } from "./components/Overlays"
 import { SnapshotPageView } from "./components/SnapshotPageView"
+import { WelcomeDialog } from "./components/WelcomeDialog"
 import { NavigationContext } from "./contexts/NavigationContext"
 import { SavedElementsContext } from "./contexts/SavedElementsContext"
 import { usePageNavigation } from "./hooks/usePageNavigation"
@@ -73,6 +74,23 @@ interface AppProps {
 }
 
 export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
+	// ─── First-visit welcome dialog ───
+	const [showWelcome, setShowWelcome] = useState(() => {
+		try {
+			return !localStorage.getItem("domino-welcome-seen")
+		} catch {
+			return false
+		}
+	})
+	const dismissWelcome = useCallback(() => {
+		try {
+			localStorage.setItem("domino-welcome-seen", "1")
+		} catch {
+			/* ignore storage errors */
+		}
+		setShowWelcome(false)
+	}, [])
+
 	// ─── Invalid file drop toast ───
 	const [dropError, setDropError] = useState<string | null>(null)
 	const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null)
@@ -273,9 +291,10 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 					/>
 				) : null}
 				{nav.fetchingUrl && <FetchOverlay url={nav.fetchingUrl} />}
-				{nav.showHint && <Hint />}
+				{nav.showHint && !showWelcome && <Hint />}
 				{persistenceWarning && <DropToast message={persistenceWarning} isError bottom={120} />}
 				{dropError && <DropToast message={dropError} isError />}
+				{showWelcome && <WelcomeDialog onClose={dismissWelcome} />}
 			</SavedElementsContext>
 		</NavigationContext>
 	)
