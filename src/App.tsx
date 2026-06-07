@@ -74,20 +74,9 @@ interface AppProps {
 }
 
 export default function App({ initialFetchUrl = null, initialPreset = null }: AppProps) {
-	// ─── First-visit welcome dialog ───
-	const [showWelcome, setShowWelcome] = useState(() => {
-		try {
-			return !localStorage.getItem("domino-welcome-seen")
-		} catch {
-			return false
-		}
-	})
+	// ─── Welcome dialog ───
+	const [showWelcome, setShowWelcome] = useState(true)
 	const dismissWelcome = useCallback(() => {
-		try {
-			localStorage.setItem("domino-welcome-seen", "1")
-		} catch {
-			/* ignore storage errors */
-		}
 		setShowWelcome(false)
 	}, [])
 

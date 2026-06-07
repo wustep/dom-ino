@@ -27,7 +27,7 @@ function MoveIcon() {
 
 const SWIPE_DISMISS_PX = 110
 
-/** First-visit onboarding dialog styled after the wustep.me cover. */
+/** Onboarding dialog styled after the wustep.me cover. */
 export function WelcomeDialog({ onClose }: { onClose: () => void }) {
 	const ctaRef = useRef<HTMLButtonElement>(null)
 	const cardRef = useRef<HTMLDivElement>(null)
