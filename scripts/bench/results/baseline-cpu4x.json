@@ -1,0 +1,161 @@
+{
+	"label": "baseline-cpu4x",
+	"date": "2026-11-21T03:18:53.704Z",
+	"args": {
+		"base": "http://localhost:5291",
+		"label": "baseline-cpu4x",
+		"scenarios": "wiki,news",
+		"nyt": null,
+		"runs": 3,
+		"duration": 10000,
+		"bodies": 40,
+		"cpu-throttle": 4,
+		"headed": false
+	},
+	"scenarios": {
+		"wiki": {
+			"summary": {
+				"timeToScan": 1037,
+				"timeToInteractive": 1110,
+				"bodyCount": 14,
+				"frameMean": 59.521428571428565,
+				"frameP95": 166.60000000000036,
+				"frameMax": 183.30000000000018,
+				"fps": 16.800672026881077,
+				"longTasks": 61,
+				"longTaskTotal": 7865,
+				"scriptMs": 7970.5779999999995,
+				"layoutMs": 212.771,
+				"styleMs": 856.012,
+				"layoutCount": 61,
+				"styleCount": 14136,
+				"rescanFrameMax": 200
+			},
+			"runs": [
+				{
+					"timeToScan": 1032,
+					"timeToInteractive": 1107,
+					"bodyCount": 14,
+					"frameMean": 59.521428571428565,
+					"frameP95": 166.60000000000036,
+					"frameMax": 183.29999999999927,
+					"fps": 16.800672026881077,
+					"longTasks": 61,
+					"longTaskTotal": 7856,
+					"scriptMs": 7936.973,
+					"layoutMs": 213.802,
+					"styleMs": 854.727,
+					"layoutCount": 61,
+					"styleCount": 14031,
+					"rescanFrameMax": 216.6999999999989
+				},
+				{
+					"timeToScan": 1076,
+					"timeToInteractive": 1146,
+					"bodyCount": 14,
+					"frameMean": 60.03734939759037,
+					"frameP95": 166.59999999999854,
+					"frameMax": 183.39999999999964,
+					"fps": 16.656298288214163,
+					"longTasks": 61,
+					"longTaskTotal": 7893,
+					"scriptMs": 7970.5779999999995,
+					"layoutMs": 212.771,
+					"styleMs": 867.649,
+					"layoutCount": 61,
+					"styleCount": 14136,
+					"rescanFrameMax": 183.29999999999927
+				},
+				{
+					"timeToScan": 1037,
+					"timeToInteractive": 1110,
+					"bodyCount": 14,
+					"frameMean": 57.99005847953217,
+					"frameP95": 166.60000000000036,
+					"frameMax": 183.30000000000018,
+					"fps": 17.24433508465859,
+					"longTasks": 61,
+					"longTaskTotal": 7865,
+					"scriptMs": 7977.559,
+					"layoutMs": 199.01,
+					"styleMs": 856.012,
+					"layoutCount": 61,
+					"styleCount": 14259,
+					"rescanFrameMax": 200
+				}
+			]
+		},
+		"news": {
+			"summary": {
+				"timeToScan": 709,
+				"timeToInteractive": 744,
+				"bodyCount": 40,
+				"frameMean": 44.49241071428572,
+				"frameP95": 116.69999999999891,
+				"frameMax": 133.39999999999964,
+				"fps": 22.47574325476857,
+				"longTasks": 77,
+				"longTaskTotal": 6378,
+				"scriptMs": 8292.272,
+				"layoutMs": 156.905,
+				"styleMs": 446.846,
+				"layoutCount": 77,
+				"styleCount": 22299,
+				"rescanFrameMax": 133.3000000000011
+			},
+			"runs": [
+				{
+					"timeToScan": 709,
+					"timeToInteractive": 744,
+					"bodyCount": 40,
+					"frameMean": 45.793577981651374,
+					"frameP95": 116.69999999999982,
+					"frameMax": 133.39999999999964,
+					"fps": 21.837123109285784,
+					"longTasks": 76,
+					"longTaskTotal": 6392,
+					"scriptMs": 8288.802,
+					"layoutMs": 166.746,
+					"styleMs": 446.846,
+					"layoutCount": 76,
+					"styleCount": 22019,
+					"rescanFrameMax": 149.89999999999964
+				},
+				{
+					"timeToScan": 709,
+					"timeToInteractive": 744,
+					"bodyCount": 40,
+					"frameMean": 43.59388646288209,
+					"frameP95": 116.69999999999891,
+					"frameMax": 133.30000000000018,
+					"fps": 22.93899629369929,
+					"longTasks": 77,
+					"longTaskTotal": 6372,
+					"scriptMs": 8328.395,
+					"layoutMs": 154.506,
+					"styleMs": 430.694,
+					"layoutCount": 77,
+					"styleCount": 22310,
+					"rescanFrameMax": 133.3000000000011
+				},
+				{
+					"timeToScan": 701,
+					"timeToInteractive": 749,
+					"bodyCount": 40,
+					"frameMean": 44.49241071428572,
+					"frameP95": 116.69999999999891,
+					"frameMax": 133.4000000000001,
+					"fps": 22.47574325476857,
+					"longTasks": 77,
+					"longTaskTotal": 6378,
+					"scriptMs": 8292.272,
+					"layoutMs": 156.905,
+					"styleMs": 458.814,
+					"layoutCount": 77,
+					"styleCount": 22299,
+					"rescanFrameMax": 133.29999999999927
+				}
+			]
+		}
+	}
+}
