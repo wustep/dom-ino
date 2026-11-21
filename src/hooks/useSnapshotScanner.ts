@@ -1,8 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { isAutoSelectEligible, isForceAutoSelectNode } from "../scene/siteStyles"
-import type { SnapshotCandidate, SnapshotTextBlock } from "../scene/snapshotHelpers"
+import {
+	type SnapshotCandidate,
+	type SnapshotTextBlock,
+	withDominoHiddenNodesRevealed,
+} from "../scene/snapshotHelpers"
 import { scanIframeDom } from "../scene/snapshotWalker"
 import type { SavedElement, SceneElement } from "../scene/types"
+
+const RESCAN_DEBOUNCE_MS = 150
+
+/**
+ * Makes relative `url()` references in a CSS rule absolute. Copied rules are
+ * re-parsed in the app document, where relative URLs would otherwise resolve
+ * against the app's origin instead of the fetched page.
+ */
+export function absolutizeCssUrls(cssText: string, baseUrl: string): string {
+	return cssText.replace(
+		/url\(\s*(["']?)([^"')]+)\1\s*\)/g,
+		(match, quote: string, ref: string) => {
+			if (/^(?:data|blob|https?):/i.test(ref)) return match
+			try {
+				return `url(${quote || '"'}${new URL(ref, baseUrl).href}${quote || '"'})`
+			} catch {
+				return match
+			}
+		},
+	)
+}
 
 interface UseSnapshotScannerOptions {
 	iframeRef: React.RefObject<HTMLIFrameElement | null>
@@ -78,7 +103,11 @@ export function useSnapshotScanner({
 		const win = iframe.contentWindow
 		if (!doc || !win || !doc.body) return
 
-		const result = scanIframeDom(doc, win, iframe.clientHeight, sourceUrl, savedIdsRef.current)
+		// Selected originals and Pretext-replaced text are visibility:hidden; scan
+		// the page as the site rendered it, or rescans would drop them.
+		const result = withDominoHiddenNodesRevealed(doc, () =>
+			scanIframeDom(doc, win, iframe.clientHeight, sourceUrl, savedIdsRef.current),
+		)
 		nodesRef.current = result.nodes
 		textNodesRef.current = result.textNodes
 		setCandidates(result.candidates)
@@ -95,6 +124,18 @@ export function useSnapshotScanner({
 			scanCandidates()
 		})
 	}, [scanCandidates])
+
+	// Layout-change rescans (window resize, web fonts, late content) are
+	// debounced: a full scan walks the whole document, and resize drags or
+	// font swaps fire many events in a row.
+	const debouncedScanRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const scheduleDebouncedScan = useCallback(() => {
+		if (debouncedScanRef.current !== null) clearTimeout(debouncedScanRef.current)
+		debouncedScanRef.current = setTimeout(() => {
+			debouncedScanRef.current = null
+			scheduleScanCandidates()
+		}, RESCAN_DEBOUNCE_MS)
+	}, [scheduleScanCandidates])
 
 	const selectableCandidates = useMemo(
 		() =>
@@ -123,16 +164,24 @@ export function useSnapshotScanner({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: rerun scan when the iframe markup changes.
 	useEffect(() => {
 		scanCandidates()
-		const onResize = () => scheduleScanCandidates()
-		window.addEventListener("resize", onResize)
-		return () => window.removeEventListener("resize", onResize)
-	}, [scanCandidates, scheduleScanCandidates, preparedHtml])
+		window.addEventListener("resize", scheduleDebouncedScan)
+		return () => window.removeEventListener("resize", scheduleDebouncedScan)
+	}, [scanCandidates, scheduleDebouncedScan, preparedHtml])
+
+	// Watchers on the loaded iframe document (fonts, content size).
+	const docWatchCleanupRef = useRef<(() => void) | null>(null)
 
 	useEffect(() => {
 		return () => {
+			docWatchCleanupRef.current?.()
+			docWatchCleanupRef.current = null
 			if (scheduledScanRef.current !== null) {
 				cancelAnimationFrame(scheduledScanRef.current)
 				scheduledScanRef.current = null
+			}
+			if (debouncedScanRef.current !== null) {
+				clearTimeout(debouncedScanRef.current)
+				debouncedScanRef.current = null
 			}
 		}
 	}, [])
@@ -221,15 +270,32 @@ export function useSnapshotScanner({
 		scanCandidates()
 		setIframeLoaded(true)
 
+		// Web fonts and late content change layout after `load`; rescan so
+		// candidates, text blocks and physics bodies match what's on screen.
+		docWatchCleanupRef.current?.()
+		const resizeObserver =
+			typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleDebouncedScan)
+		resizeObserver?.observe(doc.body)
+		const fonts = doc.fonts
+		fonts?.addEventListener("loadingdone", scheduleDebouncedScan)
+		if (fonts && fonts.status !== "loaded") void fonts.ready.then(() => scheduleDebouncedScan())
+		docWatchCleanupRef.current = () => {
+			resizeObserver?.disconnect()
+			fonts?.removeEventListener("loadingdone", scheduleDebouncedScan)
+		}
+
 		// Copy @font-face rules from iframe to the parent document so the
 		// Pretext text overlay can render with the same custom fonts.
 		try {
 			const fontRules: string[] = []
 			for (const sheet of Array.from(doc.styleSheets)) {
 				try {
+					const sheetBase = sheet.href ?? doc.baseURI
 					for (const rule of Array.from(sheet.cssRules)) {
-						if (rule instanceof CSSFontFaceRule) {
-							fontRules.push(rule.cssText)
+						// Not `instanceof CSSFontFaceRule`: rules belong to the iframe's
+						// realm, so the parent's constructor never matches.
+						if (rule.type === CSSRule.FONT_FACE_RULE) {
+							fontRules.push(absolutizeCssUrls(rule.cssText, sheetBase))
 						}
 					}
 				} catch {
@@ -279,7 +345,7 @@ export function useSnapshotScanner({
 				scheduleScanCandidates()
 			})
 		}
-	}, [iframeRef, scanCandidates, scheduleScanCandidates])
+	}, [iframeRef, scanCandidates, scheduleScanCandidates, scheduleDebouncedScan])
 
 	const saveNode = useCallback(
 		(id: string) => {

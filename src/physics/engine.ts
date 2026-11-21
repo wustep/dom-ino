@@ -43,6 +43,12 @@ export interface PhysicsEngine {
 	resize: (width: number, height: number) => void
 	addBody: (el: SceneElement) => void
 	removeBody: (id: string) => void
+	/**
+	 * Re-syncs a body with its element's latest rect (the source page re-laid
+	 * out, e.g. after web fonts loaded). Untouched bodies follow the new layout;
+	 * thrown bodies keep their position/velocity but take the new size.
+	 */
+	updateBodyRect: (el: SceneElement) => void
 	updateAlphaBounds: (id: string, bounds: AlphaTightBounds | null) => void
 	getBodyPositions: () => Map<string, { x: number; y: number; angle: number; w: number; h: number }>
 }
@@ -73,6 +79,8 @@ export function createPhysicsEngine(
 	const walls: Matter.Body[] = []
 
 	const wallThickness = 80
+	/** Contact resolution lets resting bodies sink a hair into walls; ignore that. */
+	const CLAMP_TOLERANCE = 2
 	let W = scene.width
 	let H = scene.height
 	let rotationAllowed = true
@@ -208,40 +216,64 @@ export function createPhysicsEngine(
 		const b = pb.body
 		if (b.isStatic) return
 
-		const pos = b.position
-		const hw = pb.originalW / 2
-		const hh = pb.originalH / 2
 		const element = elementsById.get(pb.elementId)
-		let clamped = false
-		let nx = pos.x
-		let ny = pos.y
+		// Use the body's actual axis-aligned bounds. The unrotated element size is
+		// wrong once a body rotates (a tall element lying on its side was held
+		// half its height above the floor, fighting the wall every frame) and
+		// once alpha-aware bounds have resized the physics shape.
+		const { min, max } = vertexBounds(b)
+		let dx = 0
+		let dy = 0
+		if (max.x - min.x >= width) dx = width / 2 - (min.x + max.x) / 2
+		else if (min.x < -CLAMP_TOLERANCE) dx = -min.x
+		else if (max.x > width + CLAMP_TOLERANCE) dx = width - max.x
+		if (max.y - min.y >= height) dy = height / 2 - (min.y + max.y) / 2
+		else if (min.y < -CLAMP_TOLERANCE) dy = -min.y
+		else if (max.y > height + CLAMP_TOLERANCE) dy = height - max.y
 
-		if (nx - hw < 0) {
-			nx = hw
-			clamped = true
-		}
-		if (nx + hw > width) {
-			nx = width - hw
-			clamped = true
-		}
-		if (ny - hh < 0) {
-			ny = hh
-			clamped = true
-		}
-		if (ny + hh > height) {
-			ny = height - hh
-			clamped = true
-		}
-
-		if (clamped) {
-			Body.setPosition(b, { x: nx, y: ny })
-			Body.setVelocity(b, { x: b.velocity.x * 0.5, y: b.velocity.y * 0.5 })
+		if (dx !== 0 || dy !== 0) {
+			Body.translate(b, { x: dx, y: dy })
+			// Kill (and slightly bounce) only the velocity component heading out.
+			const vx = Math.sign(dx) * b.velocity.x < 0 ? -b.velocity.x * 0.3 : b.velocity.x
+			const vy = Math.sign(dy) * b.velocity.y < 0 ? -b.velocity.y * 0.3 : b.velocity.y
+			Body.setVelocity(b, { x: vx, y: vy })
 		}
 
 		if (element?.lockRotation || !rotationAllowed) {
 			if (Math.abs(b.angle) > 0.0001) Body.setAngle(b, 0)
 			if (Math.abs(b.angularVelocity) > 0.0001) Body.setAngularVelocity(b, 0)
 		}
+	}
+
+	/**
+	 * Axis-aligned bounds of the body's actual vertices. (`body.bounds` is swept
+	 * by the current velocity, so it would clamp fast bodies early.)
+	 */
+	function vertexBounds(b: Matter.Body) {
+		const min = { x: Infinity, y: Infinity }
+		const max = { x: -Infinity, y: -Infinity }
+		for (const v of b.vertices) {
+			if (v.x < min.x) min.x = v.x
+			if (v.y < min.y) min.y = v.y
+			if (v.x > max.x) max.x = v.x
+			if (v.y > max.y) max.y = v.y
+		}
+		return { min, max }
+	}
+
+	/** True while a dynamic body still sits, untouched, where it was created. */
+	function isAtOriginalPlacement(pb: PhysicsBody): boolean {
+		const b = pb.body
+		const offset = pb.alphaBoundsOffset
+		const cx = pb.originalX + pb.originalW / 2 + (offset?.dx ?? 0)
+		const cy = pb.originalY + pb.originalH / 2 + (offset?.dy ?? 0)
+		return (
+			Math.abs(b.position.x - cx) < 0.5 &&
+			Math.abs(b.position.y - cy) < 0.5 &&
+			Math.abs(b.angle) < 0.001 &&
+			Math.abs(b.velocity.x) < 0.05 &&
+			Math.abs(b.velocity.y) < 0.05
+		)
 	}
 
 	const mouse = Mouse.create(container) as InternalMouse
@@ -464,6 +496,54 @@ export function createPhysicsEngine(
 			World.remove(engine.world, pb.body)
 			bodies.delete(id)
 			elementsById.delete(id)
+		},
+
+		updateBodyRect(el: SceneElement) {
+			const pb = bodies.get(el.id)
+			if (!pb || pb.body.isStatic) return
+			const { x, y, width, height } = el.rect
+			const moved = Math.abs(pb.originalX - x) >= 0.5 || Math.abs(pb.originalY - y) >= 0.5
+			const resized =
+				Math.abs(pb.originalW - width) >= 0.5 || Math.abs(pb.originalH - height) >= 0.5
+			if (!moved && !resized) return
+
+			const untouched = isAtOriginalPlacement(pb)
+			if (!resized) {
+				if (untouched) {
+					Body.setPosition(pb.body, { x: x + width / 2, y: y + height / 2 })
+				}
+				pb.originalX = x
+				pb.originalY = y
+				elementsById.set(el.id, el)
+				return
+			}
+
+			// Size changed: rebuild the body (Body.scale distorts rotated bodies).
+			const old = pb.body
+			const center = untouched ? { x: x + width / 2, y: y + height / 2 } : { ...old.position }
+			const next = createBody({
+				...el,
+				rect: { x: center.x - width / 2, y: center.y - height / 2, width, height },
+				initialVelocityX: undefined,
+				initialVelocityY: undefined,
+			})
+			if (!next) return
+			World.remove(engine.world, old)
+			if (!untouched) {
+				Body.setAngle(next.body, old.angle)
+				Body.setVelocity(next.body, old.velocity)
+				Body.setAngularVelocity(next.body, old.angularVelocity)
+			}
+			if (old.restitution !== next.body.restitution) next.body.restitution = old.restitution
+			bodies.set(el.id, {
+				...next,
+				originalX: x,
+				originalY: y,
+				initialVelocityX: pb.initialVelocityX,
+				initialVelocityY: pb.initialVelocityY,
+			})
+			elementsById.set(el.id, el)
+			World.add(engine.world, next.body)
 		},
 
 		updateAlphaBounds(id: string, bounds: AlphaTightBounds | null) {

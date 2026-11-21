@@ -483,6 +483,13 @@ export function pickContentRoot(doc: Document): HTMLElement {
 	return doc.body as HTMLElement
 }
 
+/**
+ * Marks nodes DOMino has hidden (selected originals replaced by physics clones,
+ * text replaced by the Pretext overlay). The value is the node's original inline
+ * `visibility`, so measurements can temporarily see the page as the site drew it.
+ */
+export const DOMINO_HIDDEN_ATTR = "data-domino-hidden"
+
 export function syncHiddenNodes(
 	hiddenNodes: Map<HTMLElement, string>,
 	desiredNodes: Iterable<HTMLElement>,
@@ -492,12 +499,15 @@ export function syncHiddenNodes(
 	for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
 		if (desired.has(node)) continue
 		node.style.visibility = originalVisibility
+		node.removeAttribute(DOMINO_HIDDEN_ATTR)
 		hiddenNodes.delete(node)
 	}
 
 	for (const node of desired) {
 		if (hiddenNodes.has(node)) continue
-		hiddenNodes.set(node, node.style.visibility || "")
+		const original = node.style.visibility || ""
+		hiddenNodes.set(node, original)
+		node.setAttribute(DOMINO_HIDDEN_ATTR, original)
 		node.style.visibility = "hidden"
 	}
 }
@@ -505,6 +515,23 @@ export function syncHiddenNodes(
 export function restoreHiddenNodes(hiddenNodes: Map<HTMLElement, string>) {
 	for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
 		node.style.visibility = originalVisibility
+		node.removeAttribute(DOMINO_HIDDEN_ATTR)
 	}
 	hiddenNodes.clear()
+}
+
+/**
+ * Runs `measure` with every node DOMino hid temporarily restored, so scans and
+ * clones see the page as the site rendered it rather than skipping (or
+ * copying `visibility: hidden` from) our own hidden originals. Synchronous, so
+ * the restored state is never painted.
+ */
+export function withDominoHiddenNodesRevealed<T>(doc: Document, measure: () => T): T {
+	const hidden = Array.from(doc.querySelectorAll<HTMLElement>(`[${DOMINO_HIDDEN_ATTR}]`))
+	for (const node of hidden) node.style.visibility = node.getAttribute(DOMINO_HIDDEN_ATTR) ?? ""
+	try {
+		return measure()
+	} finally {
+		for (const node of hidden) node.style.visibility = "hidden"
+	}
 }

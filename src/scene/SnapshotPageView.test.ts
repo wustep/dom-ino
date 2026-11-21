@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { SceneElement } from "../scene/types"
 import {
+	excludeBlocksOverlapping,
 	hasMovedImportedElement,
 	hasRenderableImportedText,
 	shouldActivateImportedTextFlow,
@@ -162,5 +163,31 @@ describe("shouldActivateImportedTextFlow", () => {
 				droppedElementCount: 1,
 			}),
 		).toBe(false)
+	})
+})
+
+describe("excludeBlocksOverlapping", () => {
+	const block = (node: HTMLElement) => ({ id: node.id, node, sceneElement: makeTextElement() })
+
+	it("drops text blocks inside or around selected elements", () => {
+		const card = document.createElement("div")
+		const inner = document.createElement("p")
+		inner.id = "inner"
+		card.appendChild(inner)
+		const outer = document.createElement("p")
+		outer.id = "outer"
+		const button = document.createElement("a")
+		outer.appendChild(button)
+		const unrelated = document.createElement("p")
+		unrelated.id = "unrelated"
+
+		const blocks = [block(inner), block(outer), block(unrelated)]
+		const result = excludeBlocksOverlapping(blocks, [{ node: card }, { node: button }])
+		expect(result.map((b) => b.id)).toEqual(["unrelated"])
+	})
+
+	it("returns the same array when nothing is selected", () => {
+		const blocks = [block(document.createElement("p"))]
+		expect(excludeBlocksOverlapping(blocks, [])).toBe(blocks)
 	})
 })

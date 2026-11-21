@@ -16,6 +16,7 @@ import {
 	syncHiddenNodes,
 } from "../scene/snapshotHelpers"
 import {
+	excludeBlocksOverlapping,
 	hasMovedImportedElement,
 	hasRenderableImportedText,
 	shouldActivateImportedTextFlow,
@@ -177,10 +178,22 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		[bodyPositions, selectedElements],
 	)
 
+	// Text inside a selected element travels with its clone (and text around
+	// one would still include its words); reflowing those blocks in place as
+	// well drew the same text twice once the element was thrown.
+	const flowTextBlocks = useMemo(
+		() => excludeBlocksOverlapping(textBlocks, selectedCandidates),
+		[textBlocks, selectedCandidates],
+	)
+	const flowTextBodyBlocks = useMemo(
+		() => excludeBlocksOverlapping(textBodyBlocks, selectedCandidates),
+		[textBodyBlocks, selectedCandidates],
+	)
+
 	const importedTextFlowActive = shouldActivateImportedTextFlow({
 		pretextEnabled: settings.pretextEnabled,
 		textBodiesEnabled: settings.textBodiesEnabled,
-		textBlockCount: textBlocks.length,
+		textBlockCount: flowTextBlocks.length,
 		selectedObstacleCount: hasMovedSelectedElements
 			? selectedElements.length
 			: activeSelectedIds.size,
@@ -188,11 +201,11 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		droppedElementCount: droppedElements.length,
 	})
 
-	const importedTextBodiesActive = settings.textBodiesEnabled && textBodyBlocks.length > 0
+	const importedTextBodiesActive = settings.textBodiesEnabled && flowTextBodyBlocks.length > 0
 
 	const sortedTextBlocks = useMemo(
-		() => [...textBlocks].sort(compareTextBlockPosition),
-		[textBlocks],
+		() => [...flowTextBlocks].sort(compareTextBlockPosition),
+		[flowTextBlocks],
 	)
 
 	// When letter-body mode is active, measure each text block's glyphs from
@@ -206,7 +219,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		const nextBodies: SceneElement[] = []
 		const nextBlockIds = new Set<string>()
 		const zeroRect = new DOMRect(0, 0, 0, 0)
-		const orderedBlocks = [...textBodyBlocks].sort(compareTextBlockPosition)
+		const orderedBlocks = [...flowTextBodyBlocks].sort(compareTextBlockPosition)
 		for (const block of orderedBlocks) {
 			const revealedNodes = revealHiddenAncestors(block.node)
 			try {
@@ -224,7 +237,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		}
 		setImportedTextBodyElements(nextBodies)
 		setImportedTextBodyBlockIds(nextBlockIds)
-	}, [iframeLoaded, importedTextBodiesActive, textBodyBlocks])
+	}, [iframeLoaded, importedTextBodiesActive, flowTextBodyBlocks])
 
 	useEffect(() => {
 		const hiddenTextNodes = hiddenTextNodesRef.current
@@ -479,6 +492,10 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		for (const el of physicsElements) {
 			if (!engine.bodies.has(el.id)) {
 				engine.addBody(el)
+			} else {
+				// A rescan after web fonts / late content / resize can move or resize
+				// the source element; keep its body (and clone) in sync.
+				engine.updateBodyRect(el)
 			}
 		}
 	}, [physicsElements])

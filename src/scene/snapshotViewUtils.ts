@@ -1,6 +1,7 @@
 import type { SceneElement } from "../scene/types"
 import type { TextFlowResult } from "../textflow/useTextFlow"
 import type { BodyPos } from "../utils/physics"
+import type { SnapshotCandidate, SnapshotTextBlock } from "./snapshotHelpers"
 
 export type ViewportRectLike = Pick<DOMRect, "left" | "top" | "width" | "height">
 
@@ -53,4 +54,19 @@ export function shouldActivateImportedTextFlow({
 	if (!pretextEnabled || textBodiesEnabled || textBlockCount === 0) return false
 
 	return selectedObstacleCount > 0 || staticObstacleCount > 0 || droppedElementCount > 0
+}
+
+/**
+ * Drops text blocks inside (or containing) a selected element: that text
+ * travels with the element's physics clone, so reflowing it in place as well
+ * would draw it twice once the element is thrown.
+ */
+export function excludeBlocksOverlapping(
+	blocks: SnapshotTextBlock[],
+	selected: Pick<SnapshotCandidate, "node">[],
+): SnapshotTextBlock[] {
+	if (selected.length === 0) return blocks
+	return blocks.filter(
+		(block) => !selected.some((c) => c.node.contains(block.node) || block.node.contains(c.node)),
+	)
 }

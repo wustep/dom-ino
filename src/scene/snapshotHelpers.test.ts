@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { SceneElement } from "../scene/types"
 import {
 	coerceForcedTextSceneElement,
+	DOMINO_HIDDEN_ATTR,
 	elementToSceneElement,
 	extractInlineStyles,
 	getStableNodeId,
@@ -14,6 +15,7 @@ import {
 	revealHiddenAncestors,
 	syncHiddenNodes,
 	textOf,
+	withDominoHiddenNodesRevealed,
 } from "./snapshotHelpers"
 
 function makeElement(tag: string, attrs?: Record<string, string>): HTMLElement {
@@ -586,6 +588,55 @@ describe("restoreHiddenNodes", () => {
 		expect(b.style.visibility).toBe("hidden")
 		restoreHiddenNodes(map)
 		expect(map.size).toBe(0)
+	})
+})
+
+describe("withDominoHiddenNodesRevealed", () => {
+	it("marks hidden nodes and clears the mark on restore", () => {
+		const map = new Map<HTMLElement, string>()
+		const node = document.createElement("div")
+		node.style.visibility = "collapse"
+		syncHiddenNodes(map, [node])
+		expect(node.getAttribute(DOMINO_HIDDEN_ATTR)).toBe("collapse")
+		restoreHiddenNodes(map)
+		expect(node.hasAttribute(DOMINO_HIDDEN_ATTR)).toBe(false)
+	})
+
+	// Regression: rescans (resize, fonts, images) ran while selected originals and
+	// Pretext-replaced text were visibility:hidden, so the scanner skipped them
+	// and every selection + the text overlay vanished.
+	it("lets measurements see DOMino-hidden nodes as the site rendered them", () => {
+		const map = new Map<HTMLElement, string>()
+		const selected = document.createElement("div")
+		const text = document.createElement("p")
+		document.body.append(selected, text)
+		syncHiddenNodes(map, [selected, text])
+
+		const seen = withDominoHiddenNodesRevealed(document, () =>
+			[selected, text].map((n) => getComputedStyle(n).visibility),
+		)
+
+		expect(seen).toEqual(["visible", "visible"])
+		expect(selected.style.visibility).toBe("hidden")
+		expect(text.style.visibility).toBe("hidden")
+		restoreHiddenNodes(map)
+		selected.remove()
+		text.remove()
+	})
+
+	it("re-hides nodes even if the measurement throws", () => {
+		const map = new Map<HTMLElement, string>()
+		const node = document.createElement("div")
+		document.body.append(node)
+		syncHiddenNodes(map, [node])
+		expect(() =>
+			withDominoHiddenNodesRevealed(document, () => {
+				throw new Error("boom")
+			}),
+		).toThrow("boom")
+		expect(node.style.visibility).toBe("hidden")
+		restoreHiddenNodes(map)
+		node.remove()
 	})
 })
 
