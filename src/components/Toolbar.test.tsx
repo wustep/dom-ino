@@ -332,8 +332,7 @@ describe("Toolbar", () => {
 		it("shows empty state when no saved elements", async () => {
 			renderToolbar()
 			await userEvent.click(screen.getByLabelText("Saved components (S)"))
-			// "Pick from page" appears as both a button and in help text; check the button
-			expect(screen.getByText("Pick from page")).toBeInTheDocument()
+			expect(screen.getByText(/Drop image files or mp4s here/)).toBeInTheDocument()
 		})
 
 		it("shows saved elements with labels", async () => {
