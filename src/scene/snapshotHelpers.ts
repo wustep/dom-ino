@@ -274,6 +274,75 @@ export function hasSignificantMediaDescendants(el: HTMLElement): boolean {
 	})
 }
 
+/** Subtrees larger than this are never treated as empty placeholders (bounds the check). */
+const MAX_PLACEHOLDER_SUBTREE = 40
+
+const hasGeneratedContent = (win: Window, el: Element, pseudo: "::before" | "::after") => {
+	const content = win.getComputedStyle(el, pseudo).content
+	return Boolean(content) && content !== "none" && content !== "normal" && content !== '""'
+}
+
+/**
+ * True for boxes that draw nothing but their own background/border: no text,
+ * no image with a source, no drawn SVG, no form control, no `url()` background
+ * and no generated (`::before`/`::after`) content. Server-rendered pages ship
+ * these as loading skeletons that their JS fills in later (NYTimes renders
+ * empty `<picture>` and `<svg>` slots on a gray background), and since we strip
+ * scripts they stay empty; as physics bodies they are just flat gray boxes.
+ *
+ * A `<figure>` whose only content is its `<figcaption>` (a photo credit under
+ * empty media slots) counts as empty too.
+ *
+ * `text` is the element's normalized text when the caller already has it.
+ */
+export function isEmptyPlaceholder(el: HTMLElement, win: Window, text?: string): boolean {
+	const descendants = el.getElementsByTagName("*")
+	if (descendants.length > MAX_PLACEHOLDER_SUBTREE) return false
+	const isFigure = el.localName === "figure"
+	const inCaption = (node: Element) => {
+		if (!isFigure) return false
+		const caption = node.closest("figcaption")
+		return caption !== null && el.contains(caption)
+	}
+	if (isFigure) {
+		const walker = el.ownerDocument.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */)
+		for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+			const parent = t.parentElement
+			if (!parent || inCaption(parent) || /^(style|script|noscript)$/.test(parent.localName))
+				continue
+			if (t.textContent?.trim()) return false
+		}
+	} else if ((text ?? textOf(el)).length > 0) {
+		return false
+	}
+	for (const node of [el, ...Array.from(descendants)]) {
+		if (inCaption(node)) continue
+		switch (node.localName) {
+			case "img": {
+				const img = node as HTMLImageElement
+				if (img.currentSrc || img.getAttribute("src") || img.getAttribute("srcset")) return false
+				break
+			}
+			case "svg":
+				if (node.firstElementChild) return false
+				break
+			case "video":
+			case "canvas":
+			case "input":
+			case "textarea":
+			case "select":
+			case "button":
+			case "math":
+				return false
+		}
+		const cs = win.getComputedStyle(node)
+		if (/url\(|image-set\(/i.test(cs.backgroundImage)) return false
+		if (hasGeneratedContent(win, node, "::before") || hasGeneratedContent(win, node, "::after"))
+			return false
+	}
+	return true
+}
+
 export function inferSnapshotElementType(
 	el: HTMLElement,
 	cs: CSSStyleDeclaration,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { isAutoSelectEligible, isForceAutoSelectNode } from "../scene/siteStyles"
 import {
+	isEmptyPlaceholder,
 	type SnapshotCandidate,
 	type SnapshotTextBlock,
 	withDominoHiddenNodesRevealed,
@@ -265,6 +266,7 @@ export function useSnapshotScanner({
 
 		const throwableTypes = new Set(["image", "badge", "button", "card", "link", "input"])
 		const picked: SnapshotCandidate[] = []
+		const sourceWindow = iframeRef.current?.contentWindow ?? window
 
 		if (maxAutoSelectComponents > 0) {
 			for (const c of selectableCandidates) {
@@ -292,7 +294,7 @@ export function useSnapshotScanner({
 				const isMediaWrapper = t === "image" && (tag === "FIGURE" || isGallery)
 				const isFloatAnchor = (() => {
 					try {
-						const styles = (iframeRef.current?.contentWindow ?? window).getComputedStyle(c.node)
+						const styles = sourceWindow.getComputedStyle(c.node)
 						return styles.float === "left" || styles.float === "right"
 					} catch {
 						return false
@@ -305,6 +307,8 @@ export function useSnapshotScanner({
 				if (t === "card" && !isNoticeBox && (c.width > 400 || c.height > 300)) continue
 				if (isNoticeBox && (c.width > 980 || c.height > 320)) continue
 				if (picked.some((p) => p.node.contains(c.node))) continue
+				// Loading skeletons (still manually selectable in the picker).
+				if (isEmptyPlaceholder(c.node, sourceWindow, c.sceneElement.text ?? "")) continue
 				picked.push(c)
 				if (picked.length >= maxAutoSelectComponents) break
 			}

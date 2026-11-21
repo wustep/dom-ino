@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { SceneElement } from "../scene/types"
 import {
 	coerceForcedTextSceneElement,
@@ -8,6 +8,7 @@ import {
 	getStableNodeId,
 	INLINE_TAGS,
 	inferSnapshotElementType,
+	isEmptyPlaceholder,
 	isTextSceneElement,
 	pickContentRoot,
 	restoreHiddenNodes,
@@ -653,5 +654,67 @@ describe("INLINE_TAGS", () => {
 		for (const tag of ["DIV", "P", "SECTION", "H1"]) {
 			expect(INLINE_TAGS.has(tag)).toBe(false)
 		}
+	})
+})
+
+describe("isEmptyPlaceholder", () => {
+	function mount(html: string): HTMLElement {
+		const host = document.createElement("div")
+		host.innerHTML = html
+		document.body.appendChild(host)
+		return host.firstElementChild as HTMLElement
+	}
+
+	afterEach(() => {
+		document.body.innerHTML = ""
+	})
+
+	// NYTimes server-renders image slots as an empty <picture> on a gray
+	// background; their JS fills it in later, which never happens here.
+	it("flags empty media skeletons", () => {
+		const el = mount(
+			`<figure><div style="background-color: rgb(235, 235, 235)"><picture></picture></div></figure>`,
+		)
+		expect(isEmptyPlaceholder(el, window)).toBe(true)
+	})
+
+	it("flags figures whose only content is a caption under empty SVG slots", () => {
+		const el = mount(
+			`<figure><a><div><svg width="100%" height="100%"></svg></div><div><svg></svg></div></a><div><figcaption>Photo credit</figcaption></div></figure>`,
+		)
+		expect(isEmptyPlaceholder(el, window)).toBe(true)
+	})
+
+	it("keeps elements with text, images, drawn SVG, controls or background images", () => {
+		expect(isEmptyPlaceholder(mount(`<div style="background: #eee">Breaking</div>`), window)).toBe(
+			false,
+		)
+		expect(isEmptyPlaceholder(mount(`<figure><img src="/a.jpg"></figure>`), window)).toBe(false)
+		expect(
+			isEmptyPlaceholder(
+				mount(`<figure><picture><img srcset="/a.jpg 1x"></picture></figure>`),
+				window,
+			),
+		).toBe(false)
+		expect(isEmptyPlaceholder(mount(`<a><svg><path d="M0 0h1v1z"></path></svg></a>`), window)).toBe(
+			false,
+		)
+		expect(isEmptyPlaceholder(mount(`<div><button></button></div>`), window)).toBe(false)
+		expect(
+			isEmptyPlaceholder(mount(`<div style="background-image: url(/hero.jpg)"></div>`), window),
+		).toBe(false)
+		expect(
+			isEmptyPlaceholder(mount(`<figure><blockquote>Quote</blockquote></figure>`), window),
+		).toBe(false)
+	})
+
+	it("uses the caller's text when given", () => {
+		const el = mount(`<div><picture></picture></div>`)
+		expect(isEmptyPlaceholder(el, window, "Headline")).toBe(false)
+	})
+
+	it("does not analyse large subtrees", () => {
+		const el = mount(`<div>${"<span></span>".repeat(60)}</div>`)
+		expect(isEmptyPlaceholder(el, window)).toBe(false)
 	})
 })
