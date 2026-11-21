@@ -169,3 +169,27 @@ body {
 	font-size: 15px;
 	opacity: 0.6;
 }
+
+/* ── Archived-copy note (website mode) ── */
+.domino-archive-note {
+	position: fixed;
+	left: 12px;
+	bottom: 12px;
+	z-index: 9000;
+	padding: 4px 10px;
+	border-radius: 999px;
+	background-color: rgba(20, 20, 24, 0.72);
+	backdrop-filter: blur(8px);
+	color: #e8e8e8;
+	font-family: "DM Sans", sans-serif;
+	font-size: 11px;
+	font-weight: 500;
+	letter-spacing: 0.01em;
+	text-decoration: none;
+	opacity: 0.8;
+	transition: opacity 0.15s;
+}
+
+.domino-archive-note:hover {
+	opacity: 1;
+}

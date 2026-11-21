@@ -292,6 +292,7 @@ export default function App({ initialFetchUrl = null, initialPreset = null }: Ap
 				) : null}
 				{nav.fetchingUrl && <FetchOverlay url={nav.fetchingUrl} />}
 				{nav.showHint && !showWelcome && <Hint />}
+				{nav.fetchError && <DropToast message={nav.fetchError} isError bottom={164} />}
 				{persistenceWarning && <DropToast message={persistenceWarning} isError bottom={120} />}
 				{dropError && <DropToast message={dropError} isError />}
 				{showWelcome && <WelcomeDialog onClose={dismissWelcome} />}

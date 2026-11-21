@@ -24,6 +24,7 @@ import type { ObstacleRect, SavedElement, SceneElement, SnapshotCustomPage } fro
 import { measureGlyphBodiesFromDomNode } from "../textflow/glyphBodies"
 import { loadSettings, saveSettings } from "../utils/persistence"
 import { isAcceptableStashImageFile, savedElementFromImageFile } from "../utils/stashImageFromFile"
+import { ArchiveNote } from "./Overlays"
 import {
 	SnapshotPickerOverlay,
 	type SnapshotPickerOverlayItem,
@@ -590,6 +591,10 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 					hidden={!!pickerMode}
 				/>
 			</div>
+
+			{page.archiveTimestamp && (
+				<ArchiveNote timestamp={page.archiveTimestamp} sourceUrl={page.sourceUrl} />
+			)}
 
 			<SettingsContext
 				value={{

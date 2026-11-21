@@ -165,6 +165,11 @@ export interface SnapshotCustomPage {
 	kind: "snapshot"
 	preparedHtml: string
 	sourceUrl?: string
+	/**
+	 * Set when the live site blocked automated fetching and the HTML came from
+	 * the Wayback Machine: 14-digit capture timestamp (e.g. "20261116211303").
+	 */
+	archiveTimestamp?: string
 }
 
 export type CustomPage = SceneCustomPage | SnapshotCustomPage

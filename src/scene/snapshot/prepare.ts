@@ -136,14 +136,82 @@ function rewriteFetchedDocumentMarkup(html: string): string {
 
 // ─── HTML preparation: inline CSS + fix URLs ───
 
-/** Prepares fetched HTML for viewer: inlines external CSS, rewrites URLs, promotes noscript images, strips scripts. */
-export async function prepareHtml(html: string, sourceUrl: string): Promise<string> {
-	let origin: string
+const MAX_INLINED_CSS_CHARS = 1_000_000
+
+export interface PrepareHtmlOptions {
+	/**
+	 * Wayback timestamp when the page HTML came from the archive. Stylesheets are
+	 * still fetched from the original site first; the proxy falls back to the
+	 * same capture if they have rotated off the live CDN.
+	 */
+	archiveTimestamp?: string
+}
+
+/**
+ * Resolves a reference from the page against the page's own URL (not just its
+ * origin), so page-relative paths like `css/site.css` on `/blog/post` resolve
+ * to `/blog/css/site.css`. For archived pages this is still the original URL,
+ * never web.archive.org.
+ */
+function resolveAgainstPage(ref: string, pageUrl: URL): string {
 	try {
-		origin = new URL(sourceUrl).origin
+		return new URL(ref, pageUrl).href
+	} catch {
+		return ref
+	}
+}
+
+/** Fetches a stylesheet through the proxy and rewrites its relative url() references. */
+async function fetchStylesheet(
+	cssUrl: string,
+	pageOrigin: string,
+	options: PrepareHtmlOptions,
+): Promise<string | null> {
+	const params = new URLSearchParams({ url: cssUrl, asset: "1" })
+	if (options.archiveTimestamp) params.set("archive", options.archiveTimestamp)
+	try {
+		const res = await fetch(`/api/fetch-page?${params.toString()}`, {
+			signal: AbortSignal.timeout(8000),
+		})
+		if (!res.ok) return null
+		const css = await res.text()
+		if (css.length <= 10 || css.length >= MAX_INLINED_CSS_CHARS) return null
+		// Rewrite url() references in CSS to absolute.
+		// Use the CSS file's own origin for absolute paths (/foo),
+		// not the page origin — fonts often live on a different CDN.
+		const cssBase = cssUrl.replace(/[^/]*$/, "")
+		let cssOrigin: string
+		try {
+			cssOrigin = new URL(cssUrl).origin
+		} catch {
+			cssOrigin = pageOrigin
+		}
+		return css.replace(
+			/url\(\s*['"]?(?!data:|https?:|\/\/)([^'")]+)['"]?\s*\)/gi,
+			(_, ref: string) => {
+				const abs = ref.startsWith("/") ? cssOrigin + ref : cssBase + ref
+				return `url("${abs}")`
+			},
+		)
+	} catch (e) {
+		console.warn("[DOMino] Failed to fetch stylesheet:", cssUrl, e)
+		return null
+	}
+}
+
+/** Prepares fetched HTML for viewer: inlines external CSS, rewrites URLs, promotes noscript images, strips scripts. */
+export async function prepareHtml(
+	html: string,
+	sourceUrl: string,
+	options: PrepareHtmlOptions = {},
+): Promise<string> {
+	let pageUrl: URL
+	try {
+		pageUrl = new URL(sourceUrl)
 	} catch {
 		return html
 	}
+	const origin = pageUrl.origin
 
 	let modified = html
 
@@ -158,102 +226,33 @@ export async function prepareHtml(html: string, sourceUrl: string): Promise<stri
 			if (!m) return null
 			// Decode HTML entities in href
 			const rawHref = m[1].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-			const cssUrl =
-				rawHref.startsWith("http") || rawHref.startsWith("//")
-					? rawHref.startsWith("//")
-						? `https:${rawHref}`
-						: rawHref
-					: origin + (rawHref.startsWith("/") ? "" : "/") + rawHref
-			try {
-				const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, {
-					signal: AbortSignal.timeout(8000),
-				})
-				if (res.ok) {
-					let css = await res.text()
-					if (css.length > 10 && css.length < 1000000) {
-						// Rewrite url() references in CSS to absolute.
-						// Use the CSS file's own origin for absolute paths (/foo),
-						// not the page origin — fonts often live on a different CDN.
-						const cssBase = cssUrl.replace(/[^/]*$/, "")
-						let cssOrigin: string
-						try {
-							cssOrigin = new URL(cssUrl).origin
-						} catch {
-							cssOrigin = origin
-						}
-						css = css.replace(
-							/url\(\s*['"]?(?!data:|https?:|\/\/)([^'")]+)['"]?\s*\)/gi,
-							(_, ref: string) => {
-								const abs = ref.startsWith("/") ? cssOrigin + ref : cssBase + ref
-								return `url("${abs}")`
-							},
-						)
-						return { linkTag, css }
-					}
-				}
-			} catch (e) {
-				console.warn("[DOMino] Failed to fetch stylesheet:", cssUrl, e)
-			}
-			return null
+			const css = await fetchStylesheet(resolveAgainstPage(rawHref, pageUrl), origin, options)
+			return css === null ? null : { linkTag, css }
 		}),
 	)
 
 	for (const r of cssResults) {
 		if (!r) continue
-		modified = modified.replace(r.linkTag, `<style>${r.css}</style>`)
+		// Function replacer: `$&`/`$1` sequences inside CSS must not be expanded.
+		modified = modified.replace(r.linkTag, () => `<style>${r.css}</style>`)
 	}
 
 	// 1b. Fetch site-specific CSS files (for sites that load CSS via JS)
 	const siteCssLinks = getSiteCssLinks(sourceUrl)
 	if (siteCssLinks.length > 0) {
 		const siteCssResults = await Promise.all(
-			siteCssLinks.map(async (href) => {
-				const cssUrl =
-					href.startsWith("http") || href.startsWith("//")
-						? href.startsWith("//")
-							? `https:${href}`
-							: href
-						: origin + (href.startsWith("/") ? "" : "/") + href
-				try {
-					const res = await fetch(`/api/fetch-page?url=${encodeURIComponent(cssUrl)}`, {
-						signal: AbortSignal.timeout(8000),
-					})
-					if (res.ok) {
-						let css = await res.text()
-						if (css.length > 10 && css.length < 1000000) {
-							let cssOrigin: string
-							try {
-								cssOrigin = new URL(cssUrl).origin
-							} catch {
-								cssOrigin = origin
-							}
-							const cssBase = cssUrl.replace(/[^/]*$/, "")
-							css = css.replace(
-								/url\(\s*['"]?(?!data:|https?:|\/\/)([^'")]+)['"]?\s*\)/gi,
-								(_, ref: string) => {
-									const abs = ref.startsWith("/") ? cssOrigin + ref : cssBase + ref
-									return `url("${abs}")`
-								},
-							)
-							return css
-						}
-					}
-				} catch (e) {
-					console.warn("[DOMino] Failed to fetch site CSS:", href, e)
-				}
-				return null
-			}),
+			siteCssLinks.map((href) =>
+				fetchStylesheet(resolveAgainstPage(href, pageUrl), origin, options),
+			),
 		)
 		const inlinedSiteCss = siteCssResults.filter(Boolean).join("\n")
 		if (inlinedSiteCss) {
 			// Inject before </head> or at start of document
+			const styleTag = `<style data-domino-site-css>${inlinedSiteCss}</style>`
 			if (/<\/head>/i.test(modified)) {
-				modified = modified.replace(
-					/<\/head>/i,
-					`<style data-domino-site-css>${inlinedSiteCss}</style></head>`,
-				)
+				modified = modified.replace(/<\/head>/i, () => `${styleTag}</head>`)
 			} else {
-				modified = `<style data-domino-site-css>${inlinedSiteCss}</style>${modified}`
+				modified = `${styleTag}${modified}`
 			}
 		}
 	}
@@ -266,7 +265,7 @@ export async function prepareHtml(html: string, sourceUrl: string): Promise<stri
 	modified = modified.replace(
 		/<img([^>]*)\ssrc=["'](?!data:|https?:|\/\/)([^"']+)["']/gi,
 		(_match, before: string, ref: string) =>
-			`<img${before} src="${origin}${ref.startsWith("/") ? "" : "/"}${ref}"`,
+			`<img${before} src="${resolveAgainstPage(ref, pageUrl)}"`,
 	)
 
 	// 3. Rewrite srcset to absolute (including protocol-relative)
@@ -307,7 +306,9 @@ export async function prepareHtml(html: string, sourceUrl: string): Promise<stri
     ${removeCSS}
     ${siteCSS}
   </style>`
-	const base = `<base href="${origin}/">`
+	// Base is the original page URL (also for archived copies) so any remaining
+	// relative references resolve exactly as they would on the live site.
+	const base = `<base href="${pageUrl.href.replace(/"/g, "%22")}">`
 	if (/<head[^>]*>/i.test(modified)) {
 		modified = modified.replace(/<head[^>]*>/i, (m) => m + base + headerFix)
 	} else {
