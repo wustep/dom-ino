@@ -24,3 +24,11 @@ PLAYWRIGHT_MODULE=/abs/path/node_modules/playwright/index.mjs \
 
 Results are written to `scripts/bench/results/<label>.json`; a markdown table
 of medians is printed to stdout.
+
+External sub-resources (Wikipedia images) are cached on disk under
+`$TMPDIR/domino-bench-cache` after the first fetch so network jitter doesn't
+leak into load timings. "scanner pass" reads `performance.measure("domino:scan")`,
+which older builds don't record (`n/a`).
+
+`nyt-shots.mjs` captures `nyt-after.png` / `nyt-after-physics.png` through the
+real proxy (live fetch → Wayback fallback).

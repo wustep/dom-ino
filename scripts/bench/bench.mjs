@@ -28,8 +28,10 @@
  *   --cpu-throttle <n>  CDP CPU throttling rate during the measurement window (default 1)
  *   --headed            Run with a visible browser window
  */
+import { createHash } from "node:crypto"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { dirname, resolve } from "node:path"
+import { tmpdir } from "node:os"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -61,6 +63,7 @@ function parseArgs(argv) {
 }
 
 const args = parseArgs(process.argv.slice(2))
+const CACHE_DIR = join(tmpdir(), "domino-bench-cache")
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
 
 // ─── Fixtures ───
@@ -241,6 +244,36 @@ async function runOnce(browser, scenario) {
 		localStorage.setItem("domino-settings", JSON.stringify(s))
 	}, settings)
 
+	// External sub-resources (Wikipedia images) are served from a disk cache
+	// after the first fetch so network jitter doesn't leak into the timings.
+	await page.route(/^https?:\/\/(?!localhost[:/]|127\.0\.0\.1)/, async (route) => {
+		const request = route.request()
+		if (request.method() !== "GET") return route.continue()
+		const key = createHash("sha1").update(request.url()).digest("hex")
+		const file = join(CACHE_DIR, key)
+		try {
+			const cached = JSON.parse(await readFile(`${file}.json`, "utf8"))
+			return route.fulfill({
+				status: cached.status,
+				headers: cached.headers,
+				body: await readFile(file),
+			})
+		} catch {
+			/* not cached yet */
+		}
+		try {
+			const response = await route.fetch()
+			const body = await response.body()
+			const headers = { "content-type": response.headers()["content-type"] ?? "" }
+			await mkdir(CACHE_DIR, { recursive: true })
+			await writeFile(file, body)
+			await writeFile(`${file}.json`, JSON.stringify({ status: response.status(), headers }))
+			return route.fulfill({ status: response.status(), headers, body })
+		} catch {
+			return route.abort()
+		}
+	})
+
 	await page.route("**/api/fetch-page?**", async (route) => {
 		const target = new URL(route.request().url()).searchParams.get("url")
 		if (target === scenario.url) {
@@ -272,6 +305,12 @@ async function runOnce(browser, scenario) {
 	// Interactive: physics clones mounted and the count stable for 750ms.
 	await waitForStableClones(page)
 	const timeToInteractive = Date.now() - t0 - 750
+	// Scanner pass duration, when the build records it (performance.measure("domino:scan")).
+	// The largest entry is the full post-load scan (earlier ones see about:blank).
+	const scanPass = await page.evaluate(() => {
+		const scans = performance.getEntriesByName("domino:scan").map((e) => e.duration)
+		return scans.length ? Math.max(...scans) : null
+	})
 
 	await topUpSelection(page, args.bodies)
 	const bodyCount = await cloneCount(page)
@@ -369,6 +408,7 @@ async function runOnce(browser, scenario) {
 	return {
 		timeToScan,
 		timeToInteractive,
+		scanPass,
 		bodyCount,
 		frameMean: frame.mean,
 		frameP95: frame.p95,
@@ -388,6 +428,7 @@ async function runOnce(browser, scenario) {
 const METRICS = [
 	["timeToScan", "time to scan (ms)", 0],
 	["timeToInteractive", "time to interactive (ms)", 0],
+	["scanPass", "scanner pass (ms)", 1],
 	["bodyCount", "bodies", 0],
 	["frameMean", "frame mean (ms)", 2],
 	["frameP95", "frame p95 (ms)", 2],
@@ -417,7 +458,10 @@ try {
 			)
 		}
 		const summary = Object.fromEntries(
-			METRICS.map(([key]) => [key, median(runs.map((r) => r[key]))]),
+			METRICS.map(([key]) => {
+				const values = runs.map((r) => r[key]).filter((v) => v !== null)
+				return [key, values.length ? median(values) : null]
+			}),
 		)
 		results.scenarios[name] = { summary, runs }
 	}
@@ -433,7 +477,7 @@ const names = Object.keys(results.scenarios)
 console.log(`\n| metric (median of ${args.runs}) | ${names.join(" | ")} |`)
 console.log(`|---|${names.map(() => "---:").join("|")}|`)
 for (const [key, label, digits] of METRICS) {
-	const cells = names.map((n) => results.scenarios[n].summary[key].toFixed(digits))
+	const cells = names.map((n) => results.scenarios[n].summary[key]?.toFixed(digits) ?? "n/a")
 	console.log(`| ${label} | ${cells.join(" | ")} |`)
 }
 console.log(`\nWrote ${outPath}`)
