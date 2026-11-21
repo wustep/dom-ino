@@ -29,6 +29,68 @@ export function absolutizeCssUrls(cssText: string, baseUrl: string): string {
 	)
 }
 
+function sameSceneElement(a: SceneElement | null, b: SceneElement | null): boolean {
+	if (a === b) return true
+	if (!a || !b) return false
+	return (
+		a.type === b.type &&
+		a.rect.x === b.rect.x &&
+		a.rect.y === b.rect.y &&
+		a.rect.width === b.rect.width &&
+		a.rect.height === b.rect.height &&
+		a.text === b.text &&
+		a.fontSize === b.fontSize &&
+		a.fontWeight === b.fontWeight &&
+		a.fontStyle === b.fontStyle &&
+		a.fontFamily === b.fontFamily &&
+		a.lineHeight === b.lineHeight &&
+		a.color === b.color &&
+		a.letterSpacing === b.letterSpacing &&
+		a.textAlign === b.textAlign &&
+		a.padding === b.padding &&
+		a.paddingVertical === b.paddingVertical &&
+		a.backgroundColor === b.backgroundColor &&
+		a.border === b.border &&
+		a.borderRadius === b.borderRadius &&
+		a.boxShadow === b.boxShadow &&
+		a.imageSrc === b.imageSrc
+	)
+}
+
+/** True when two scans found the same candidates with the same geometry and styles. */
+export function sameCandidates(a: SnapshotCandidate[], b: SnapshotCandidate[]): boolean {
+	if (a === b) return true
+	if (a.length !== b.length) return false
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i]
+		const y = b[i]
+		if (
+			x.id !== y.id ||
+			x.node !== y.node ||
+			x.x !== y.x ||
+			x.y !== y.y ||
+			x.width !== y.width ||
+			x.height !== y.height ||
+			x.display !== y.display ||
+			x.saved !== y.saved ||
+			x.borderRadius !== y.borderRadius ||
+			!sameSceneElement(x.sceneElement, y.sceneElement)
+		)
+			return false
+	}
+	return true
+}
+
+export function sameTextBlocks(a: SnapshotTextBlock[], b: SnapshotTextBlock[]): boolean {
+	if (a === b) return true
+	if (a.length !== b.length) return false
+	for (let i = 0; i < a.length; i++) {
+		if (a[i].id !== b[i].id || a[i].node !== b[i].node) return false
+		if (!sameSceneElement(a[i].sceneElement, b[i].sceneElement)) return false
+	}
+	return true
+}
+
 interface UseSnapshotScannerOptions {
 	iframeRef: React.RefObject<HTMLIFrameElement | null>
 	stageRef: React.RefObject<HTMLDivElement | null>
@@ -103,16 +165,27 @@ export function useSnapshotScanner({
 		const win = iframe.contentWindow
 		if (!doc || !win || !doc.body) return
 
+		const start = performance.now()
 		// Selected originals and Pretext-replaced text are visibility:hidden; scan
 		// the page as the site rendered it, or rescans would drop them.
 		const result = withDominoHiddenNodesRevealed(doc, () =>
 			scanIframeDom(doc, win, iframe.clientHeight, sourceUrl, savedIdsRef.current),
 		)
+		try {
+			performance.measure("domino:scan", { start, end: performance.now() })
+		} catch {
+			/* User Timing L3 unavailable */
+		}
 		nodesRef.current = result.nodes
 		textNodesRef.current = result.textNodes
-		setCandidates(result.candidates)
-		setTextBlocks(result.textBlocks)
-		setTextBodyBlocks(result.textBodyBlocks)
+		// Most rescans (fonts settling, resize events, observer callbacks) find
+		// the same layout; keeping the previous arrays avoids re-running
+		// selection, physics sync and text layout for nothing.
+		setCandidates((prev) => (sameCandidates(prev, result.candidates) ? prev : result.candidates))
+		setTextBlocks((prev) => (sameTextBlocks(prev, result.textBlocks) ? prev : result.textBlocks))
+		setTextBodyBlocks((prev) =>
+			sameTextBlocks(prev, result.textBodyBlocks) ? prev : result.textBodyBlocks,
+		)
 		setIframeHeight(result.bodyHeight)
 	}, [iframeRef, stageRef, sourceUrl])
 
