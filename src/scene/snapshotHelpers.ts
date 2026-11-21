@@ -274,6 +274,75 @@ export function hasSignificantMediaDescendants(el: HTMLElement): boolean {
 	})
 }
 
+/** Subtrees larger than this are never treated as empty placeholders (bounds the check). */
+const MAX_PLACEHOLDER_SUBTREE = 40
+
+const hasGeneratedContent = (win: Window, el: Element, pseudo: "::before" | "::after") => {
+	const content = win.getComputedStyle(el, pseudo).content
+	return Boolean(content) && content !== "none" && content !== "normal" && content !== '""'
+}
+
+/**
+ * True for boxes that draw nothing but their own background/border: no text,
+ * no image with a source, no drawn SVG, no form control, no `url()` background
+ * and no generated (`::before`/`::after`) content. Server-rendered pages ship
+ * these as loading skeletons that their JS fills in later (NYTimes renders
+ * empty `<picture>` and `<svg>` slots on a gray background), and since we strip
+ * scripts they stay empty; as physics bodies they are just flat gray boxes.
+ *
+ * A `<figure>` whose only content is its `<figcaption>` (a photo credit under
+ * empty media slots) counts as empty too.
+ *
+ * `text` is the element's normalized text when the caller already has it.
+ */
+export function isEmptyPlaceholder(el: HTMLElement, win: Window, text?: string): boolean {
+	const descendants = el.getElementsByTagName("*")
+	if (descendants.length > MAX_PLACEHOLDER_SUBTREE) return false
+	const isFigure = el.localName === "figure"
+	const inCaption = (node: Element) => {
+		if (!isFigure) return false
+		const caption = node.closest("figcaption")
+		return caption !== null && el.contains(caption)
+	}
+	if (isFigure) {
+		const walker = el.ownerDocument.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */)
+		for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+			const parent = t.parentElement
+			if (!parent || inCaption(parent) || /^(style|script|noscript)$/.test(parent.localName))
+				continue
+			if (t.textContent?.trim()) return false
+		}
+	} else if ((text ?? textOf(el)).length > 0) {
+		return false
+	}
+	for (const node of [el, ...Array.from(descendants)]) {
+		if (inCaption(node)) continue
+		switch (node.localName) {
+			case "img": {
+				const img = node as HTMLImageElement
+				if (img.currentSrc || img.getAttribute("src") || img.getAttribute("srcset")) return false
+				break
+			}
+			case "svg":
+				if (node.firstElementChild) return false
+				break
+			case "video":
+			case "canvas":
+			case "input":
+			case "textarea":
+			case "select":
+			case "button":
+			case "math":
+				return false
+		}
+		const cs = win.getComputedStyle(node)
+		if (/url\(|image-set\(/i.test(cs.backgroundImage)) return false
+		if (hasGeneratedContent(win, node, "::before") || hasGeneratedContent(win, node, "::after"))
+			return false
+	}
+	return true
+}
+
 export function inferSnapshotElementType(
 	el: HTMLElement,
 	cs: CSSStyleDeclaration,
@@ -483,6 +552,13 @@ export function pickContentRoot(doc: Document): HTMLElement {
 	return doc.body as HTMLElement
 }
 
+/**
+ * Marks nodes DOMino has hidden (selected originals replaced by physics clones,
+ * text replaced by the Pretext overlay). The value is the node's original inline
+ * `visibility`, so measurements can temporarily see the page as the site drew it.
+ */
+export const DOMINO_HIDDEN_ATTR = "data-domino-hidden"
+
 export function syncHiddenNodes(
 	hiddenNodes: Map<HTMLElement, string>,
 	desiredNodes: Iterable<HTMLElement>,
@@ -492,12 +568,15 @@ export function syncHiddenNodes(
 	for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
 		if (desired.has(node)) continue
 		node.style.visibility = originalVisibility
+		node.removeAttribute(DOMINO_HIDDEN_ATTR)
 		hiddenNodes.delete(node)
 	}
 
 	for (const node of desired) {
 		if (hiddenNodes.has(node)) continue
-		hiddenNodes.set(node, node.style.visibility || "")
+		const original = node.style.visibility || ""
+		hiddenNodes.set(node, original)
+		node.setAttribute(DOMINO_HIDDEN_ATTR, original)
 		node.style.visibility = "hidden"
 	}
 }
@@ -505,6 +584,23 @@ export function syncHiddenNodes(
 export function restoreHiddenNodes(hiddenNodes: Map<HTMLElement, string>) {
 	for (const [node, originalVisibility] of Array.from(hiddenNodes.entries())) {
 		node.style.visibility = originalVisibility
+		node.removeAttribute(DOMINO_HIDDEN_ATTR)
 	}
 	hiddenNodes.clear()
+}
+
+/**
+ * Runs `measure` with every node DOMino hid temporarily restored, so scans and
+ * clones see the page as the site rendered it rather than skipping (or
+ * copying `visibility: hidden` from) our own hidden originals. Synchronous, so
+ * the restored state is never painted.
+ */
+export function withDominoHiddenNodesRevealed<T>(doc: Document, measure: () => T): T {
+	const hidden = Array.from(doc.querySelectorAll<HTMLElement>(`[${DOMINO_HIDDEN_ATTR}]`))
+	for (const node of hidden) node.style.visibility = node.getAttribute(DOMINO_HIDDEN_ATTR) ?? ""
+	try {
+		return measure()
+	} finally {
+		for (const node of hidden) node.style.visibility = "hidden"
+	}
 }

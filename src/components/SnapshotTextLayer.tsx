@@ -8,7 +8,6 @@ import { TextFlowRegion } from "./TextFlowRegion"
 interface SnapshotTextLayerProps {
 	importedTextFlowActive: boolean
 	importedTextLayouts: ImportedTextLayout[]
-	importedObstacles: ObstacleRect[]
 	showLineBounds: boolean
 	/** Letter-body mode */
 	importedTextBodiesActive: boolean
@@ -20,11 +19,12 @@ interface SnapshotTextLayerProps {
 	hideLetterBodies: boolean
 }
 
+const NO_OBSTACLES: ObstacleRect[] = []
+
 /** Renders imported-page text: either as Pretext reflow or as letter-body glyphs. */
 export const SnapshotTextLayer = memo(function SnapshotTextLayer({
 	importedTextFlowActive,
 	importedTextLayouts,
-	importedObstacles,
 	showLineBounds,
 	importedTextBodiesActive,
 	importedTextBodyElements,
@@ -75,7 +75,9 @@ export const SnapshotTextLayer = memo(function SnapshotTextLayer({
 								containerWidth={layout.containerWidth}
 								containerMaxHeight={layout.containerMaxHeight}
 								textAlign={el.textAlign}
-								obstacles={importedObstacles}
+								// Flow is precomputed; a stable obstacles prop lets unchanged
+								// blocks skip re-rendering on physics frames.
+								obstacles={NO_OBSTACLES}
 								flow={layout.flow}
 								inlineStyles={layout.inlineStyles}
 								showDebug={showLineBounds}

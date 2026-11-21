@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { autoSelectThrowables, fetchPageHtml, prepareHtmlForViewer } from "./domSnapshot"
+import { BLOCKED_SITE_MESSAGE } from "../utils/botChallenge"
+import {
+	autoSelectThrowables,
+	fetchPageHtml,
+	formatArchiveTimestamp,
+	PageFetchError,
+	prepareHtmlForViewer,
+} from "./domSnapshot"
 import type { SceneDescription, SceneElement } from "./types"
 
 function makeElement(overrides: Partial<SceneElement> = {}): SceneElement {
@@ -268,6 +275,173 @@ describe("fetchPageHtml", () => {
 		const result = await fetchPageHtml("example.com")
 		expect(mockFetch).toHaveBeenCalledTimes(2)
 		expect(result.html).toBe(LONG_HTML)
+	})
+})
+
+// ── fetchPageHtml: blocked sites + archive fallback ──
+
+describe("fetchPageHtml (blocked sites)", () => {
+	const PAGE = `<html><head><title>Real</title></head><body>${"<p>story</p>".repeat(30)}</body></html>`
+	const CHALLENGE = `<html lang="en"><head><title>nytimes.com</title></head><body style="margin:0"><p id="cmsg">Please enable JS and disable any ad blocker</p><script src="https://ct.captcha-delivery.com/c.js"></script></body></html>`
+
+	beforeEach(() => {
+		vi.stubGlobal("fetch", vi.fn())
+	})
+
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	it("reports archive provenance from proxy headers", async () => {
+		vi.mocked(fetch).mockImplementation(
+			async () =>
+				new Response(PAGE, {
+					status: 200,
+					headers: {
+						"X-Dom-Ino-Source": "archive",
+						"X-Dom-Ino-Archive-Timestamp": "20261116211303",
+					},
+				}),
+		)
+		const result = await fetchPageHtml("https://www.nytimes.com")
+		expect(result).toEqual({
+			html: PAGE,
+			url: "https://www.nytimes.com",
+			source: "archive",
+			archiveTimestamp: "20261116211303",
+		})
+	})
+
+	it("marks live responses as live", async () => {
+		vi.mocked(fetch).mockImplementation(
+			async () => new Response(PAGE, { status: 200, headers: { "X-Dom-Ino-Source": "live" } }),
+		)
+		const result = await fetchPageHtml("example.com")
+		expect(result.source).toBe("live")
+		expect(result.archiveTimestamp).toBeUndefined()
+	})
+
+	it("surfaces a friendly error for blocked sites without retrying directly", async () => {
+		vi.mocked(fetch).mockImplementation(
+			async () =>
+				new Response(JSON.stringify({ error: "raw", code: "blocked", upstreamStatus: 403 }), {
+					status: 502,
+					headers: { "Content-Type": "application/json" },
+				}),
+		)
+		const promise = fetchPageHtml("https://www.nytimes.com")
+		await expect(promise).rejects.toBeInstanceOf(PageFetchError)
+		await expect(promise).rejects.toThrow(BLOCKED_SITE_MESSAGE)
+		expect(fetch).toHaveBeenCalledTimes(1)
+	})
+
+	it("passes through other structured proxy errors", async () => {
+		vi.mocked(fetch).mockImplementation(
+			async () =>
+				new Response(
+					JSON.stringify({
+						error: "Requests to private networks are not allowed",
+						code: "forbidden_target",
+					}),
+					{ status: 403 },
+				),
+		)
+		await expect(fetchPageHtml("http://localhost")).rejects.toThrow(/private networks/)
+		expect(fetch).toHaveBeenCalledTimes(1)
+	})
+
+	it("defensively rejects challenge HTML even if the proxy returned 200", async () => {
+		vi.mocked(fetch).mockImplementation(async () => new Response(CHALLENGE, { status: 200 }))
+		await expect(fetchPageHtml("https://www.nytimes.com")).rejects.toThrow(BLOCKED_SITE_MESSAGE)
+	})
+
+	it("defensively rejects challenge HTML from the direct-fetch fallback", async () => {
+		vi.mocked(fetch).mockImplementation(async (url) => {
+			if (String(url).includes("/api/fetch-page")) throw new Error("proxy down")
+			return new Response(CHALLENGE, { status: 200 })
+		})
+		await expect(fetchPageHtml("https://www.nytimes.com")).rejects.toThrow(BLOCKED_SITE_MESSAGE)
+	})
+})
+
+describe("formatArchiveTimestamp", () => {
+	it("formats Wayback timestamps as short UTC dates", () => {
+		expect(formatArchiveTimestamp("20261116211303")).toBe("Nov 16, 2026")
+		expect(formatArchiveTimestamp("garbage")).toBeNull()
+	})
+})
+
+// ── prepareHtmlForViewer: URL resolution for live + archived pages ──
+
+describe("prepareHtmlForViewer (URL resolution)", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	it("uses the original page URL as <base>, never web.archive.org", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("", { status: 404 })),
+		)
+		const html = `<html><head><title>T</title></head><body><img src="photo.jpg"><img src="/abs.jpg"></body></html>`
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/blog/post", {
+			archiveTimestamp: "20261116211303",
+		})
+		expect(result).toContain('<base href="https://www.example.com/blog/post">')
+		expect(result).not.toContain("web.archive.org")
+		// Page-relative refs resolve against the page path, not the origin root.
+		expect(result).toContain('src="https://www.example.com/blog/photo.jpg"')
+		expect(result).toContain('src="https://www.example.com/abs.jpg"')
+	})
+
+	// Regression: the `//host` rewrite also matched inside `https://host`, so
+	// every absolute srcset became `https:https://…` and the NYTimes hero
+	// <img src srcSet> rendered as a broken image.
+	it("leaves absolute srcset candidates intact and resolves relative ones", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("", { status: 404 })),
+		)
+		const abs =
+			"https://static01.nyt.com/images/a-small.jpg?format=pjpg&amp;quality=75 1x, https://static01.nyt.com/images/a-medium.jpg?format=pjpg&amp;quality=75 2x"
+		const html = `<html><head></head><body><picture><source media="(min-width: 601px)" srcSet="${abs}"><img src="https://static01.nyt.com/images/a-medium.jpg" srcSet="${abs}"></picture><img src="y.jpg" srcset="//cdn.example.com/x.jpg 1x, img/y.jpg 2x, /z.jpg 3x"></body></html>`
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/blog/post")
+		expect(result).not.toContain("https:https:")
+		const doc = new DOMParser().parseFromString(result, "text/html")
+		const expected = abs.replaceAll("&amp;", "&")
+		expect(doc.querySelector("source")?.getAttribute("srcset")).toBe(expected)
+		expect(doc.querySelector("picture img")?.getAttribute("srcset")).toBe(expected)
+		expect(doc.querySelectorAll("img")[1].getAttribute("srcset")).toBe(
+			"https://cdn.example.com/x.jpg 1x, https://www.example.com/blog/img/y.jpg 2x, https://www.example.com/z.jpg 3x",
+		)
+	})
+
+	it("fetches stylesheets as proxy assets, tagged with the archive timestamp", async () => {
+		const fetchMock = vi.fn(
+			async (_url: string) => new Response("body { color: red; }", { status: 200 }),
+		)
+		vi.stubGlobal("fetch", fetchMock)
+		const html = `<html><head><link rel="stylesheet" href="css/site.css"></head><body></body></html>`
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/blog/post", {
+			archiveTimestamp: "20261116211303",
+		})
+		const requested = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost")
+		expect(requested.pathname).toBe("/api/fetch-page")
+		expect(requested.searchParams.get("url")).toBe("https://www.example.com/blog/css/site.css")
+		expect(requested.searchParams.get("asset")).toBe("1")
+		expect(requested.searchParams.get("archive")).toBe("20261116211303")
+		expect(result).toContain("<style>body { color: red; }</style>")
+	})
+
+	it("inlines CSS containing $-sequences verbatim", async () => {
+		const css = ".a::after { content: '$&'; } .b::after { content: \"$'\"; }"
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response(css, { status: 200 })),
+		)
+		const html = `<html><head><link rel="stylesheet" href="/x.css"></head><body></body></html>`
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/")
+		expect(result).toContain(`<style>${css}</style>`)
 	})
 })
 

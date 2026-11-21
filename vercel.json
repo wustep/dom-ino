@@ -1,4 +1,9 @@
 {
+	"functions": {
+		"api/fetch-page.ts": {
+			"maxDuration": 60
+		}
+	},
 	"rewrites": [
 		{
 			"source": "/reset",

@@ -1,10 +1,17 @@
 import { parseHtmlStructure } from "./snapshot/parser"
-import { prepareHtml } from "./snapshot/prepare"
+import { type PrepareHtmlOptions, prepareHtml } from "./snapshot/prepare"
 import { renderAndWalk } from "./snapshot/walker"
 import type { SceneDescription } from "./types"
 
-export { autoSelectThrowables, fetchPageHtml } from "./snapshot/fetchPage"
-export { prepareHtml } from "./snapshot/prepare"
+export {
+	archiveViewUrl,
+	autoSelectThrowables,
+	type FetchedPage,
+	fetchPageHtml,
+	formatArchiveTimestamp,
+	PageFetchError,
+} from "./snapshot/fetchPage"
+export { type PrepareHtmlOptions, prepareHtml } from "./snapshot/prepare"
 
 // ─── Main snapshot function ───
 
@@ -28,6 +35,10 @@ export async function snapshotHtmlToScene(
 }
 
 /** Prepares fetched HTML for safe iframe rendering: inlines CSS, rewrites URLs, strips scripts. */
-export async function prepareHtmlForViewer(html: string, sourceUrl?: string): Promise<string> {
-	return sourceUrl ? prepareHtml(html, sourceUrl) : html
+export async function prepareHtmlForViewer(
+	html: string,
+	sourceUrl?: string,
+	options?: PrepareHtmlOptions,
+): Promise<string> {
+	return sourceUrl ? prepareHtml(html, sourceUrl, options) : html
 }

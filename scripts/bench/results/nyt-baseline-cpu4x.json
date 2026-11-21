@@ -1,0 +1,93 @@
+{
+	"label": "nyt-baseline-cpu4x",
+	"date": "2026-11-21T04:14:03.673Z",
+	"args": {
+		"base": "http://localhost:5292",
+		"label": "nyt-baseline-cpu4x",
+		"scenarios": "nyt",
+		"nyt": "/tmp/nytwb.html",
+		"runs": 3,
+		"duration": 10000,
+		"bodies": 40,
+		"cpu-throttle": 4,
+		"headed": false
+	},
+	"scenarios": {
+		"nyt": {
+			"summary": {
+				"timeToScan": 1415,
+				"timeToInteractive": 1500,
+				"scanPass": null,
+				"bodyCount": 40,
+				"frameMean": 77.73125,
+				"frameP95": 216.70000000000073,
+				"frameMax": 233.4000000000001,
+				"fps": 12.864838787488944,
+				"longTasks": 37,
+				"longTaskTotal": 7808,
+				"scriptMs": 5096.277,
+				"layoutMs": 66.408,
+				"styleMs": 4027.693,
+				"layoutCount": 37,
+				"styleCount": 9156,
+				"rescanFrameMax": 1249.8999999999996
+			},
+			"runs": [
+				{
+					"timeToScan": 1416,
+					"timeToInteractive": 1485,
+					"scanPass": null,
+					"bodyCount": 40,
+					"frameMean": 77.73125,
+					"frameP95": 216.70000000000073,
+					"frameMax": 233.39999999999964,
+					"fps": 12.864838787488944,
+					"longTasks": 37,
+					"longTaskTotal": 7842,
+					"scriptMs": 5053.535,
+					"layoutMs": 59.425,
+					"styleMs": 4103.829,
+					"layoutCount": 37,
+					"styleCount": 9204,
+					"rescanFrameMax": 1249.8999999999996
+				},
+				{
+					"timeToScan": 1415,
+					"timeToInteractive": 1506,
+					"scanPass": null,
+					"bodyCount": 40,
+					"frameMean": 78.56904761904761,
+					"frameP95": 216.70000000000073,
+					"frameMax": 250.10000000000036,
+					"fps": 12.727658413891332,
+					"longTasks": 37,
+					"longTaskTotal": 7808,
+					"scriptMs": 5144.409,
+					"layoutMs": 66.408,
+					"styleMs": 4015.852,
+					"layoutCount": 37,
+					"styleCount": 9156,
+					"rescanFrameMax": 1249.8999999999996
+				},
+				{
+					"timeToScan": 1411,
+					"timeToInteractive": 1500,
+					"scanPass": null,
+					"bodyCount": 40,
+					"frameMean": 75.3145038167939,
+					"frameP95": 233.29999999999927,
+					"frameMax": 233.4000000000001,
+					"fps": 13.277655024224117,
+					"longTasks": 37,
+					"longTaskTotal": 7748,
+					"scriptMs": 5096.277,
+					"layoutMs": 100.87400000000001,
+					"styleMs": 4027.693,
+					"layoutCount": 37,
+					"styleCount": 9068,
+					"rescanFrameMax": 1283.300000000001
+				}
+			]
+		}
+	}
+}

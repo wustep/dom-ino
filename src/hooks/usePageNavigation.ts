@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { fetchPageHtml, prepareHtmlForViewer } from "../scene/domSnapshot"
+import { fetchPageHtml, PageFetchError, prepareHtmlForViewer } from "../scene/domSnapshot"
 import type { PresetKey } from "../scene/presets"
 import { DEFAULT_PRESET, getPresetScene } from "../scene/presets"
 import type { CustomPage, SceneCustomPage, SceneDescription } from "../scene/types"
@@ -88,27 +88,35 @@ export function usePageNavigation({
 		setShowHint(false)
 	}, [])
 
-	const handleImportHtml = useCallback(async (html: string, name: string, sourceUrl?: string) => {
-		const preparedHtml = await prepareHtmlForViewer(html, sourceUrl)
-		let pageId: string | null = null
-		setCustomPages((prev) => {
-			// Deduplicate: if a snapshot page with the same sourceUrl exists, update it
-			if (sourceUrl) {
-				const existing = prev.find((p) => p.kind === "snapshot" && p.sourceUrl === sourceUrl)
-				if (existing) {
-					pageId = existing.id
-					return prev.map((p) => (p.id === existing.id ? { ...p, preparedHtml, name } : p))
+	const handleImportHtml = useCallback(
+		async (html: string, name: string, sourceUrl?: string, archiveTimestamp?: string) => {
+			const preparedHtml = await prepareHtmlForViewer(html, sourceUrl, { archiveTimestamp })
+			let pageId: string | null = null
+			setCustomPages((prev) => {
+				// Deduplicate: if a snapshot page with the same sourceUrl exists, update it
+				if (sourceUrl) {
+					const existing = prev.find((p) => p.kind === "snapshot" && p.sourceUrl === sourceUrl)
+					if (existing) {
+						pageId = existing.id
+						return prev.map((p) =>
+							p.id === existing.id ? { ...p, preparedHtml, name, archiveTimestamp } : p,
+						)
+					}
 				}
-			}
-			const id = `custom-${Date.now()}`
-			pageId = id
-			return [...prev, { id, name, kind: "snapshot" as const, preparedHtml, sourceUrl }]
-		})
-		setActiveCustomId(pageId!)
-		setCurrentPreset("custom")
-		setSceneKey((k) => k + 1)
-		setShowHint(false)
-	}, [])
+				const id = `custom-${Date.now()}`
+				pageId = id
+				return [
+					...prev,
+					{ id, name, kind: "snapshot" as const, preparedHtml, sourceUrl, archiveTimestamp },
+				]
+			})
+			setActiveCustomId(pageId!)
+			setCurrentPreset("custom")
+			setSceneKey((k) => k + 1)
+			setShowHint(false)
+		},
+		[],
+	)
 
 	const handleFetchUrl = useCallback(
 		async (url: string) => {
@@ -127,7 +135,7 @@ export function usePageNavigation({
 				if (name.length > 25) name = `${name.slice(0, 25)}...`
 				const elapsed = Date.now() - start
 				if (elapsed < 500) await new Promise((r) => setTimeout(r, 500 - elapsed))
-				await handleImportHtml(result.html, name, result.url)
+				await handleImportHtml(result.html, name, result.url, result.archiveTimestamp)
 			} finally {
 				setFetchingUrl(null)
 			}
@@ -135,12 +143,21 @@ export function usePageNavigation({
 		[handleImportHtml],
 	)
 
+	// Errors from the `?fetch=` bootstrap have no panel to show them in.
+	const [fetchError, setFetchError] = useState<string | null>(null)
+	useEffect(() => {
+		if (!fetchError) return
+		const timer = setTimeout(() => setFetchError(null), 8000)
+		return () => clearTimeout(timer)
+	}, [fetchError])
+
 	useEffect(() => {
 		if (!initialFetchUrl || consumedInitialFetchUrl === initialFetchUrl) return
 		consumedInitialFetchUrl = initialFetchUrl
 		queueMicrotask(() => {
 			void handleFetchUrl(initialFetchUrl).catch((error) => {
 				console.error("Failed to import bootstrap fetch URL.", error)
+				setFetchError(error instanceof Error ? error.message : "Could not fetch this page.")
 			})
 		})
 	}, [initialFetchUrl, handleFetchUrl])
@@ -163,17 +180,24 @@ export function usePageNavigation({
 				const start = Date.now()
 				try {
 					const result = await fetchPageHtml(activeCustomPage.sourceUrl!)
-					const preparedHtml = await prepareHtmlForViewer(result.html, result.url)
+					const { archiveTimestamp } = result
+					const preparedHtml = await prepareHtmlForViewer(result.html, result.url, {
+						archiveTimestamp,
+					})
 					const elapsed = Date.now() - start
 					if (elapsed < 500) await new Promise((r) => setTimeout(r, 500 - elapsed))
 					setCustomPages((prev) =>
 						prev.map((p) =>
-							p.id === pageId && p.kind === "snapshot" ? { ...p, preparedHtml } : p,
+							p.id === pageId && p.kind === "snapshot"
+								? { ...p, preparedHtml, archiveTimestamp }
+								: p,
 						),
 					)
 					setSceneKey((k) => k + 1)
-				} catch {
-					setRefetchError("Could not reload this page.")
+				} catch (error) {
+					setRefetchError(
+						error instanceof PageFetchError ? error.message : "Could not reload this page.",
+					)
 				}
 			})()
 		})
@@ -260,6 +284,7 @@ export function usePageNavigation({
 		fetchingUrl,
 		showHint,
 		refetchError,
+		fetchError,
 		// Navigation actions
 		handleSelectPreset,
 		handleSelectCustomPage,

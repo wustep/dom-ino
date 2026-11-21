@@ -1,3 +1,5 @@
+import { archiveViewUrl, formatArchiveTimestamp } from "../scene/domSnapshot"
+
 function Spinner() {
 	return (
 		<svg className="domino-spinner" width="24" height="24" viewBox="0 0 24 24">
@@ -69,6 +71,33 @@ export function Hint() {
 		<div className="domino-hint">
 			<span className="domino-hint-arrow">&#8597;</span>
 			Grab any card, badge, or button and throw it
+		</div>
+	)
+}
+
+/**
+ * Small note shown in website mode when the live site blocked automated
+ * fetching and the page is a Wayback Machine snapshot instead.
+ */
+export function ArchiveNote({ timestamp, sourceUrl }: { timestamp: string; sourceUrl?: string }) {
+	const date = formatArchiveTimestamp(timestamp)
+	const label = date ? `Archived copy · ${date}` : "Archived copy"
+	const host = sourceUrl ? sourceUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "") : "This site"
+	const title = `${host} blocks automated fetching, so this is the most recent Wayback Machine snapshot.`
+	return sourceUrl ? (
+		<a
+			className="domino-archive-note"
+			data-domino-archive-note=""
+			href={archiveViewUrl(timestamp, sourceUrl)}
+			target="_blank"
+			rel="noopener noreferrer"
+			title={title}
+		>
+			{label}
+		</a>
+	) : (
+		<div className="domino-archive-note" data-domino-archive-note="" title={title}>
+			{label}
 		</div>
 	)
 }

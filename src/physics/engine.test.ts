@@ -374,4 +374,82 @@ describe("createPhysicsEngine", () => {
 			expect(body.body.restitution).toBe(0.9)
 		})
 	})
+
+	describe("bounds clamping", () => {
+		const step = () => Matter.Events.trigger(engine.engine, "afterUpdate", {})
+
+		// Regression: the clamp used the unrotated element size, so a tall element
+		// lying on its side was held half its height above the floor.
+		it("lets rotated bodies rest on the floor", () => {
+			container = makeContainer()
+			engine = createPhysicsEngine(
+				makeScene([makeElement({ id: "tall", rect: { x: 300, y: 100, width: 20, height: 200 } })]),
+				container,
+			)
+			const tall = engine.bodies.get("tall")!.body
+			Matter.Body.setAngle(tall, Math.PI / 2)
+			// Lying flat, its vertical half-extent is 10px: center 590 touches the 600px floor.
+			Matter.Body.setPosition(tall, { x: 400, y: 590 })
+			step()
+			expect(tall.position.y).toBeCloseTo(590, 3)
+		})
+
+		it("pulls escaped bodies back inside and stops their outward motion", () => {
+			container = makeContainer()
+			engine = createPhysicsEngine(makeScene([makeElement({ id: "a" })]), container)
+			const body = engine.bodies.get("a")!.body
+			Matter.Body.setPosition(body, { x: 400, y: 900 })
+			Matter.Body.setVelocity(body, { x: 0, y: 30 })
+			step()
+			const maxY = Math.max(...body.vertices.map((v) => v.y))
+			expect(maxY).toBeCloseTo(600, 3)
+			expect(body.velocity.y).toBeLessThanOrEqual(0)
+		})
+	})
+
+	describe("updateBodyRect", () => {
+		beforeEach(() => {
+			container = makeContainer()
+			engine = createPhysicsEngine(
+				makeScene([makeElement({ id: "a", rect: { x: 100, y: 100, width: 80, height: 40 } })]),
+				container,
+			)
+		})
+
+		it("moves untouched bodies to the element's new layout position", () => {
+			engine.updateBodyRect(
+				makeElement({ id: "a", rect: { x: 100, y: 160, width: 80, height: 40 } }),
+			)
+			const pos = engine.getBodyPositions().get("a")!
+			expect(pos.x).toBeCloseTo(100, 3)
+			expect(pos.y).toBeCloseTo(160, 3)
+			engine.reset()
+			expect(engine.getBodyPositions().get("a")!.y).toBeCloseTo(160, 3)
+		})
+
+		it("keeps thrown bodies where they are but adopts the new size", () => {
+			const before = engine.bodies.get("a")!.body
+			Matter.Body.setPosition(before, { x: 500, y: 300 })
+			Matter.Body.setVelocity(before, { x: 3, y: 0 })
+			engine.updateBodyRect(
+				makeElement({ id: "a", rect: { x: 100, y: 100, width: 120, height: 60 } }),
+			)
+			const after = engine.bodies.get("a")!.body
+			expect(after.position.x).toBeCloseTo(500, 3)
+			expect(after.position.y).toBeCloseTo(300, 3)
+			expect(after.velocity.x).toBeCloseTo(3, 3)
+			expect(after.bounds.max.x - after.bounds.min.x).toBeCloseTo(120, 0)
+			expect(engine.getBodyPositions().get("a")).toMatchObject({ w: 120, h: 60 })
+			expect(engine.engine.world.bodies).not.toContain(before)
+			expect(engine.engine.world.bodies).toContain(after)
+		})
+
+		it("is a no-op when the rect is unchanged", () => {
+			const before = engine.bodies.get("a")!.body
+			engine.updateBodyRect(
+				makeElement({ id: "a", rect: { x: 100, y: 100, width: 80, height: 40 } }),
+			)
+			expect(engine.bodies.get("a")!.body).toBe(before)
+		})
+	})
 })

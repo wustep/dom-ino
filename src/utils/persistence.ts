@@ -30,6 +30,7 @@ function normalizeCustomPages(pages: unknown): CustomPage[] {
 				kind: "snapshot" as const,
 				preparedHtml: p.preparedHtml,
 				sourceUrl: typeof p.sourceUrl === "string" ? p.sourceUrl : undefined,
+				archiveTimestamp: typeof p.archiveTimestamp === "string" ? p.archiveTimestamp : undefined,
 			})
 			return acc
 		}
