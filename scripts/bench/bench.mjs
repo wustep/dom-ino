@@ -227,6 +227,37 @@ async function topUpSelection(page, target) {
 	await waitForStableClones(page)
 }
 
+/** `https://x.com` and `https://x.com/` are the same page (clients normalize differently). */
+function sameUrl(a, b) {
+	try {
+		return new URL(a).href === new URL(b).href
+	} catch {
+		return a === b
+	}
+}
+
+async function cachedAsset(route, target) {
+	const file = join(CACHE_DIR, `asset-${createHash("sha1").update(target).digest("hex")}`)
+	try {
+		const meta = JSON.parse(await readFile(`${file}.json`, "utf8"))
+		return { status: 200, headers: meta.headers, body: await readFile(file) }
+	} catch {
+		/* not cached yet */
+	}
+	try {
+		const response = await route.fetch({ timeout: 45000 })
+		if (!response.ok()) return null
+		const body = await response.body()
+		const headers = { "content-type": response.headers()["content-type"] ?? "text/plain" }
+		await mkdir(CACHE_DIR, { recursive: true })
+		await writeFile(file, body)
+		await writeFile(`${file}.json`, JSON.stringify({ target, headers }))
+		return { status: 200, headers, body }
+	} catch {
+		return null
+	}
+}
+
 async function cdpMetrics(client) {
 	const { metrics } = await client.send("Performance.getMetrics")
 	return Object.fromEntries(metrics.map((m) => [m.name, m.value]))
@@ -276,7 +307,7 @@ async function runOnce(browser, scenario) {
 
 	await page.route("**/api/fetch-page?**", async (route) => {
 		const target = new URL(route.request().url()).searchParams.get("url")
-		if (target === scenario.url) {
+		if (target && sameUrl(target, scenario.url)) {
 			await route.fulfill({
 				status: 200,
 				contentType: "text/html; charset=utf-8",
@@ -284,7 +315,15 @@ async function runOnce(browser, scenario) {
 			})
 			return
 		}
-		// Sub-resources (stylesheets) — keep the run deterministic.
+		// Sub-resources (stylesheets): saved pages like nytimes.com link most of
+		// their CSS. Fetch each once through the app's own proxy and replay it
+		// from disk, keyed by target URL only, so every build under test gets
+		// the same bytes regardless of how its proxy fetches.
+		const asset = target ? await cachedAsset(route, target) : null
+		if (asset) {
+			await route.fulfill(asset)
+			return
+		}
 		await route.fulfill({ status: 404, contentType: "application/json", body: '{"error":"bench"}' })
 	})
 
