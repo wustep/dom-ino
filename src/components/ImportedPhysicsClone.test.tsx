@@ -46,6 +46,35 @@ describe("cloneWithInlineStyles", () => {
 		expect((window as { __cloned?: number }).__cloned).toBeUndefined()
 	})
 
+	// The copy shows the candidate the page already loaded instead of
+	// re-running srcset/<source> selection (and lazy loading) in the app.
+	it("pins cloned images to the page's currentSrc", () => {
+		const source = mountSource(
+			`<picture><source media="(min-width: 1px)" srcset="https://cdn.example.com/big.jpg 1x"><img src="https://cdn.example.com/fallback.jpg" srcset="https://cdn.example.com/small.jpg 1x" sizes="50vw" loading="lazy" alt="Hero"></picture>`,
+			"",
+		)
+		const img = source.querySelector("img")!
+		Object.defineProperty(img, "currentSrc", { value: "https://cdn.example.com/big.jpg" })
+		const clone = cloneWithInlineStyles(source, window, document) as HTMLElement
+		expect(clone.querySelector("source")).toBeNull()
+		const cloneImg = clone.querySelector("img")!
+		expect(cloneImg.getAttribute("src")).toBe("https://cdn.example.com/big.jpg")
+		expect(cloneImg.hasAttribute("srcset")).toBe(false)
+		expect(cloneImg.hasAttribute("sizes")).toBe(false)
+		expect(cloneImg.hasAttribute("loading")).toBe(false)
+		expect(cloneImg.alt).toBe("Hero")
+	})
+
+	it("keeps srcset and <source> when the page has not picked an image yet", () => {
+		const source = mountSource(
+			`<picture><source srcset="/big.jpg 1x"><img src="/fallback.jpg" srcset="/small.jpg 1x"></picture>`,
+			"",
+		)
+		const clone = cloneWithInlineStyles(source, window, document) as HTMLElement
+		expect(clone.querySelector("source")?.getAttribute("srcset")).toMatch(/^http.*\/big\.jpg 1x$/)
+		expect(clone.querySelector("img")?.getAttribute("srcset")).toMatch(/^http.*\/small\.jpg 1x$/)
+	})
+
 	// Regression: cloned <iframe>s loaded third-party pages, unsandboxed, in the app.
 	it("replaces embedded browsing contexts with inert placeholders", () => {
 		const source = mountSource(

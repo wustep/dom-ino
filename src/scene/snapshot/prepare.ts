@@ -1,3 +1,4 @@
+import { toAbsoluteSrcset } from "../../utils/url"
 import { getSiteCSS, getSiteCssLinks, getSiteRemoveSelectors } from "../siteStyles"
 
 // Classes that JS adds/removes at runtime to signal loading state.
@@ -268,15 +269,16 @@ export async function prepareHtml(
 			`<img${before} src="${resolveAgainstPage(ref, pageUrl)}"`,
 	)
 
-	// 3. Rewrite srcset to absolute (including protocol-relative)
-	modified = modified.replace(/srcset=["']([^"']+)["']/gi, (_, srcset: string) => {
-		const fixed = srcset
-			.replace(/\/\/([^\s,]+)/g, "https://$1")
-			.replace(/(?:^|,\s*)(?!https?:)(\/[^\s,]+)/g, (m2, ref: string) =>
-				m2.replace(ref, origin + ref),
-			)
-		return `srcset="${fixed}"`
-	})
+	// 3. Rewrite srcset candidates to absolute (relative, root-relative and
+	// protocol-relative). Absolute candidates are left alone: the previous
+	// `//host` regex also matched inside `https://host`, producing
+	// `https:https://host/...`, which broke every absolute srcset (e.g. the
+	// NYTimes hero image).
+	modified = modified.replace(
+		/srcset=(["'])([^"']+)\1/gi,
+		(_, quote: string, srcset: string) =>
+			`srcset=${quote}${toAbsoluteSrcset(srcset, pageUrl.href)}${quote}`,
+	)
 
 	// 4. Normalize markup: noscript / lazy media / root classes (see rewriteFetchedDocumentMarkup)
 	modified = rewriteFetchedDocumentMarkup(modified)

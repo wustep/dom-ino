@@ -394,6 +394,28 @@ describe("prepareHtmlForViewer (URL resolution)", () => {
 		expect(result).toContain('src="https://www.example.com/abs.jpg"')
 	})
 
+	// Regression: the `//host` rewrite also matched inside `https://host`, so
+	// every absolute srcset became `https:https://…` and the NYTimes hero
+	// <img src srcSet> rendered as a broken image.
+	it("leaves absolute srcset candidates intact and resolves relative ones", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("", { status: 404 })),
+		)
+		const abs =
+			"https://static01.nyt.com/images/a-small.jpg?format=pjpg&amp;quality=75 1x, https://static01.nyt.com/images/a-medium.jpg?format=pjpg&amp;quality=75 2x"
+		const html = `<html><head></head><body><picture><source media="(min-width: 601px)" srcSet="${abs}"><img src="https://static01.nyt.com/images/a-medium.jpg" srcSet="${abs}"></picture><img src="y.jpg" srcset="//cdn.example.com/x.jpg 1x, img/y.jpg 2x, /z.jpg 3x"></body></html>`
+		const result = await prepareHtmlForViewer(html, "https://www.example.com/blog/post")
+		expect(result).not.toContain("https:https:")
+		const doc = new DOMParser().parseFromString(result, "text/html")
+		const expected = abs.replaceAll("&amp;", "&")
+		expect(doc.querySelector("source")?.getAttribute("srcset")).toBe(expected)
+		expect(doc.querySelector("picture img")?.getAttribute("srcset")).toBe(expected)
+		expect(doc.querySelectorAll("img")[1].getAttribute("srcset")).toBe(
+			"https://cdn.example.com/x.jpg 1x, https://www.example.com/blog/img/y.jpg 2x, https://www.example.com/z.jpg 3x",
+		)
+	})
+
 	it("fetches stylesheets as proxy assets, tagged with the archive timestamp", async () => {
 		const fetchMock = vi.fn(
 			async (_url: string) => new Response("body { color: red; }", { status: 200 }),

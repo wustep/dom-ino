@@ -98,6 +98,13 @@ export function cloneWithInlineStyles(
 	}
 
 	const htmlNode = sourceEl as HTMLElement
+	// A <picture>'s <source>s would make the copy pick its own candidate again
+	// (against the app viewport); once the page has chosen one, the cloned
+	// <img> below is pinned to it instead.
+	if (localName === "source" && sourceEl.parentElement?.localName === "picture") {
+		const chosen = sourceEl.parentElement.querySelector("img")?.currentSrc
+		if (chosen) return targetDocument.createTextNode("")
+	}
 	const clone = targetDocument.createElement(localName)
 	copyMediaAttributes(sourceEl, clone, baseUrl)
 	// Descendants keep their own computed margins, box-sizing and visibility —
@@ -107,11 +114,20 @@ export function cloneWithInlineStyles(
 
 	if (localName === "img") {
 		const imageNode = htmlNode as HTMLImageElement
-		;(clone as HTMLImageElement).src = toAbsoluteUrl(
+		const cloneImg = clone as HTMLImageElement
+		if (imageNode.currentSrc) {
+			// Show exactly the candidate the page loaded (already in the cache):
+			// srcset/sizes would be re-evaluated for the copy, and lazy loading
+			// could leave an off-screen copy blank.
+			cloneImg.removeAttribute("srcset")
+			cloneImg.removeAttribute("sizes")
+			cloneImg.removeAttribute("loading")
+		}
+		cloneImg.src = toAbsoluteUrl(
 			imageNode.currentSrc || imageNode.getAttribute("src") || imageNode.src,
 			baseUrl,
 		)
-		;(clone as HTMLImageElement).alt = imageNode.alt
+		cloneImg.alt = imageNode.alt
 	}
 	if (localName === "input") {
 		;(clone as HTMLInputElement).value = (htmlNode as HTMLInputElement).value

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { toAbsoluteSrcset, toAbsoluteUrl } from "./url"
+import { mapSrcsetUrls, toAbsoluteSrcset, toAbsoluteUrl } from "./url"
 
 const BASE = "https://example.com/page/article"
 
@@ -71,5 +71,36 @@ describe("toAbsoluteSrcset", () => {
 	it("handles srcset with no descriptor", () => {
 		const result = toAbsoluteSrcset("/simple.jpg", BASE)
 		expect(result).toBe("https://example.com/simple.jpg")
+	})
+
+	it("keeps commas that are part of a candidate URL", () => {
+		const result = toAbsoluteSrcset("/c/w_300,h_200/a.jpg 300w, /c/w_600,h_400/a.jpg 600w", BASE)
+		expect(result).toBe(
+			"https://example.com/c/w_300,h_200/a.jpg 300w, https://example.com/c/w_600,h_400/a.jpg 600w",
+		)
+	})
+
+	it("resolves relative candidates next to data: URLs", () => {
+		expect(toAbsoluteSrcset("data:image/png;base64,AAAA 1x, /b.png 2x", BASE)).toBe(
+			"data:image/png;base64,AAAA 1x, https://example.com/b.png 2x",
+		)
+	})
+})
+
+describe("mapSrcsetUrls", () => {
+	it("splits candidates like the HTML spec", () => {
+		const urls: string[] = []
+		const out = mapSrcsetUrls(" a.jpg 1x ,b.jpg, c.jpg 2x,\n d.jpg (max-width: 2px) 3x", (u) => {
+			urls.push(u)
+			return u.toUpperCase()
+		})
+		expect(urls).toEqual(["a.jpg", "b.jpg", "c.jpg", "d.jpg"])
+		expect(out).toBe("A.JPG 1x, B.JPG, C.JPG 2x, D.JPG (max-width: 2px) 3x")
+	})
+
+	it("never touches absolute candidates (regression: https:https:// URLs)", () => {
+		const srcset =
+			"https://static01.nyt.com/a-small.jpg?format=pjpg&amp;quality=75 1x, https://static01.nyt.com/a-medium.jpg?format=pjpg&amp;quality=75 2x"
+		expect(toAbsoluteSrcset(srcset, BASE)).toBe(srcset)
 	})
 })
