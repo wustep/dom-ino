@@ -341,42 +341,50 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		[],
 	)
 
+	// Depends on bodyPositions (every physics frame), so only build it while the
+	// picker is actually open.
 	const pickerItems = useMemo<SnapshotPickerOverlayItem[]>(
-		() => [
-			...selectableCandidates
-				.filter((candidate) => candidate.sceneElement)
-				.map((candidate) => ({
-					id: candidate.id,
-					x: candidate.x,
-					y: candidate.y,
-					width: candidate.width,
-					height: candidate.height,
-					borderRadius: candidate.borderRadius,
-					saved: savedElementIds.has(candidate.id),
-					active: selectedIds.has(candidate.id),
-					label: candidate.node.textContent?.trim().slice(0, 20) || "Component",
-					onToggle: () => toggleSelected(candidate.id),
-					onSave: () => saveNode(candidate.id),
-					onUnsave: () => unsaveNode(candidate.id),
-					onDelete: selectedIds.has(candidate.id) ? () => toggleSelected(candidate.id) : undefined,
-				})),
-			...droppedElements.map((element) => ({
-				id: element.id,
-				x: bodyPositions.get(element.id)?.x ?? element.rect.x,
-				y: bodyPositions.get(element.id)?.y ?? element.rect.y,
-				width: bodyPositions.get(element.id)?.w ?? element.rect.width,
-				height: bodyPositions.get(element.id)?.h ?? element.rect.height,
-				borderRadius: element.borderRadius,
-				saved: savedElementIds.has(element.sourceSavedId ?? element.id),
-				active: true,
-				label: element.imageAlt || element.text?.trim().slice(0, 20) || element.type,
-				onToggle: () => handleRemoveDropped(element.id),
-				onSave: () => onSaveElement(element),
-				onUnsave: () => onUnsaveElement(element.sourceSavedId ?? element.id),
-				onDelete: () => handleRemoveDropped(element.id),
-			})),
-		],
+		() =>
+			pickerMode !== "throwable"
+				? []
+				: [
+						...selectableCandidates
+							.filter((candidate) => candidate.sceneElement)
+							.map((candidate) => ({
+								id: candidate.id,
+								x: candidate.x,
+								y: candidate.y,
+								width: candidate.width,
+								height: candidate.height,
+								borderRadius: candidate.borderRadius,
+								saved: savedElementIds.has(candidate.id),
+								active: selectedIds.has(candidate.id),
+								label: candidate.node.textContent?.trim().slice(0, 20) || "Component",
+								onToggle: () => toggleSelected(candidate.id),
+								onSave: () => saveNode(candidate.id),
+								onUnsave: () => unsaveNode(candidate.id),
+								onDelete: selectedIds.has(candidate.id)
+									? () => toggleSelected(candidate.id)
+									: undefined,
+							})),
+						...droppedElements.map((element) => ({
+							id: element.id,
+							x: bodyPositions.get(element.id)?.x ?? element.rect.x,
+							y: bodyPositions.get(element.id)?.y ?? element.rect.y,
+							width: bodyPositions.get(element.id)?.w ?? element.rect.width,
+							height: bodyPositions.get(element.id)?.h ?? element.rect.height,
+							borderRadius: element.borderRadius,
+							saved: savedElementIds.has(element.sourceSavedId ?? element.id),
+							active: true,
+							label: element.imageAlt || element.text?.trim().slice(0, 20) || element.type,
+							onToggle: () => handleRemoveDropped(element.id),
+							onSave: () => onSaveElement(element),
+							onUnsave: () => onUnsaveElement(element.sourceSavedId ?? element.id),
+							onDelete: () => handleRemoveDropped(element.id),
+						})),
+					],
 		[
+			pickerMode,
 			droppedElements,
 			handleRemoveDropped,
 			onSaveElement,
@@ -510,6 +518,14 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 		}
 	}, [settings.physicsEnabled, settings.paused, pickerMode])
 
+	const bodyCount =
+		selectedElements.length + droppedElements.length + importedTextBodyElements.length
+	// Stable across physics frames so the toolbar doesn't re-render 60×/s.
+	const settingsContextValue = useMemo(
+		() => ({ settings, setSettings, fps, bodyCount, lineCount: 0, onResetAll }),
+		[settings, setSettings, fps, bodyCount, onResetAll],
+	)
+
 	return (
 		<div
 			style={{ position: "relative", width: "100%", minHeight: iframeHeight, background: "#fff" }}
@@ -586,7 +602,6 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 				<SnapshotTextLayer
 					importedTextFlowActive={importedTextFlowActive}
 					importedTextLayouts={importedTextLayouts}
-					importedObstacles={importedObstacles}
 					showLineBounds={settings.showLineBounds}
 					importedTextBodiesActive={importedTextBodiesActive}
 					importedTextBodyElements={importedTextBodyElements}
@@ -613,17 +628,7 @@ export function SnapshotPageView({ page, onResetAll }: SnapshotPageViewProps) {
 				<ArchiveNote timestamp={page.archiveTimestamp} sourceUrl={page.sourceUrl} />
 			)}
 
-			<SettingsContext
-				value={{
-					settings,
-					setSettings,
-					fps,
-					bodyCount:
-						selectedElements.length + droppedElements.length + importedTextBodyElements.length,
-					lineCount: 0,
-					onResetAll,
-				}}
-			>
+			<SettingsContext value={settingsContextValue}>
 				<Toolbar
 					onExplode={handleExplode}
 					onReset={handleReset}
